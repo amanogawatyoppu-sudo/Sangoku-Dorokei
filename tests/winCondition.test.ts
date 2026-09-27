@@ -45,6 +45,7 @@ describe('win condition', () => {
   it('the match ends when game time reaches GAME_TIME', () => {
     const state = newGame();
     state.nextEventAt = Infinity;
+    state.nextMeetingAt = Infinity; // meetings pause the clock (tested in meeting.test.ts)
     freezeOthers(state, []);
     runFrames(state, GAME_TIME * 1000 - 1000);
     expect(state.over).toBe(false);

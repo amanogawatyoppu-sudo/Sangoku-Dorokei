@@ -177,3 +177,6 @@ canvas#mini{width:176px;height:auto;background:#1c2417;border:1px solid var(--li
   #setup h1{font-size:30px}
 }
 @media (prefers-reduced-motion:reduce){#log,#side,#mbtns button,.pickbtn{transition:none}}
+
+.tb-meet{font-size:.85em;opacity:.75;white-space:nowrap}
+.tb-meet.soon{color:var(--accent);opacity:1;font-weight:700}

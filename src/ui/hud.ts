@@ -38,7 +38,7 @@ const TIER_LABEL: Record<CaptureTier, string> = {
 export class Hud {
   private el = {
     tbNation: $('tbNation'), tbRole: $('tbRole'), tbKing: $('tbKing'), tbJailed: $('tbJailed'),
-    tbTower: $('tbTower'), tbTime: $('tbTime'), btnMeeting: $('btnMeeting') as HTMLButtonElement, mtLeft: $('mtLeft'),
+    tbTower: $('tbTower'), tbTime: $('tbTime'), tbMeet: $('tbMeet'), btnMeeting: $('btnMeeting') as HTMLButtonElement, mtLeft: $('mtLeft'),
     fillCap: $('fillCap'), fillSpec: $('fillSpec'), btnSpecial: $('btnSpecial') as HTMLButtonElement, specialDesc: $('specialDesc'),
     stamBar: $('stamBar'), hintText: $('hintText'), suspects: $('suspects'), vignette: $('vignette'),
     banner: $('banner'), progText: $('progText'),
@@ -67,6 +67,9 @@ export class Hud {
     const left = timeLeftSec(state);
     const mm = Math.floor(left / 60), ss = Math.floor(left % 60);
     el.tbTime.textContent = mm + ':' + (ss < 10 ? '0' : '') + ss;
+    const toMeet = (state.nextMeetingAt - state.time) / 1000;
+    el.tbMeet.textContent = left - toMeet > 15 ? `（定例会議まで ${Math.floor(toMeet / 60)}:${String(Math.ceil(toMeet % 60) % 60).padStart(2, '0')}）` : '';
+    el.tbMeet.classList.toggle('soon', toMeet <= 10);
     el.tbTower.textContent = state.tower.owner ? NATIONS[state.tower.owner].name + 'が占領中' : '未占領';
     const myKing = kingOf(state, p.nation)!;
     el.tbKing.textContent = !myKing.alive ? '処刑済み' : myKing.jailed ? '捕縛中！' : '生存';

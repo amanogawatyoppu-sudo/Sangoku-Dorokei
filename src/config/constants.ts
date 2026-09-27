@@ -41,6 +41,10 @@ export const TERMINAL_TIME = 18000;
 export const MEETING_AUTO_CLOSE = 30000;
 export const MEETINGS_PER_GAME = 2;
 export const MEETING_RANGE = 90;
+/** Scheduled meetings (定例会議): every 75 s of game time, announced 5 s ahead, auto-closing after 20 s. */
+export const SCHEDULED_MEETING_EVERY = 75000;
+export const SCHEDULED_MEETING_WARN = 5000;
+export const SCHEDULED_MEETING_CLOSE = 20000;
 
 /** A/D turning speed (rad/s): about 200°/s, quick enough to dodge, smooth enough to read. */
 export const PLAYER_TURN_RATE = 3.5;

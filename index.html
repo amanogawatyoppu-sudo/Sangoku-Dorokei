@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>三国ドロケイ v7.6 3D</title>
+<title>三国ドロケイ v7.7 3D</title>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,7 +15,7 @@
     <div>所属:<b id="tbNation">-</b>/役職:<b id="tbRole">-</b></div>
     <div>自国王:<b id="tbKing">-</b>／牢屋:<b id="tbJailed">0</b>人</div>
     <div class="tb-tower">管制塔:<b id="tbTower">未占領</b></div>
-    <div>残り時間:<b id="tbTime">--:--</b></div>
+    <div>残り時間:<b id="tbTime">--:--</b> <span id="tbMeet" class="tb-meet"></span></div>
     <div id="tbActions">
       <button id="btnMeeting">緊急会議(残<span id="mtLeft">2</span>)</button>
       <button id="btnInfo" class="drawer-btn" aria-controls="side" aria-expanded="false">情報</button>
@@ -36,7 +36,7 @@
         <div id="mbtns"><div id="mStamWrap"><div id="mStam"></div></div><button id="mFace">振向</button><button id="mSpec">特殊</button><button id="mDash">ダッシュ</button><button id="mCap">捕獲</button></div>
       </div>
       <div id="setup">
-        <h1>三国ドロケイ<span class="seal ver">v7.6</span></h1>
+        <h1>三国ドロケイ<span class="seal ver">v7.7</span></h1>
         <p class="tagline">太陽・月・星 ― 広大な戦場で、正体を隠した敵国の王を探し出せ。</p>
         <div class="step-label">所属国</div><div class="pickrow" id="pickNation"></div>
         <div class="step-label">役職</div><div class="pickrow" id="pickRole"></div>
@@ -54,7 +54,7 @@
         <button id="btnRetry">もう一度プレイ</button>
       </div>
       <div id="meetingOverlay">
-        <h1>緊急会議</h1>
+        <h1 id="meetingTitle">緊急会議</h1>
         <div id="meetingLog"></div>
         <div id="meetingChoices"></div>
         <div id="meetingVote"></div>

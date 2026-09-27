@@ -72,7 +72,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize): void {
   $('btnMeeting').onclick = () => { openMeeting(state); flush(); };
 
   hud.initFor(state);
-  log.add('v7.6: 等身大の東京と人々。W/Sで前後、A/Dで旋回、Qで振り向き。');
+  log.add('v7.7: 75秒ごとに定例会議。W/Sで前後、A/Dで旋回、Qで振り向き。');
   hud.banner('三国ドロケイ 開始　' + NATIONS[nation].name + 'の' + roleName(role), 2200);
   resizeRenderer(refs, canvas);
   cam.snap(Math.atan2(state.player.dirX, state.player.dirZ));
@@ -131,6 +131,7 @@ function exposeDebug(state: GameState, cam: CameraController): void {
     camera: () => ({ yaw: cam.yaw, pitch: cam.pitch, distance: cam.distance }),
     time: () => state.time,
     meeting: () => !!state.meeting,
+    meetingIn: (sec: number) => { state.nextMeetingAt = state.time + sec * 1000; state.meetingWarned = false; },
     commands: () => state.commands.length,
     renderer: () => ({ pixelRatio: refs.renderer.getPixelRatio(), width: refs.renderer.domElement.width, height: refs.renderer.domElement.height }),
     renderInfo: () => ({ calls: refs.renderer.info.render.calls, triangles: refs.renderer.info.render.triangles, geometries: refs.renderer.info.memory.geometries, textures: refs.renderer.info.memory.textures }),

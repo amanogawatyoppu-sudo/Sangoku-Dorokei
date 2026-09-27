@@ -3,7 +3,7 @@ import { NATION_IDS } from '../config/nations';
 import type { RoleId } from '../config/roles';
 import type { RosterSize } from '../config/roles';
 import { ROSTERS } from '../config/roles';
-import { FIRST_EVENT_AT, GAME_TIME } from '../config/constants';
+import { FIRST_EVENT_AT, GAME_TIME, SCHEDULED_MEETING_EVERY } from '../config/constants';
 import type { Rng } from '../core/rng';
 import { createRng } from '../core/rng';
 import type { MeetingState } from '../meeting/meetingSystem';
@@ -67,6 +67,10 @@ export interface GameState {
   winner: NationId | 'draw' | null;
   over: boolean;
   meeting: MeetingState | null;
+  /** Game time of the next scheduled meeting, whether it has been announced, and meetings held so far. */
+  nextMeetingAt: number;
+  meetingWarned: boolean;
+  meetingsHeld: number;
   input: PlayerInput;
   commands: Command[];
   /** Outbox drained by the presentation layer after each frame. */
@@ -113,6 +117,9 @@ export function createGameState(playerNation: NationId, playerRole: RoleId, rng:
     winner: null,
     over: false,
     meeting: null,
+    nextMeetingAt: SCHEDULED_MEETING_EVERY,
+    meetingWarned: false,
+    meetingsHeld: 0,
     input: { forward: 0, turn: 0, dash: false },
     commands: [],
     events: [],

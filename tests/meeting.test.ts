@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { MEETING_AUTO_CLOSE } from '../src/config/constants';
-import { closeMeeting, openMeeting } from '../src/meeting/meetingSystem';
+import { MEETING_AUTO_CLOSE, SCHEDULED_MEETING_CLOSE, SCHEDULED_MEETING_EVERY, SCHEDULED_MEETING_WARN } from '../src/config/constants';
+import { closeMeeting, openMeeting, openScheduledMeeting, voteInMeeting } from '../src/meeting/meetingSystem';
 import { find, newGame, placeAtBase, runFrames } from './helpers';
 
 describe('meeting auto-close', () => {
@@ -63,5 +63,56 @@ describe('meeting pause', () => {
     expect(e.fakeUntil - state.time).toBe(8000);
     expect(state.radar.star - state.time).toBe(7000);
     expect(state.nextEventAt - state.time).toBe(eventIn);
+  });
+});
+
+describe('scheduled meetings (定例会議)', () => {
+  it('is announced 5 s ahead, opens every 75 s of game time and pauses the match', () => {
+    const state = newGame();
+    state.nextEventAt = Infinity;
+    runFrames(state, SCHEDULED_MEETING_EVERY - SCHEDULED_MEETING_WARN + 200);
+    expect(state.events.some((e) => e.type === 'MEETING_SOON')).toBe(true);
+    expect(state.meeting).toBeNull();
+    runFrames(state, SCHEDULED_MEETING_WARN);
+    expect(state.meeting?.kind).toBe('scheduled');
+    const t = state.time;
+    runFrames(state, 5000);
+    expect(state.time).toBe(t); // everyone is frozen while it is open
+    runFrames(state, SCHEDULED_MEETING_CLOSE);
+    expect(state.meeting).toBeNull(); // closes by itself after 20 s
+    expect(state.nextMeetingAt).toBe(2 * SCHEDULED_MEETING_EVERY);
+  });
+
+  it('reports the situation and the sightings by place, and every kingdom picks a search focus', () => {
+    const state = newGame('sun', 'soldier');
+    const enemy = find(state, 'moon', 'sniper');
+    state.factions.sun.intel.set(enemy.id, { id: enemy.id, x: enemy.x, y: 0, z: enemy.z, t: state.time, vx: 0, vz: 0, since: state.time });
+    openScheduledMeeting(state);
+    const text = state.meeting!.lines.join('\n');
+    expect(text).toContain('管制塔');
+    expect(text).toContain('捕まっている人数');
+    expect(text).toMatch(/目撃: 月国の人物1人/);
+    // The AI kingdoms decided at once; the player's side waits for the vote.
+    expect(state.teamFocus.moon).not.toBeNull();
+    expect(state.teamFocus.star).not.toBeNull();
+    expect(state.teamFocus.sun).toBeNull();
+    // The sighting's place is the first voting option.
+    expect(state.meeting!.zones[0].label).toContain('月1人');
+  });
+
+  it('without a vote, the teammates settle the focus by majority', () => {
+    const state = newGame('sun', 'soldier');
+    openScheduledMeeting(state);
+    closeMeeting(state);
+    expect(state.teamFocus.sun).not.toBeNull();
+  });
+
+  it('a vote sets the focus to the chosen place', () => {
+    const state = newGame('sun', 'soldier');
+    openScheduledMeeting(state);
+    const z = state.meeting!.zones[1];
+    voteInMeeting(state, 1);
+    closeMeeting(state);
+    expect(state.teamFocus.sun).toMatchObject({ x: z.x, z: z.z });
   });
 });

@@ -33,6 +33,6 @@ export function showResult(state: GameState): void {
     '捕獲数:' + p.capturesMade + '　救出数:' + p.rescuesMade + '　王への攻撃:' + p.kingHits +
     '\n王の捕獲貢献:' + p.kingCaptures + '　王の救出貢献:' + p.kingRescues +
     '\n管制塔滞在:' + Math.round(p.towerTime) + '秒　敵発見数:' + p.enemiesSeen.size +
-    '\nダッシュ距離:' + Math.round(p.dashDistance) + '　生存時間:' + Math.round(survive) + '秒　会議参加:' + (MEETINGS_PER_GAME - p.meetingsLeft) + '回' +
+    '\nダッシュ距離:' + Math.round(p.dashDistance) + '　生存時間:' + Math.round(survive) + '秒　会議:' + state.meetingsHeld + '回（うち緊急' + (MEETINGS_PER_GAME - p.meetingsLeft) + '回）' +
     '\n評価: ' + roleComment(p);
 }

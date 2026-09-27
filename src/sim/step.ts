@@ -12,6 +12,7 @@ import { updateSuspicion } from './systems/suspicion';
 import { towerTick } from './systems/tower';
 import { updateEnemiesSeen } from './systems/vision';
 import { forceEndByTime } from './systems/winCondition';
+import { scheduledMeetingTick } from '../meeting/meetingSystem';
 
 function runPlayerCommands(state: GameState): void {
   const cmds = state.commands;
@@ -45,4 +46,5 @@ export function stepSimulation(state: GameState, dt: number): void {
   updateEnemiesSeen(state);
   towerTick(state, dt);
   eventTick(state);
+  scheduledMeetingTick(state);
 }

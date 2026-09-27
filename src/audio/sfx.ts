@@ -29,4 +29,6 @@ export function bindSfx(bus: EventBus<GameEvent>, state: GameState): void {
   bus.on('KING_RESCUED', () => { beep(760, 0.25); setTimeout(() => beep(900, 0.2), 150); });
   bus.on('TOWER_CAPTURED', () => beep(600, 0.2));
   bus.on('FOOTSTEP', () => beep(180, 0.06));
+  bus.on('MEETING_SOON', () => { beep(520, 0.12); setTimeout(() => beep(520, 0.12), 220); });
+  bus.on('MEETING_OPENED', (ev) => { if (ev.kind === 'scheduled') beep(660, 0.25); });
 }

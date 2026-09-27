@@ -38,6 +38,7 @@ export type GameEvent =
   | { type: 'EVIDENCE'; entityId: number; text: string }
   | { type: 'FOOTSTEP' }
   | { type: 'MEETING_DENIED'; reason: MeetingDeniedReason }
-  | { type: 'MEETING_OPENED' }
+  | { type: 'MEETING_OPENED'; kind: 'emergency' | 'scheduled' }
+  | { type: 'MEETING_SOON'; inSec: number }
   | { type: 'MEETING_CLOSED'; focusSet: boolean }
   | { type: 'GAME_OVER'; winner: NationId | 'draw' };
