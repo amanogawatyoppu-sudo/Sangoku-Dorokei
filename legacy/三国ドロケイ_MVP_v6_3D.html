@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>三国ドロケイ MVP v6 3D</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{--bg:#0e1420;--panel:#161f2e;--line:#2a3648;--text:#e8edf5;--accent:#6cf}
+  *{box-sizing:border-box}
+  body{margin:0;background:#000;color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;overflow:hidden;user-select:none}
+  #app{display:flex;flex-direction:column;height:100vh}
+  #topbar{display:flex;justify-content:space-between;align-items:center;background:var(--panel);padding:6px 12px;border-bottom:1px solid var(--line);font-size:12px;flex-wrap:wrap;gap:6px;z-index:5}
+  #topbar b{color:var(--accent)}
+  #topbar button{background:#c0473f;color:#fff;border:none;border-radius:5px;padding:5px 10px;font-size:11px;cursor:pointer}
+  #topbar button:disabled{opacity:.4}
+  #hintBox{background:#1c2536;padding:4px 12px;font-size:12px;text-align:center;border-bottom:1px solid var(--line);z-index:5}
+  #main{display:flex;flex:1;overflow:hidden;position:relative}
+  #log{width:170px;background:var(--panel);border-right:1px solid var(--line);padding:8px;font-size:10.5px;overflow-y:auto;flex-shrink:0;z-index:5}
+  #log div{margin-bottom:4px;opacity:.9;line-height:1.3}
+  #centerCol{flex:1;position:relative;background:#000}
+  canvas#game3d{width:100%;height:100%;display:block}
+  #vignette{position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 0 0 rgba(255,0,0,0);transition:box-shadow .15s}
+  #vignette.on{box-shadow:inset 0 0 140px 40px rgba(255,40,40,.55)}
+  #side{width:190px;background:var(--panel);border-left:1px solid var(--line);padding:8px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;overflow-y:auto;z-index:5}
+  canvas#mini{background:#0a0f18;border:1px solid var(--line);border-radius:4px}
+  .barwrap{width:100%;height:8px;background:#26314a;border-radius:4px;overflow:hidden;margin:2px 0 6px}
+  .bar{height:100%;background:#5ad06a}
+  #suspects div{font-size:10.5px;margin-bottom:5px;opacity:.9;line-height:1.4}
+  #abilities button{width:100%;padding:8px;margin-bottom:4px;background:#22314a;color:var(--text);border:1px solid var(--line);border-radius:6px;cursor:pointer;font-size:12px;position:relative;overflow:hidden}
+  #abilities button .fill{position:absolute;left:0;top:0;bottom:0;background:rgba(108,204,255,.25);width:0%}
+  #hint{font-size:10px;opacity:.65;line-height:1.5}
+  #overlay,#setup,#meetingOverlay{position:absolute;inset:0;background:rgba(5,8,14,.96);display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;z-index:10;padding:16px;text-align:center;overflow-y:auto}
+  #overlay h1{font-size:24px}
+  #overlay button,#setup button.go{padding:10px 22px;font-size:14px;background:var(--accent);color:#03202c;border:none;border-radius:6px;cursor:pointer;font-weight:bold}
+  #setup{display:flex}
+  .pickrow{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+  .pickbtn{padding:8px 14px;border-radius:6px;border:2px solid var(--line);background:#1c2536;color:var(--text);cursor:pointer;font-size:13px}
+  .pickbtn.sel{border-color:var(--accent);background:#233248}
+  #roleDesc{max-width:460px;font-size:11.5px;opacity:.9;min-height:70px;text-align:left;line-height:1.6}
+  #banner{position:absolute;top:12%;left:50%;transform:translate(-50%,0);font-size:26px;font-weight:bold;letter-spacing:2px;text-shadow:0 0 12px #000;opacity:0;pointer-events:none;transition:opacity .35s;text-align:center;z-index:6}
+  #progText{position:absolute;top:22%;left:50%;transform:translate(-50%,0);font-size:15px;color:#6cf;text-shadow:0 0 8px #000;opacity:0;z-index:6}
+  #mctrl{position:absolute;bottom:10px;left:0;right:0;display:flex;justify-content:space-between;padding:0 14px;pointer-events:none;z-index:6}
+  #joyBase{width:96px;height:96px;border-radius:50%;background:rgba(255,255,255,.08);position:relative;pointer-events:auto;touch-action:none}
+  #joyStick{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.35);position:absolute;left:26px;top:26px}
+  #mbtns{display:flex;gap:8px;align-items:flex-end;pointer-events:auto}
+  #mbtns button{width:56px;height:56px;border-radius:50%;background:rgba(108,204,255,.3);border:2px solid var(--accent);color:#fff;font-size:12px}
+  #meetingLog{max-width:520px;max-height:180px;overflow-y:auto;font-size:12px;text-align:left;line-height:1.6;background:#0e1620;padding:8px;border-radius:6px}
+  #meetingChoices,#meetingVote{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:520px}
+  #meetingChoices button,#meetingVote button{padding:6px 10px;font-size:11.5px;background:#1c2536;border:1px solid var(--line);color:var(--text);border-radius:5px;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <div>所属:<b id="tbNation">-</b>/役職:<b id="tbRole">-</b></div>
+    <div>自国王:<b id="tbKing">-</b>／牢屋:<b id="tbJailed">0</b>人</div>
+    <div>管制塔:<b id="tbTower">未占領</b></div>
+    <div>残り時間:<b id="tbTime">--:--</b></div>
+    <button id="btnMeeting">緊急会議(残<span id="mtLeft">2</span>)</button>
+  </div>
+  <div id="hintBox">状況: <span id="hintText">-</span></div>
+  <div id="main">
+    <div id="log"></div>
+    <div id="centerCol">
+      <canvas id="game3d"></canvas>
+      <div id="vignette"></div>
+      <div id="banner"></div>
+      <div id="progText"></div>
+      <div id="mctrl">
+        <div id="joyBase"><div id="joyStick"></div></div>
+        <div id="mbtns"><button id="mCap">捕獲</button><button id="mSpec">特殊</button><button id="mDash">ダッシュ</button></div>
+      </div>
+      <div id="setup">
+        <h1>三国ドロケイ MVP v6 (3D)</h1>
+        <p style="opacity:.8;font-size:12px">太陽・月・星 ― 広大な戦場で敵国の王を探し出せ。</p>
+        <div>所属国を選択</div><div class="pickrow" id="pickNation"></div>
+        <div>役職を選択</div><div class="pickrow" id="pickRole"></div>
+        <div id="roleDesc">役職を選ぶと詳細が表示されます。</div>
+        <div class="pickrow">
+          <button class="pickbtn" id="btnRandom">ランダム(国+役職をおまかせ)</button>
+          <button class="go" id="btnStart">ゲーム開始</button>
+        </div>
+        <p style="font-size:10px;opacity:.6">移動:WASD　視点:ドラッグ/スワイプ　ダッシュ:Shift　捕獲:Space　特殊:E</p>
+      </div>
+      <div id="overlay">
+        <h1 id="ovTitle">勝敗</h1><p id="ovDesc"></p>
+        <p id="ovStats" style="font-size:11.5px;opacity:.9;white-space:pre-line"></p>
+        <button onclick="location.reload()">もう一度プレイ</button>
+      </div>
+      <div id="meetingOverlay">
+        <h1>緊急会議</h1>
+        <div id="meetingLog"></div>
+        <div id="meetingChoices"></div>
+        <div id="meetingVote"></div>
+        <button class="go" id="btnMeetingClose" style="display:none">会議を終える</button>
+      </div>
+    </div>
+    <div id="side">
+      <canvas id="mini" width="150" height="150"></canvas>
+      <div>スタミナ<div class="barwrap"><div class="bar" id="stamBar" style="width:100%"></div></div></div>
+      <div><b style="font-size:11px;opacity:.8">王候補(推理)</b><div id="suspects"><div style="opacity:.5">まだ手がかりなし</div></div></div>
+      <div id="abilities">
+        <button id="btnCapture"><span class="fill" id="fillCap"></span>捕獲(Space)</button>
+        <button id="btnSpecial"><span class="fill" id="fillSpec"></span>特殊(E)</button>
+        <div id="specialDesc" style="font-size:10px;opacity:.7;line-height:1.4"></div>
+      </div>
+      <div id="hint">移動:WASD 視点:ドラッグ ダッシュ:Shift<br>会議は自国拠点付近で開ける(1試合2回)<br>ダッシュ中は足音が大きく見つかりやすい</div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+"use strict";
+const ROLES=['king','soldier','sniper','communicator','keyholder','impostor'];
+const ROLE_INFO={
+  king:{n:'王',d:'目的:生き延びる。強み:捕獲回避能力。弱み:捕まると牢屋処刑で即敗北。おすすめ:目立たぬよう時々前線にも出て正体を隠そう。'},
+  soldier:{n:'兵士',d:'目的:前線で戦い王を守る。強み:捕獲に3回耐える。弱み:情報収集力なし。おすすめ:広場や街道で敵を迎撃、孤立しないこと。'},
+  sniper:{n:'狙撃手',d:'目的:遠距離支援。強み:前方の敵を一時スタン(射線必要)。弱み:連射不可・接近戦は弱い。おすすめ:高台(西/東の丘)で待ち構えよう。'},
+  communicator:{n:'通信士',d:'目的:情報戦の要。強み:管制塔占領が最速、レーダー取得。弱み:単体では非力。おすすめ:管制塔死守、危険を感じたら即撤退。'},
+  keyholder:{n:'鍵使い',d:'目的:味方の救出。強み:敵牢屋を解錠。弱み:解錠中は無防備。おすすめ:護衛と一緒に敵陣へ、王の救出は特に慎重に。'},
+  impostor:{n:'詐欺師',d:'目的:潜入と攪乱。強み:一定時間他国のふりができる、会議で誤誘導も可能。弱み:捕獲行動で正体露見、戦闘力は低い。おすすめ:偽装中に敵陣を観察しよう。'}
+};
+const NATIONS={
+  sun:{name:'太陽',color:0xff9048,base:{x:-720,z:420},jail:{x:-760,z:520,w:220,d:70}},
+  moon:{name:'月',color:0x57a8ff,base:{x:720,z:420},jail:{x:760,z:520,w:220,d:70}},
+  star:{name:'星',color:0xf5e05a,base:{x:0,z:-460},jail:{x:0,z:-540,w:220,d:70}}
+};
+const OBST=[
+  {x:-300,z:-150,w:60,d:400,h:60},{x:300,z:-150,w:60,d:400,h:60},
+  {x:-650,z:150,w:300,d:70,h:50},{x:650,z:150,w:300,d:70,h:50},
+  {x:0,z:-250,w:340,d:60,h:55},{x:-150,z:450,w:70,d:300,h:55},{x:150,z:450,w:70,d:300,h:55},
+  {x:-900,z:-150,w:70,d:350,h:45},{x:900,z:-150,w:70,d:350,h:45},
+  {x:-450,z:-500,w:250,d:60,h:40},{x:450,z:-500,w:250,d:60,h:40},
+  {x:0,z:220,w:120,d:120,h:45},{x:-120,z:-40,w:55,d:55,h:40},{x:120,z:-40,w:55,d:55,h:40},
+  {x:-750,z:600,w:260,d:60,h:40},{x:750,z:600,w:260,d:60,h:40},
+  {x:-330,z:700,w:60,d:220,h:40},{x:330,z:700,w:60,d:220,h:40},
+  {x:-550,z:-700,w:60,d:220,h:40},{x:550,z:-700,w:60,d:220,h:40},
+  {x:0,z:560,w:400,d:55,h:40},
+  {x:-1000,z:0,w:55,d:520,h:40},{x:1000,z:0,w:55,d:520,h:40},{x:0,z:-620,w:700,d:55,h:40}
+];
+const SNIPE=[{x:-550,z:0,r:110},{x:550,z:0,r:110}];
+const TOWER={x:0,z:0,r:80,owner:null,channel:{sun:0,moon:0,star:0}};
+const CR=14, VISION=420, CAP_RANGE=95, PLAYER_WALK=300, PLAYER_DASH=520, AI_SPEED=330;
+const GAME_TIME=300, JAIL_TIME=22000, KING_JAIL_EXTRA=6000, STUN_TIME=3000, TOWER_CHANNEL=3000;
+const radar={sun:0,moon:0,star:0}, rescueUntil={sun:0,moon:0,star:0}, terminalActive={sun:0,moon:0,star:0}, teamFocus={sun:null,moon:null,star:null};
+const natStats={sun:{cap:0,res:0,tower:0,hit:0},moon:{cap:0,res:0,tower:0,hit:0},star:{cap:0,res:0,tower:0,hit:0}};
+let radarAll=0, globalSpeedMul=1, nextEventAt=performance.now()+30000;
+
+let log=[], timeLeft=GAME_TIME, winner=null, running=false, meetingOpen=false, entities=[], player=null, fx=[];
+function addLog(m){ log.unshift(m); if(log.length>50) log.pop();
+  const el=document.getElementById('log'); if(el) el.innerHTML=log.slice(0,28).map(x=>'<div>'+x+'</div>').join(''); }
+function roleName(r){return (ROLE_INFO[r]||{}).n||r;}
+function dist(a,b){return Math.hypot(a.x-b.x,a.z-b.z);}
+function banner(text,ms){ const b=document.getElementById('banner'); b.textContent=text; b.style.opacity=1; setTimeout(()=>{ if(b.textContent===text) b.style.opacity=0; }, ms||1800); }
+function rectHit(x,z,r,o){ return x+r>o.x-o.w/2 && x-r<o.x+o.w/2 && z+r>o.z-o.d/2 && z-r<o.z+o.d/2; }
+function anyHit(x,z,r){ for(const o of OBST) if(rectHit(x,z,r,o)) return true; return false; }
+function lineClear(x1,z1,x2,z2){ const steps=12;
+  for(let i=1;i<steps;i++){ const t=i/steps,x=x1+(x2-x1)*t,z=z1+(z2-z1)*t; if(anyHit(x,z,2)) return false; } return true; }
+function clampMove(e,nx,nz){ let x=Math.max(-1050,Math.min(1050,nx)), z=Math.max(-650,Math.min(650,nz));
+  if(!anyHit(x,e.z,CR)) e.x=x; if(!anyHit(e.x,z,CR)) e.z=z; }
+function compass(dx,dz){ const a=Math.atan2(dz,dx)*180/Math.PI;
+  const dirs=['東','南東','南','南西','西','北西','北','北東']; return dirs[Math.round(((a+360)%360)/45)%8]; }
+let actx=null; function beep(freq,dur){ try{ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)();
+  const o=actx.createOscillator(),g=actx.createGain(); o.frequency.value=freq; o.type='sine'; o.connect(g); g.connect(actx.destination);
+  g.gain.setValueAtTime(.16,actx.currentTime); g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+dur); o.start(); o.stop(actx.currentTime+dur); }catch(err){} }
+
+// ---- three.js scene ----
+const CV=document.getElementById('game3d');
+const renderer=new THREE.WebGLRenderer({canvas:CV,antialias:true});
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x0a1018); scene.fog=new THREE.Fog(0x0a1018,500,1700);
+const camera=new THREE.PerspectiveCamera(65,1,1,4000);
+scene.add(new THREE.AmbientLight(0x8899aa,0.7));
+const sunLight=new THREE.DirectionalLight(0xffffff,0.9); sunLight.position.set(400,800,200); scene.add(sunLight);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(2400,1400),new THREE.MeshStandardMaterial({color:0x1c2a22}));
+ground.rotation.x=-Math.PI/2; scene.add(ground);
+scene.add(new THREE.GridHelper(2400,48,0x2a3648,0x1d2636));
+const obstMeshes=[];
+for(const o of OBST){ const m=new THREE.Mesh(new THREE.BoxGeometry(o.w,o.h,o.d),new THREE.MeshStandardMaterial({color:0x3a4a63}));
+  m.position.set(o.x,o.h/2,o.z); scene.add(m); obstMeshes.push(m); }
+for(const z of SNIPE){ const m=new THREE.Mesh(new THREE.CylinderGeometry(z.r,z.r,6,20),new THREE.MeshStandardMaterial({color:0x50607a}));
+  m.position.set(z.x,3,z.z); scene.add(m); }
+const towerMesh=new THREE.Mesh(new THREE.CylinderGeometry(TOWER.r*0.4,TOWER.r*0.55,140,16),new THREE.MeshStandardMaterial({color:0x777777}));
+towerMesh.position.set(TOWER.x,70,TOWER.z); scene.add(towerMesh);
+const natMeshes={};
+for(const n in NATIONS){ const b=NATIONS[n].base;
+  const ring=new THREE.Mesh(new THREE.RingGeometry(60,74,24),new THREE.MeshBasicMaterial({color:NATIONS[n].color,side:THREE.DoubleSide,transparent:true,opacity:.5}));
+  ring.rotation.x=-Math.PI/2; ring.position.set(b.x,0.5,b.z); scene.add(ring);
+  const term=new THREE.Mesh(new THREE.BoxGeometry(14,20,14),new THREE.MeshStandardMaterial({color:0x334455}));
+  term.position.set(b.x+40,10,b.z+40); scene.add(term);
+  const j=NATIONS[n].jail; const jm=new THREE.Mesh(new THREE.BoxGeometry(j.w,30,j.d),new THREE.MeshStandardMaterial({color:NATIONS[n].color,transparent:true,opacity:.18,wireframe:false}));
+  jm.position.set(j.x,15,j.z); scene.add(jm);
+  natMeshes[n]={ring,jm};
+}
+function makeChar(color){ const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(11,13,34,10),new THREE.MeshStandardMaterial({color}));
+  body.position.y=17+6; g.add(body);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(9,10,10),new THREE.MeshStandardMaterial({color}));
+  head.position.y=17+34; g.add(head);
+  const nose=new THREE.Mesh(new THREE.ConeGeometry(4,10,6),new THREE.MeshStandardMaterial({color:0xffffff}));
+  nose.rotation.x=Math.PI/2; nose.position.set(0,17+34,9); g.add(nose);
+  return g; }
+
+// ---- setup ----
+let selNation=null, selRole=null;
+const pn=document.getElementById('pickNation'), pr=document.getElementById('pickRole');
+for(const n in NATIONS){ const b=document.createElement('button'); b.className='pickbtn'; b.textContent=NATIONS[n].name; b.style.borderColor='#'+NATIONS[n].color.toString(16);
+  b.onclick=()=>{selNation=n; [...pn.children].forEach(c=>c.classList.remove('sel')); b.classList.add('sel');}; pn.appendChild(b); }
+for(const r of ROLES){ const b=document.createElement('button'); b.className='pickbtn'; b.textContent=ROLE_INFO[r].n;
+  b.onclick=()=>{selRole=r; [...pr.children].forEach(c=>c.classList.remove('sel')); b.classList.add('sel');
+    document.getElementById('roleDesc').textContent=ROLE_INFO[r].d;}; pr.appendChild(b); }
+document.getElementById('btnRandom').onclick=()=>{
+  const ns=Object.keys(NATIONS); selNation=ns[Math.floor(Math.random()*3)]; selRole=ROLES[Math.floor(Math.random()*6)];
+  [...pn.children].forEach(c=>c.classList.toggle('sel', c.textContent===NATIONS[selNation].name));
+  [...pr.children].forEach(c=>c.classList.toggle('sel', c.textContent===ROLE_INFO[selRole].n));
+  document.getElementById('roleDesc').textContent=ROLE_INFO[selRole].d;
+};
+document.getElementById('btnStart').onclick=()=>{ if(!selNation||!selRole){ alert('国と役職を選んでください'); return; } startGame(selNation,selRole); };
+
+let idc=0;
+const KING_PERSONAS=['cautious','aggressive','lurker','commander'];
+function mkE(nation,role,isPlayer){
+  const b=NATIONS[nation].base; const personas=['cautious','aggressive','analytical'];
+  const e={id:idc++,nation,role,isPlayer:!!isPlayer,
+    x:b.x+(Math.random()*60-30), z:b.z+(Math.random()*60-30), dirX:0, dirZ:1, yaw:0,
+    alive:true, jailed:false, jailedAt:0, capturedBy:null,
+    hp: role==='soldier'?3:1, stunUntil:0, fakeNation:null, fakeUntil:0,
+    stamina:100, dashing:false, cd:{capture:0,special:0,dodge:0},
+    wanderTarget:null, memPos:null, memTime:0, guardUntil:0, revealUntil:0, channeling:null,
+    susp:0, evidence:[], lastEvidenceAt:0, towerTicks:0, intercept: Math.random()<0.5,
+    kingPersona: role==='king'? KING_PERSONAS[Math.floor(Math.random()*4)]:null,
+    decoy:false, persona: role==='impostor'?'trickster':personas[Math.floor(Math.random()*3)],
+    capturesMade:0, rescuesMade:0, kingHits:0, kingCaptures:0, kingRescues:0, towerTime:0, dashDistance:0, eliminatedAt:null,
+    meetingsLeft:2, enemiesSeen:new Set()};
+  e.mesh=makeChar(NATIONS[nation].color); scene.add(e.mesh);
+  return e;
+}
+function startGame(nation,role){
+  for(const n in NATIONS){ const roster=[]; for(const r of ROLES) roster.push(mkE(n,r, n===nation&&r===role)); entities.push(...roster);
+    const nonKing=roster.filter(x=>x.role!=='king'); nonKing[Math.floor(Math.random()*nonKing.length)].decoy=true; }
+  player=entities.find(e=>e.isPlayer);
+  document.getElementById('setup').style.display='none';
+  document.getElementById('tbNation').textContent=NATIONS[player.nation].name;
+  document.getElementById('tbRole').textContent=roleName(player.role);
+  addLog('MVP v6(3D): 速度バランス修正・先読み挟撃AI・王の偽装行動を実装。');
+  banner('三国ドロケイ 開始　'+NATIONS[player.nation].name+'の'+roleName(player.role),2200);
+  onResize(); running=true; last=performance.now(); requestAnimationFrame(loop);
+}
+function onResize(){ const r=CV.getBoundingClientRect(); renderer.setSize(r.width,r.height,false); camera.aspect=r.width/r.height; camera.updateProjectionMatrix(); }
+window.addEventListener('resize',onResize);
+
+// ---- input ----
+const keys={}; let joy={x:0,y:0}; let touchDash=false; let camYaw=Math.PI, camPitch=0.45, camDist=170;
+window.addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;
+  if(meetingOpen) return;
+  if(e.key===' '){e.preventDefault(); if(player)attemptCapture(player);}
+  if(e.key.toLowerCase()==='e'){ if(player) activate(player); }
+});
+window.addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
+document.getElementById('btnCapture').onclick=()=>{if(player&&!meetingOpen)attemptCapture(player);};
+document.getElementById('btnSpecial').onclick=()=>{if(player&&!meetingOpen)activate(player);};
+document.getElementById('mCap').onclick=()=>{if(player&&!meetingOpen)attemptCapture(player);};
+document.getElementById('mSpec').onclick=()=>{if(player&&!meetingOpen)activate(player);};
+document.getElementById('btnMeeting').onclick=()=>tryOpenMeeting();
+const mDash=document.getElementById('mDash');
+function dashOn(e){e.preventDefault();touchDash=true;} function dashOff(e){if(e)e.preventDefault();touchDash=false;}
+mDash.addEventListener('touchstart',dashOn); mDash.addEventListener('touchend',dashOff); mDash.addEventListener('touchcancel',dashOff);
+const joyBase=document.getElementById('joyBase'), joyStick=document.getElementById('joyStick');
+let joyId=null;
+joyBase.addEventListener('touchstart',e=>{const t=e.changedTouches[0]; joyId=t.identifier; },{passive:true});
+joyBase.addEventListener('touchmove',e=>{ for(const t of e.changedTouches){ if(t.identifier!==joyId) continue;
+  const r=joyBase.getBoundingClientRect(); let dx=t.clientX-(r.left+r.width/2), dy=t.clientY-(r.top+r.height/2);
+  const d=Math.hypot(dx,dy), max=40; if(d>max){dx=dx/d*max;dy=dy/d*max;}
+  joyStick.style.left=(26+dx)+'px'; joyStick.style.top=(26+dy)+'px'; joy.x=dx/max; joy.y=dy/max; } },{passive:true});
+function joyReset(){ joyId=null; joy.x=0; joy.y=0; joyStick.style.left='26px'; joyStick.style.top='26px'; }
+joyBase.addEventListener('touchend',joyReset,{passive:true}); joyBase.addEventListener('touchcancel',joyReset,{passive:true});
+let dragging=false,lastMX=0,lastMY=0;
+CV.addEventListener('mousedown',e=>{dragging=true;lastMX=e.clientX;lastMY=e.clientY;});
+window.addEventListener('mouseup',()=>dragging=false);
+window.addEventListener('mousemove',e=>{ if(!dragging) return; camYaw -= (e.clientX-lastMX)*0.006; camPitch=Math.max(0.15,Math.min(0.9,camPitch-(e.clientY-lastMY)*0.004)); lastMX=e.clientX; lastMY=e.clientY; });
+let camTouchId=null,lastTX=0,lastTY=0;
+CV.addEventListener('touchstart',e=>{ for(const t of e.changedTouches){ if(camTouchId===null){camTouchId=t.identifier;lastTX=t.clientX;lastTY=t.clientY;} } },{passive:true});
+CV.addEventListener('touchmove',e=>{ for(const t of e.changedTouches){ if(t.identifier!==camTouchId) continue;
+  camYaw -= (t.clientX-lastTX)*0.006; camPitch=Math.max(0.15,Math.min(0.9,camPitch-(t.clientY-lastTY)*0.004)); lastTX=t.clientX; lastTY=t.clientY; } },{passive:true});
+CV.addEventListener('touchend',e=>{ for(const t of e.changedTouches) if(t.identifier===camTouchId) camTouchId=null; },{passive:true});
+
+function activate(e){ if(e.role==='keyholder') tryStartRescue(e); else useSpecial(e); }
+function captureTier(target,attacker){
+  const vx=attacker.x-target.x, vz=attacker.z-target.z, len=Math.hypot(vx,vz)||1;
+  const dot=(vx/len)*target.dirX+(vz/len)*target.dirZ;
+  if(dot>=0.15) return 'front'; if(dot<=-0.85) return 'deepback'; if(dot<=-0.5) return 'back'; return 'side';
+}
+function attemptCapture(attacker){
+  if(!attacker.alive||attacker.jailed||attacker.channeling||attacker.stunUntil>performance.now()) return;
+  if(attacker.cd.capture>0) return;
+  attacker.cd.capture=1.1;
+  let best=null,bd=CAP_RANGE;
+  for(const t of entities){ if(t.nation===attacker.nation||!t.alive||t.jailed) continue;
+    const d=dist(t,attacker); if(d<bd && captureTier(t,attacker)!=='front'){ best=t; bd=d; } }
+  if(!best) return;
+  const tier=captureTier(best,attacker);
+  if(tier==='side' && Math.random()<0.5){ addLog('側面からの捕獲は不安定だった…'); return; }
+  if(tier==='back' && Math.random()<0.15){ addLog('わずかに逃れられた！'); return; }
+  if(attacker.role==='impostor' && attacker.fakeUntil>performance.now()){ attacker.fakeUntil=0; addLog(NATIONS[attacker.nation].name+'の詐欺師の正体が露見！'); }
+  if(best.role==='king'){ natStats[attacker.nation].hit++; if(attacker===player) attacker.kingHits++;
+    if(best.cd.dodge<=0 && Math.random()<0.2){ best.cd.dodge=15; addLog(NATIONS[best.nation].name+'の王が回避した！'); return; } }
+  if(best.role==='soldier' && best.hp>1 && best.stunUntil<=performance.now()){
+    best.hp--; addLog(NATIONS[best.nation].name+'の兵士が耐えた(残り'+best.hp+')'); return; }
+  if(attacker===player) beep(300,0.12);
+  fx.push({x:best.x,z:best.z,start:performance.now()});
+  attacker.capturesMade++; natStats[attacker.nation].cap++;
+  sendToJail(best, attacker.nation, attacker);
+}
+function sendToJail(e, capNation, attacker){
+  e.jailed=true; e.jailedAt=performance.now(); e.capturedBy=capNation; e.hp = e.role==='soldier'?3:1;
+  const j=NATIONS[capNation].jail; e.x=j.x+(Math.random()*40-20); e.z=j.z+(Math.random()*10-5);
+  addLog(NATIONS[capNation].name+'が'+NATIONS[e.nation].name+'の'+roleName(e.role)+'を捕獲！');
+  if(e.role==='king'){
+    if(attacker) attacker.kingCaptures++;
+    banner(NATIONS[e.nation].name+'国王、捕縛！',2600); beep(180,0.3); setTimeout(()=>beep(140,0.3),160);
+    e.revealUntil=performance.now()+16000; rescueUntil[e.nation]=performance.now()+24000;
+    let guard=null,gd=999999; for(const g of entities){ if(g.nation===capNation&&g.role==='soldier'&&g.alive&&!g.jailed){ const d=dist(g,j); if(d<gd){guard=g;gd=d;} } }
+    if(guard) guard.guardUntil=performance.now()+16000;
+  }
+}
+function freeFromJail(e){ const b=NATIONS[e.nation].base; e.jailed=false; e.capturedBy=null; e.x=b.x; e.z=b.z; }
+function eliminate(e){ e.alive=false; e.jailed=false; e.eliminatedAt=GAME_TIME-timeLeft; e.mesh.visible=false;
+  addLog(NATIONS[e.nation].name+'の'+roleName(e.role)+'は処刑された…');
+  if(e.role==='king') checkWin(); }
+function checkWin(){
+  const alive=['sun','moon','star'].filter(n=>entities.find(e=>e.nation===n&&e.role==='king'&&e.alive));
+  if(alive.length<=1 && !winner){ winner=alive[0]||'draw'; endGame(); } }
+function roleComment(p){
+  if(p.role==='king') return p.alive? '最後まで正体を隠し切った策士':'見破られてしまったようだ';
+  if(p.role==='soldier') return p.capturesMade>=3? '前線突破型の武闘派':'手堅く連携するサポート型';
+  if(p.role==='sniper') return p.capturesMade>=2? '狙撃の名手':'支援に徹した堅実プレイ';
+  if(p.role==='communicator') return p.towerTime>=25? '情報戦を制した要':'塔の確保に苦労した様子';
+  if(p.role==='keyholder') return p.rescuesMade>=2? '救出のスペシャリスト':'慎重な立ち回りだった';
+  return '潜入と攪乱で戦況をかき乱した詐欺師';
+}
+function endGame(){
+  running=false;
+  const ov=document.getElementById('overlay'); ov.style.display='flex';
+  if(winner==='draw'){ document.getElementById('ovTitle').textContent='引き分け'; document.getElementById('ovDesc').textContent='全ての王が処刑された。'; }
+  else{ const win=winner===player.nation;
+    document.getElementById('ovTitle').textContent=NATIONS[winner].name+'国の勝利！';
+    document.getElementById('ovDesc').textContent= win? 'あなたの国が勝利しました！':'あなたの国は敗北しました。'; }
+  const survive = player.eliminatedAt!=null? player.eliminatedAt : (GAME_TIME-timeLeft);
+  document.getElementById('ovStats').textContent=
+    '捕獲数:'+player.capturesMade+'　救出数:'+player.rescuesMade+'　王への攻撃:'+player.kingHits+
+    '\n王の捕獲貢献:'+player.kingCaptures+'　王の救出貢献:'+player.kingRescues+
+    '\n管制塔滞在:'+Math.round(player.towerTime)+'秒　敵発見数:'+player.enemiesSeen.size+
+    '\nダッシュ距離:'+Math.round(player.dashDistance)+'　生存時間:'+Math.round(survive)+'秒　会議参加:'+(2-player.meetingsLeft)+'回'+
+    '\n評価: '+roleComment(player);
+}
+function tryStartRescue(e){
+  if(!e.alive||e.jailed||e.channeling||e.stunUntil>performance.now()||e.cd.special>0) return;
+  let t2=null; for(const t of entities){ if(t.nation===e.nation&&t.jailed&&dist(t,e)<50){t2=t;break;} }
+  if(!t2){ addLog('鍵使い：近くに救出対象がいません。'); return; }
+  e.channeling={target:t2,prog:0,need:t2.role==='king'?3600:900};
+  if(t2.role==='king') banner('王救出作戦開始',1500);
+}
+function updateRescue(e,dt,now){
+  if(!e.channeling) return; const t=e.channeling.target;
+  if(!t.jailed||!e.alive||e.jailed||e.stunUntil>now||dist(e,t)>52){
+    if(t.role==='king'&&e.channeling.prog>300) banner('救出失敗！',1400);
+    e.channeling=null; if(e===player) document.getElementById('progText').style.opacity=0;
+    return; }
+  e.channeling.prog+=dt*1000;
+  if(e===player){ const pt=document.getElementById('progText'); pt.style.opacity=1; pt.textContent='救出詠唱 ['+Math.round(e.channeling.prog/e.channeling.need*100)+'%]'; }
+  if(e.channeling.prog>=e.channeling.need){
+    const wasKing=t.role==='king'; freeFromJail(t); if(e===player) e.rescuesMade++; if(wasKing) e.kingRescues++;
+    natStats[e.nation].res++; e.cd.special = wasKing?5:2.5; e.channeling=null;
+    if(e===player) document.getElementById('progText').style.opacity=0;
+    addLog(NATIONS[t.nation].name+'の'+roleName(t.role)+'が救出された！');
+    if(wasKing){ banner(NATIONS[t.nation].name+'国王、救出成功！',2400); beep(760,0.25); setTimeout(()=>beep(900,0.2),150); }
+  }
+}
+function useSpecial(e){
+  if(!e.alive||e.jailed||e.channeling||e.stunUntil>performance.now()||e.cd.special>0) return;
+  if(e.role==='king'){ e.cd.special=15; e.cd.dodge=0; addLog(NATIONS[e.nation].name+'の王が回避を強化！'); }
+  else if(e.role==='soldier'){ e.cd.special=18; e.hp=3; addLog(NATIONS[e.nation].name+'の兵士が耐久回復！'); }
+  else if(e.role==='sniper'){
+    e.cd.special=8; let best=null,bd=280;
+    for(const t of entities){ if(t.nation===e.nation||!t.alive||t.jailed) continue;
+      const vx=t.x-e.x,vz=t.z-e.z,d=Math.hypot(vx,vz)||1, dot=(vx/d)*e.dirX+(vz/d)*e.dirZ;
+      if(d<bd&&dot>0.5&&lineClear(e.x,e.z,t.x,t.z)){best=t;bd=d;} }
+    if(best){ best.stunUntil=performance.now()+STUN_TIME; addLog(NATIONS[e.nation].name+'の狙撃手が'+NATIONS[best.nation].name+'をスタン！'); }
+    else addLog('狙撃手：射線が通らず外れた');
+  } else if(e.role==='communicator'){
+    if(dist(e,TOWER)>TOWER.r+16){ addLog('通信士：管制塔内でEを押してください。'); return; }
+    e.cd.special=10; radar[e.nation]=performance.now()+7000;
+    addLog(NATIONS[e.nation].name+'の通信士がレーダーを展開！');
+  } else if(e.role==='impostor'){
+    e.cd.special=14; const other=Object.keys(NATIONS).filter(n=>n!==e.nation);
+    e.fakeNation=other[Math.floor(Math.random()*other.length)]; e.fakeUntil=performance.now()+8000;
+    addLog(NATIONS[e.nation].name+'の詐欺師が偽装を開始。');
+  }
+}
+function effNation(e,viewerNation){ return (e.fakeUntil>performance.now()&&e.fakeNation&&e.nation!==viewerNation)? e.fakeNation : e.nation; }
+function visibleTo(e,viewer){
+  if(e.nation===viewer.nation) return true;
+  if(e.revealUntil>performance.now()) return true;
+  if(radarAll>performance.now()) return true;
+  if(radar[viewer.nation]>performance.now()) return true;
+  if(dist(e,TOWER)<TOWER.r+40) return true;
+  if(terminalActive[e.nation]>performance.now() && dist(e,NATIONS[e.nation].base)<90) return true;
+  const rng = e.dashing? VISION+260 : VISION;
+  return dist(e,viewer)<rng && lineClear(e.x,e.z,viewer.x,viewer.z);
+}
+function pushEvidence(e,text,now){
+  if(now-e.lastEvidenceAt<7000) return; e.lastEvidenceAt=now;
+  const stars=Math.min(5,Math.max(1,Math.ceil(e.susp/20)));
+  e.evidence.unshift({t:now,text,stars}); if(e.evidence.length>5) e.evidence.pop();
+  if(e.nation!==player.nation && visibleTo(e,player)) addLog('【推理】'+NATIONS[e.nation].name+'方面の何者かが「'+text+'」');
+}
+function updateSuspicion(e,dt,now){
+  let escort=0; for(const o of entities){ if(o!==e&&o.nation===e.nation&&o.alive&&!o.jailed&&dist(o,e)<70) escort++; }
+  let fleeing=false; const foe=entities.find(t=>t.nation!==e.nation&&t.alive&&!t.jailed&&dist(t,e)<300);
+  if(foe){ const dx=e.x-foe.x,dz=e.z-foe.z,d=Math.hypot(dx,dz)||1; if((dx/d)*e.dirX+(dz/d)*e.dirZ>0.4) fleeing=true; }
+  const decoyBoost = e.decoy? 0.6:1;
+  if(escort>=2){ e.susp=Math.min(100,e.susp+dt*13*decoyBoost); pushEvidence(e,'複数人に護衛されていた',now); }
+  if(fleeing){ e.susp=Math.min(100,e.susp+dt*9*decoyBoost); pushEvidence(e,'危険を感じて逃走した',now); }
+  if(dist(e,TOWER)<TOWER.r+20){ e.towerTicks+=dt; if(e.towerTicks>4){ e.towerTicks=0; pushEvidence(e,'管制塔を頻繁に利用していた',now); } }
+  if(escort<2&&!fleeing) e.susp=Math.max(0,e.susp-dt*5);
+}
+
+// ---- AI ----
+function moveToward(e,tx,tz,dt,speed){ const dx=tx-e.x, dz=tz-e.z, d=Math.hypot(dx,dz); if(d<2) return;
+  clampMove(e,e.x+dx/d*speed*dt,e.z+dz/d*speed*dt); e.dirX=dx/d; e.dirZ=dz/d; }
+function nearestEnemy(e,range){ let best=null,bd=range;
+  for(const t of entities){ if(t.nation===e.nation||!t.alive||t.jailed) continue;
+    let d=dist(e,t); if(t.dashing) d-=180; if(entities.some(x=>x.nation===t.nation&&x.jailed)) d-=15;
+    if(d<bd){best=t;bd=d;} } return best; }
+function jailedAlly(e){ for(const t of entities){ if(t.nation===e.nation&&t.jailed) return t; } return null; }
+function fleeFrom(e,threat,dt,speed){ const dx=e.x-threat.x,dz=e.z-threat.z,d=Math.hypot(dx,dz)||1; moveToward(e,e.x+dx/d*80,e.z+dz/d*80,dt,speed); }
+function wanderFallback(e,dt,speed,targets){
+  if(teamFocus[e.nation] && Math.random()<0.7){ moveToward(e,teamFocus[e.nation].x,teamFocus[e.nation].z,dt,speed); return; }
+  if(!e.wanderTarget||dist(e,e.wanderTarget)<20) e.wanderTarget=targets[Math.floor(Math.random()*targets.length)];
+  moveToward(e,e.wanderTarget.x,e.wanderTarget.z,dt,speed);
+}
+function chaseTarget(e,t,dt,speed){
+  let tx=t.x,tz=t.z;
+  if(e.intercept){ tx=t.x+t.dirX*90; tz=t.z+t.dirZ*90; }
+  const others=entities.filter(o=>o!==e&&o.nation===e.nation&&(o.role==='soldier'||o.role==='impostor')&&o.alive&&!o.jailed&&dist(o,t)<300);
+  const flank = others.length>0 && others[0].id<e.id; const ang = flank? Math.PI/2:0;
+  const bx0=-t.dirX*45, bz0=-t.dirZ*45;
+  const bx=tx+bx0*Math.cos(ang)-bz0*Math.sin(ang), bz=tz+bx0*Math.sin(ang)+bz0*Math.cos(ang);
+  moveToward(e,bx,bz,dt,speed); if(dist(e,t)<40) attemptCapture(e);
+}
+function kingMove(e,dt,now,speed){
+  const enemy=nearestEnemy(e,e.kingPersona==='aggressive'?90:180);
+  if(e.kingPersona==='lurker'){
+    const crowd=entities.filter(o=>o!==e&&o.alive&&!o.jailed&&dist(o,e)<180).length;
+    if(enemy && crowd<1) fleeFrom(e,enemy,dt,speed*1.1);
+    else wanderFallback(e,dt,speed*0.6,[NATIONS.sun.base,NATIONS.moon.base,NATIONS.star.base,{x:0,z:0}]);
+    return;
+  }
+  if(e.kingPersona==='aggressive'){
+    if(enemy && Math.random()<0.015) attemptCapture(e);
+    if(enemy) moveToward(e,enemy.x-enemy.dirX*40,enemy.z-enemy.dirZ*40,dt,speed*0.9);
+    else wanderFallback(e,dt,speed*0.7,Object.keys(NATIONS).filter(n=>n!==e.nation).map(n=>NATIONS[n].base));
+    return;
+  }
+  if(enemy) fleeFrom(e,enemy,dt,speed*1.1);
+  else{ const anchor = e.kingPersona==='commander'&&TOWER.owner===e.nation? TOWER : NATIONS[e.nation].base;
+    if(!e.wanderTarget||dist(e,e.wanderTarget)<15) e.wanderTarget={x:anchor.x+(Math.random()*90-45),z:anchor.z+(Math.random()*90-45)};
+    moveToward(e,e.wanderTarget.x,e.wanderTarget.z,dt,speed*0.5); }
+}
+function aiTick(e,dt,now,aggro){
+  if(!e.alive||e.jailed||e.channeling||e.stunUntil>now) return;
+  const speed=AI_SPEED*globalSpeedMul;
+  if(e.guardUntil>now && e.role==='soldier'){
+    const j=NATIONS[e.nation].jail; const intruder=entities.find(t=>t.nation!==e.nation&&t.alive&&!t.jailed&&dist(t,j)<130);
+    if(intruder) chaseTarget(e,intruder,dt,speed); else moveToward(e,j.x,j.z,dt,speed*0.6);
+    return;
+  }
+  const myKing=entities.find(k=>k.nation===e.nation&&k.role==='king');
+  const rescuing = rescueUntil[e.nation]>now && myKing && myKing.jailed;
+  if(rescuing && (e.role==='soldier'||e.role==='impostor'||e.role==='sniper')){
+    const j=NATIONS[myKing.capturedBy].jail; const off = e.role==='sniper'?80:0;
+    moveToward(e,j.x+off,j.z+off,dt,speed);
+    const near=nearestEnemy(e,160); if(near){ if(e.role==='sniper'){ const dx=near.x-e.x,dz=near.z-e.z,d=Math.hypot(dx,dz)||1;e.dirX=dx/d;e.dirZ=dz/d; useSpecial(e);} else if(dist(e,near)<40) attemptCapture(e); }
+    return;
+  }
+  if(e.role==='king'){ kingMove(e,dt,now,speed); return; }
+  if(e.role==='soldier'){
+    const ally=jailedAlly(e); const enemy=nearestEnemy(e,aggro);
+    if(enemy){ e.memPos={x:enemy.x,z:enemy.z}; e.memTime=now; chaseTarget(e,enemy,dt,speed); }
+    else if(ally) moveToward(e,ally.x,ally.z,dt,speed);
+    else if(e.memPos && now-e.memTime<4500) moveToward(e,e.memPos.x,e.memPos.z,dt,speed*0.85);
+    else wanderFallback(e,dt,speed*0.8,Object.keys(NATIONS).filter(n=>n!==e.nation).map(n=>NATIONS[n].base).concat(SNIPE));
+  } else if(e.role==='sniper'){
+    const threat=nearestEnemy(e,120); if(threat) fleeFrom(e,threat,dt,speed*0.9);
+    const enemy=nearestEnemy(e,300);
+    if(enemy){ const dx=enemy.x-e.x,dz=enemy.z-e.z,d=Math.hypot(dx,dz)||1; e.dirX=dx/d; e.dirZ=dz/d; useSpecial(e); }
+    else if(!threat) wanderFallback(e,dt,speed*0.55,SNIPE);
+  } else if(e.role==='communicator'){
+    const threat=nearestEnemy(e,100);
+    if(threat && dist(e,TOWER)>TOWER.r) fleeFrom(e,threat,dt,speed);
+    else if(dist(e,TOWER)>TOWER.r-10) moveToward(e,TOWER.x,TOWER.z,dt,speed);
+    else useSpecial(e);
+  } else if(e.role==='keyholder'){
+    const ally=jailedAlly(e);
+    if(ally && ally.capturedBy){ const j=NATIONS[ally.capturedBy].jail; moveToward(e,j.x,j.z,dt,speed);
+      if(dist(e,ally)<45) tryStartRescue(e);
+    } else wanderFallback(e,dt,speed*0.6,[{x:NATIONS[e.nation].base.x+(Math.random()*70-35),z:NATIONS[e.nation].base.z+(Math.random()*70-35)}]);
+  } else if(e.role==='impostor'){
+    const enemy=nearestEnemy(e,280);
+    if(enemy){ if(e.fakeUntil<=now && dist(e,enemy)<180 && Math.random()<0.01) useSpecial(e);
+      chaseTarget(e,enemy,dt,speed*0.95);
+    } else { const ns=Object.keys(NATIONS).filter(n=>n!==e.nation).map(n=>NATIONS[n].base); wanderFallback(e,dt,speed*0.7,ns); }
+  }
+}
+function towerTick(dt){
+  const inside={sun:false,moon:false,star:false};
+  for(const e of entities){ if(e.alive&&!e.jailed&&dist(e,TOWER)<TOWER.r) inside[e.nation]=true; }
+  const contest=Object.values(inside).filter(Boolean).length;
+  for(const n of Object.keys(NATIONS)){
+    if(inside[n]&&contest===1){ const rate = entities.find(e=>e.nation===n&&e.role==='communicator'&&dist(e,TOWER)<TOWER.r&&e.alive&&!e.jailed)?1.6:1;
+      TOWER.channel[n]+=dt*1000*rate; natStats[n].tower+=dt; if(player&&player.nation===n) player.towerTime+=dt;
+      if(TOWER.channel[n]>=TOWER_CHANNEL&&TOWER.owner!==n){ TOWER.owner=n; addLog(NATIONS[n].name+'が管制塔を占領した！'); banner(NATIONS[n].name+'が管制塔を制圧！',1600); beep(600,0.2); towerMesh.material.color.setHex(NATIONS[n].color); } }
+    else if(!inside[n]) TOWER.channel[n]=Math.max(0,TOWER.channel[n]-dt*500);
+  }
+}
+function eventTick(now){
+  if(now<nextEventAt) return; nextEventAt=now+30000+Math.random()*20000;
+  const ev=['speed','jailbreak','leak'][Math.floor(Math.random()*3)];
+  if(ev==='speed'){ globalSpeedMul=1.3; addLog('【イベント】全員の移動速度が上昇！'); setTimeout(()=>globalSpeedMul=1,7000); }
+  else if(ev==='jailbreak'){ let n=0; for(const e of entities){ if(e.jailed){ freeFromJail(e); n++; } } addLog('【イベント】牢屋が緊急開放された！('+n+'人)'); }
+  else if(ev==='leak'){ radarAll=now+5000; addLog('【イベント】敵位置情報が流出！全員の位置が一時的に見える'); }
+}
+let visSince={};
+function computeHint(now){
+  if(!player.alive) return '観戦中…最後まで見届けよう';
+  let danger=false;
+  for(const e of entities){ if(e.nation!==player.nation && e.alive && !e.jailed && visibleTo(e,player)){ if(!visSince[e.id]) visSince[e.id]=now; } else delete visSince[e.id]; }
+  let tier=0;
+  for(const id in visSince){ const el=now-visSince[id]; const en=entities.find(x=>x.id==id); if(!en) continue;
+    const d=dist(en,player); const tt = d<90&&el>2200?3: el>1100?2: 1; if(tt>tier) tier=tt;
+    if(tt>=2 && d<CAP_RANGE+40 && captureTier(player,en)!=='front') danger=true; }
+  document.getElementById('vignette').classList.toggle('on',danger);
+  if(tier===3){ if(!player._t3){ beep(880,0.15); player._t3=true;} return '敵に発見された！警戒せよ'; } else player._t3=false;
+  if(tier===2) return '警戒！敵の気配が続いている';
+  if(tier===1) return '……？ 何かが視界の端に';
+  const myKing=entities.find(e=>e.nation===player.nation&&e.role==='king');
+  if(myKing.jailed) return '至急、味方と協力して王を救出しよう！';
+  if(player.jailed) return '味方の鍵使いが助けに来るのを待とう';
+  if(player.role==='keyholder' && jailedAlly(player)) return '味方が牢屋にいる。救出を試みよう';
+  if(player.role==='communicator' && TOWER.owner!==player.nation) return '管制塔を確保しよう';
+  if(entities.some(e=>e.nation===player.nation&&e.jailed)) return '牢屋の味方を救出できないか探ろう';
+  if(entities.some(e=>e.nation!==player.nation&&e.alive&&!e.jailed&&visibleTo(e,player)&&e.susp>45)) return '怪しい動きの敵がいる…王候補として警戒しよう';
+  return '広いマップを探索し、隙を探ろう';
+}
+
+// ---- meeting ----
+function tryOpenMeeting(){
+  if(!running||meetingOpen) return;
+  if(player.meetingsLeft<=0){ addLog('緊急会議の残り回数がありません。'); return; }
+  if(dist(player,NATIONS[player.nation].base)>90){ addLog('自国拠点(会議端末)に近づいてください。'); return; }
+  player.meetingsLeft--; document.getElementById('mtLeft').textContent=player.meetingsLeft;
+  meetingOpen=true; running=false; terminalActive[player.nation]=performance.now()+18000;
+  buildMeeting();
+}
+function buildMeeting(){
+  const ov=document.getElementById('meetingOverlay'); ov.style.display='flex';
+  const lg=document.getElementById('meetingLog'); lg.innerHTML='';
+  const mates=entities.filter(e=>e.nation===player.nation&&e!==player&&e.alive);
+  const foes=entities.filter(e=>e.nation!==player.nation&&e.alive&&!e.jailed);
+  const topSusp=[...foes].sort((a,b)=>b.susp-a.susp)[0];
+  function line(t){ const d=document.createElement('div'); d.textContent=t; lg.appendChild(d); }
+  line('（自国が生存中の仲間が集まった）');
+  for(const m of mates){
+    const target = m.persona==='trickster'? foes[Math.floor(Math.random()*Math.max(1,foes.length))] : (topSusp||foes[0]);
+    if(!target) continue;
+    const label=NATIONS[target.nation].name+'の('+compass(target.x-player.x,target.z-player.z)+'方向にいた人物)';
+    const s=Math.min(5,Math.max(1,Math.ceil(target.susp/20))); const stars='★'.repeat(s)+'☆'.repeat(5-s);
+    let txt;
+    if(m.persona==='cautious') txt=roleName(m.role)+'「'+label+'を見た。確証はないけど…」'+stars;
+    else if(m.persona==='aggressive') txt=roleName(m.role)+'「'+label+'は絶対王候補だ！」'+stars;
+    else if(m.persona==='analytical') txt=roleName(m.role)+'「証拠を照らすと'+label+'が怪しい」'+stars;
+    else txt=roleName(m.role)+'「いや、'+label+'の方が怪しいと思う」'+'★'.repeat(1+Math.floor(Math.random()*3));
+    line(txt);
+  }
+  if(!mates.length) line('（生存している仲間がいない…）');
+  const ch=document.getElementById('meetingChoices'); ch.innerHTML='';
+  const opts=['管制塔を優先しよう','牢屋を警戒しよう','情報が足りない'];
+  if(topSusp) opts.unshift(NATIONS[topSusp.nation].name+'方面は怪しいと共有する');
+  for(const o of opts){ const b=document.createElement('button'); b.textContent=o;
+    b.onclick=()=>{ line('あなた:「'+o+'」'); b.disabled=true; }; ch.appendChild(b); }
+  const vt=document.getElementById('meetingVote'); vt.innerHTML='<div style="width:100%;font-size:11px;opacity:.7">重点捜索対象に投票</div>';
+  const zones=[{label:NATIONS.sun.name+'国拠点周辺',x:NATIONS.sun.base.x,z:NATIONS.sun.base.z},
+    {label:NATIONS.moon.name+'国拠点周辺',x:NATIONS.moon.base.x,z:NATIONS.moon.base.z},
+    {label:NATIONS.star.name+'国拠点周辺',x:NATIONS.star.base.x,z:NATIONS.star.base.z},
+    {label:'管制塔周辺',x:TOWER.x,z:TOWER.z}].filter(z=>z.label.indexOf(NATIONS[player.nation].name)!==0);
+  let voted=false;
+  for(const z of zones){ const b=document.createElement('button'); b.textContent=z.label;
+    b.onclick=()=>{ if(voted) return; voted=true; teamFocus[player.nation]={x:z.x,z:z.z,t:performance.now()};
+      line('→ 重点捜索対象:「'+z.label+'」に決定'); [...vt.children].forEach(c=>c.disabled=true); }; vt.appendChild(b); }
+  const closeBtn=document.getElementById('btnMeetingClose'); closeBtn.style.display='inline-block';
+  closeBtn.onclick=closeMeeting;
+  setTimeout(()=>{ if(meetingOpen) closeMeeting(); },30000);
+}
+function closeMeeting(){
+  if(!meetingOpen) return; meetingOpen=false;
+  document.getElementById('meetingOverlay').style.display='none';
+  addLog('会議終了。'+(teamFocus[player.nation]?'重点捜索対象を設定した。':'次の情報を待とう。'));
+  running=true; last=performance.now(); requestAnimationFrame(loop);
+}
+
+// ---- main loop ----
+let last=performance.now(), footTimer=0;
+function loop(now){
+  if(!running) return;
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  timeLeft-=dt; if(timeLeft<=0){ timeLeft=0; forceEndByTime(); }
+  if(!player.jailed&&player.alive&&!player.channeling&&player.stunUntil<=now){
+    const fwd=Math.sin(camYaw), fwdz=Math.cos(camYaw), rgt=Math.cos(camYaw), rgtz=-Math.sin(camYaw);
+    let mx=0,mz=0;
+    if(keys['w']||keys['arrowup']){mx+=fwd;mz+=fwdz;} if(keys['s']||keys['arrowdown']){mx-=fwd;mz-=fwdz;}
+    if(keys['d']||keys['arrowright']){mx+=rgt;mz+=rgtz;} if(keys['a']||keys['arrowleft']){mx-=rgt;mz-=rgtz;}
+    mx += fwd*(-joy.y) + rgt*joy.x; mz += fwdz*(-joy.y) + rgtz*joy.x;
+    const dashing=(keys['shift']||touchDash)&&player.stamina>0&&(mx||mz);
+    player.dashing=dashing;
+    if(dashing) player.stamina=Math.max(0,player.stamina-30*dt); else player.stamina=Math.min(100,player.stamina+15*dt);
+    if(mx||mz){ const len=Math.hypot(mx,mz); mx/=len;mz/=len;
+      const spd=(dashing?PLAYER_DASH:PLAYER_WALK)*globalSpeedMul; const ox=player.x,oz=player.z;
+      clampMove(player,player.x+mx*spd*dt,player.z+mz*spd*dt); player.dirX=mx; player.dirZ=mz;
+      if(dashing){ player.dashDistance+=Math.hypot(player.x-ox,player.z-oz);
+        footTimer-=dt; if(footTimer<=0){ beep(180,0.06); footTimer=0.22; } }
+    }
+  } else player.dashing=false;
+  const aggro = Math.min(880, 480 + (GAME_TIME-timeLeft)*1.3);
+  for(const e of entities){ if(!e.isPlayer) aiTick(e,dt,now,aggro); }
+  for(const e of entities){ updateRescue(e,dt,now); updateSuspicion(e,dt,now); }
+  for(const e of entities){ for(const k in e.cd) e.cd[k]=Math.max(0,e.cd[k]-dt); }
+  for(const e of entities){ if(e.jailed){ const extra=e.role==='king'?KING_JAIL_EXTRA:0; if(now-e.jailedAt>JAIL_TIME+extra) eliminate(e); } }
+  for(const e of entities){ if(e!==player && e.nation!==player.nation && e.alive && visibleTo(e,player)) player.enemiesSeen.add(e.id); }
+  towerTick(dt); eventTick(now);
+  syncMeshes(now); updateCamera(); renderer.render(scene,camera);
+  updateUI(now); updateMini(now);
+  requestAnimationFrame(loop);
+}
+function syncMeshes(now){
+  for(const e of entities){
+    if(!e.alive){ e.mesh.visible=false; continue; }
+    const vis = e===player || visibleTo(e,player);
+    e.mesh.visible=vis; if(!vis) continue;
+    let y=0; for(const z of SNIPE) if(e.role==='sniper'&&dist(e,z)<z.r) y=24;
+    e.mesh.position.set(e.x,y,e.z);
+    e.mesh.rotation.y=Math.atan2(e.dirX,e.dirZ);
+    const nat=effNation(e,player.nation);
+    e.mesh.children[0].material.color.setHex(NATIONS[nat].color);
+    e.mesh.children[1].material.color.setHex(NATIONS[nat].color);
+    e.mesh.children[0].material.opacity = e.jailed?0.5:1; e.mesh.children[0].material.transparent=e.jailed;
+  }
+}
+function updateCamera(){
+  const dx=Math.sin(camYaw)*Math.cos(camPitch), dz=Math.cos(camYaw)*Math.cos(camPitch), dy=Math.sin(camPitch);
+  let d=camDist;
+  for(let i=1;i<=6;i++){ const t=i/6; const px=player.x-dx*d*t, pz=player.z-dz*d*t; if(anyHit(px,pz,10)){ d=camDist*t*0.85; break; } }
+  const cx=player.x-dx*d, cz=player.z-dz*d, cy=40+dy*d*0.8+70;
+  camera.position.set(cx,cy,cz);
+  camera.lookAt(player.x,60,player.z);
+}
+function forceEndByTime(){
+  running=false;
+  const aliveN=['sun','moon','star'].filter(n=>entities.find(e=>e.nation===n&&e.role==='king'&&e.alive));
+  if(aliveN.length===1){ winner=aliveN[0]; endGame(); return; }
+  let best=null,bs=-1;
+  for(const n of aliveN){ const s=natStats[n].cap*3+natStats[n].res*2+natStats[n].tower+natStats[n].hit*2; if(s>bs){bs=s;best=n;} }
+  const tie=aliveN.filter(n=>{const s=natStats[n].cap*3+natStats[n].res*2+natStats[n].tower+natStats[n].hit*2; return s===bs;});
+  winner = tie.length===1? best : 'draw';
+  endGame();
+}
+function updateUI(now){
+  const mm=Math.floor(timeLeft/60), ss=Math.floor(timeLeft%60);
+  document.getElementById('tbTime').textContent=mm+':'+(ss<10?'0':'')+ss;
+  document.getElementById('tbTower').textContent= TOWER.owner? NATIONS[TOWER.owner].name+'が占領中':'未占領';
+  const myKing=entities.find(e=>e.nation===player.nation&&e.role==='king');
+  document.getElementById('tbKing').textContent = !myKing.alive? '処刑済み' : myKing.jailed? '捕縛中！':'生存';
+  document.getElementById('tbJailed').textContent = entities.filter(e=>e.nation===player.nation&&e.jailed).length;
+  document.getElementById('btnMeeting').disabled = player.meetingsLeft<=0;
+  document.getElementById('fillCap').style.width = player.cd.capture<=0?'0%':(player.cd.capture/1.1*100)+'%';
+  const specCap={king:15,soldier:18,sniper:8,keyholder:1,communicator:10,impostor:14}[player.role]||1;
+  document.getElementById('btnSpecial').disabled = player.cd.special>0;
+  document.getElementById('fillSpec').style.width = Math.min(100,player.cd.special/specCap*100)+'%';
+  document.getElementById('specialDesc').textContent = {king:'回避を強化',soldier:'耐久を全回復',sniper:'前方の敵をスタン(射線必要)',keyholder:'牢屋の味方の近くでE(王は詠唱長め・進捗表示あり)',communicator:'管制塔内でレーダー展開',impostor:'他国に偽装(捕獲で解除)'}[player.role];
+  document.getElementById('stamBar').style.width = player.stamina+'%';
+  document.getElementById('hintText').textContent = computeHint(now);
+  const susp=entities.filter(e=>e.nation!==player.nation&&e.alive&&!e.jailed&&visibleTo(e,player)&&e.susp>15)
+    .sort((a,b)=>b.susp-a.susp).slice(0,3);
+  const box=document.getElementById('suspects');
+  box.innerHTML = susp.length? susp.map(e=>{ const s=Math.min(5,Math.max(1,Math.ceil(e.susp/20)));
+    const stars='★'.repeat(s)+'☆'.repeat(5-s); const ev=e.evidence[0]? '「'+e.evidence[0].text+'」':'根拠はまだ薄い';
+    return '<div>'+NATIONS[e.nation].name+'・'+compass(e.x-player.x,e.z-player.z)+' '+stars+'<br>'+ev+'</div>'; }).join('') : '<div style="opacity:.5">まだ手がかりなし</div>';
+}
+const MV=document.getElementById('mini'), MX=MV.getContext('2d');
+function updateMini(now){
+  MX.clearRect(0,0,150,150); const sx=150/2200, sy=150/1400, ox=1100, oy=700;
+  MX.fillStyle='#0a0f18'; MX.fillRect(0,0,150,150);
+  for(const o of OBST){ MX.fillStyle='#2a3648'; MX.fillRect((o.x+ox-o.w/2)*sx,(o.z+oy-o.d/2)*sy,o.w*sx,o.d*sy); }
+  for(const n in NATIONS){ const j=NATIONS[n].jail; MX.strokeStyle='#'+NATIONS[n].color.toString(16).padStart(6,'0'); MX.strokeRect((j.x+ox-j.w/2)*sx,(j.z+oy-j.d/2)*sy,j.w*sx,j.d*sy); }
+  MX.beginPath(); MX.arc((TOWER.x+ox)*sx,(TOWER.z+oy)*sy,4,0,7); MX.fillStyle= TOWER.owner?'#'+NATIONS[TOWER.owner].color.toString(16).padStart(6,'0'):'#666'; MX.fill();
+  for(const e of entities){ if(!e.alive) continue; if(e!==player && !visibleTo(e,player)) continue;
+    MX.beginPath(); MX.arc((e.x+ox)*sx,(e.z+oy)*sy,3,0,7); MX.fillStyle='#'+NATIONS[effNation(e,player.nation)].color.toString(16).padStart(6,'0'); MX.fill(); }
+}
+})();
+</script>
+</body>
+</html>
