@@ -2,7 +2,7 @@ import type { Point } from '../config/nations';
 import { NATIONS } from '../config/nations';
 import { roleName } from '../config/roles';
 import { TOWER } from '../config/map';
-import { MEETING_RANGE, TERMINAL_TIME } from '../config/constants';
+import { MEETING_AUTO_CLOSE, MEETING_RANGE, TERMINAL_TIME } from '../config/constants';
 import type { Entity } from '../sim/entity';
 import type { GameState } from '../sim/state';
 import { emit } from '../sim/state';
@@ -19,6 +19,12 @@ export interface MeetingState {
   choices: string[];
   zones: MeetingZone[];
   voted: boolean;
+  /**
+   * Real time the meeting has been open. Game time is frozen during a meeting,
+   * so the auto-close deadline is tracked per meeting instead of via setTimeout;
+   * a closed meeting's deadline disappears with it.
+   */
+  elapsedMs: number;
 }
 
 const DIRS = ['東', '南東', '南', '南西', '西', '北西', '北', '北東'];
@@ -76,7 +82,7 @@ export function openMeeting(state: GameState): boolean {
     { label: '管制塔周辺', x: TOWER.x, z: TOWER.z },
   ].filter((z) => z.label.indexOf(NATIONS[p.nation].name) !== 0);
 
-  state.meeting = { lines, choices, zones, voted: false };
+  state.meeting = { lines, choices, zones, voted: false, elapsedMs: 0 };
   emit(state, { type: 'MEETING_OPENED' });
   return true;
 }
@@ -99,4 +105,12 @@ export function closeMeeting(state: GameState): void {
   if (!state.meeting) return;
   state.meeting = null;
   emit(state, { type: 'MEETING_CLOSED', focusSet: !!state.teamFocus[state.player.nation] });
+}
+
+/** Advances the open meeting by real (wall-clock) time and auto-closes it after 30s. */
+export function updateMeeting(state: GameState, realMs: number): void {
+  const m = state.meeting;
+  if (!m) return;
+  m.elapsedMs += Math.max(0, realMs);
+  if (m.elapsedMs >= MEETING_AUTO_CLOSE) closeMeeting(state);
 }

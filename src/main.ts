@@ -3,7 +3,6 @@ import type { NationId } from './config/nations';
 import { NATIONS } from './config/nations';
 import type { RoleId } from './config/roles';
 import { roleName } from './config/roles';
-import { MEETING_AUTO_CLOSE } from './config/constants';
 import { FixedStepClock } from './core/clock';
 import { EventBus } from './core/events';
 import { startRafLoop } from './core/loop';
@@ -50,7 +49,6 @@ function startGame(nation: NationId, role: RoleId): void {
       vote: (i) => voteInMeeting(state, i),
       close: () => { closeMeeting(state); flush(); },
     });
-    setTimeout(() => { if (state.meeting) { closeMeeting(state); flush(); } }, MEETING_AUTO_CLOSE);
   });
   bus.on('MEETING_CLOSED', () => meetingView.hide());
 
