@@ -2,6 +2,9 @@
 export const CR = 14;
 export const VISION = 420;
 export const DASH_VISION_BONUS = 260;
+/** A sniper's scope: inside a narrow cone ahead (±22°) they see this far. */
+export const SCOPE_RANGE = 580;
+export const SCOPE_COS = Math.cos((22 * Math.PI) / 180);
 export const CAP_RANGE = 95;
 /** Captures need the two characters on the same level (feet within this height). */
 export const CAP_HEIGHT = 30;

@@ -8,6 +8,7 @@ import { STEP_SEC } from '../core/clock';
 import type { BoneName, Human } from './humanModel';
 import { BONES, buildHuman } from './humanModel';
 import { emblemTexture } from './textures';
+import { sniperTarget } from '../sim/systems/abilities';
 
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -30,7 +31,17 @@ interface Anim {
   reach: number;
   lastCapCd: number;
   nation: NationId;
+  /** Snipers: 0 = rifle at low ready … 1 = shouldered; recoil timer after a shot. */
+  aim: number;
+  recoil: number;
+  lastSpecialCd: number;
 }
+
+/** Rifle placement on the chest bone: low ready (muzzle down, across the body) and shouldered. */
+const GUN_READY = { p: new THREE.Vector3(-1.8, -1.5, 8.5), r: new THREE.Euler(0.5, 0.25, 0) };
+const GUN_AIM = { p: new THREE.Vector3(-2.6, 5.0, 10.5), r: new THREE.Euler(0, 0, 0) };
+const ARMS_READY: Pose = { armR: [-0.5, 0, 0.12], foreR: [-1.1, 0, 0], armL: [-0.7, 0, -0.45], foreL: [-1.3, 0, 0] };
+const ARMS_AIM: Pose = { armR: [-1.3, 0, 0.35], foreR: [-0.85, 0, 0], armL: [-1.55, 0, -0.55], foreL: [-0.3, 0, 0] };
 
 /** Target rotations (x, y, z) per bone for this frame; missing = rest. */
 type Pose = Partial<Record<BoneName, [number, number, number]>>;
@@ -58,12 +69,12 @@ export class EntityView {
     this.playerEmblemMats = Object.fromEntries(NATION_IDS.map((n) => [n, mk(n)])) as Record<NationId, THREE.MeshStandardMaterial>;
     for (const e of state.entities) {
       const mats = e.isPlayer ? this.playerEmblemMats : this.emblemMats;
-      const human = buildHuman(e.id, NATIONS[e.nation].color, mats[e.nation]);
+      const human = buildHuman(e.id, NATIONS[e.nation].color, mats[e.nation], { gun: e.role === 'sniper' });
       human.mesh.scale.setScalar(human.look.height);
       scene.add(human.mesh);
       this.anims.set(e.id, {
         human, phase: (e.id * 1.7) % (Math.PI * 2), yaw: Math.atan2(e.dirX, e.dirZ), turnRate: 0, speed: 0,
-        headYaw: 0, reach: 0, lastCapCd: e.cd.capture, nation: e.nation,
+        headYaw: 0, reach: 0, lastCapCd: e.cd.capture, nation: e.nation, aim: 0, recoil: 0, lastSpecialCd: e.cd.special,
       });
     }
   }
@@ -213,7 +224,46 @@ export class EntityView {
         pose.spine = [lean + 0.2 * k, 0, 0];
       }
     }
+    if (a.human.gun) this.holdRifle(a, e, state, pose, dt);
     this.apply(a, pose, hipsY, rootZ, dt);
+  }
+
+  /** Snipers carry the rifle at low ready and shoulder it while drawing a bead or firing. */
+  private holdRifle(a: Anim, e: Entity, state: GameState, pose: Pose, dt: number): void {
+    const gun = a.human.gun!;
+    gun.visible = !e.jailed; // confiscated in jail
+    if (e.jailed || e.channeling) return;
+    if (e.cd.special > a.lastSpecialCd + 1) a.recoil = 0.7; // a real shot (not the short retry delay)
+    a.lastSpecialCd = e.cd.special;
+    a.recoil = Math.max(0, a.recoil - dt);
+    const stunned = e.stunUntil > state.time;
+    const aiming = !stunned && (a.recoil > 0 || (e.isPlayer ? !!sniperTarget(state, e) : e.ai.aimId !== null));
+    a.aim = lerp(a.aim, aiming ? 1 : 0, 1 - Math.exp(-dt * 10));
+    const k = a.aim;
+    for (const b of ['armR', 'foreR', 'armL', 'foreL'] as const) {
+      const r = ARMS_READY[b]!, q = ARMS_AIM[b]!;
+      pose[b] = [lerp(r[0], q[0], k), lerp(r[1], q[1], k), lerp(r[2], q[2], k)];
+    }
+    if (k > 0.5) {
+      pose.head = [(pose.head?.[0] ?? 0) - 0.08 * k, (pose.head?.[1] ?? 0) * (1 - k) - 0.1 * k, 0];
+      pose.spine = [(pose.spine?.[0] ?? 0) + 0.05 * k, 0, 0];
+    }
+    // Kick: the muzzle jumps up and back for a moment after the shot.
+    const kick = a.recoil > 0.55 ? (a.recoil - 0.55) / 0.15 : 0;
+    gun.position.lerpVectors(GUN_READY.p, GUN_AIM.p, k).z -= kick * 1.5;
+    gun.rotation.set(lerp(GUN_READY.r.x, GUN_AIM.r.x, k) - kick * 0.25, lerp(GUN_READY.r.y, GUN_AIM.r.y, k), 0);
+  }
+
+  /** World position of a sniper's muzzle (last rendered pose), or null. */
+  muzzle(id: number, out: THREE.Vector3): THREE.Vector3 | null {
+    const m = this.anims.get(id)?.human.muzzle;
+    if (!m) return null;
+    return m.getWorldPosition(out);
+  }
+
+  /** Whether a character's model is currently shown. */
+  shown(id: number): boolean {
+    return !!this.anims.get(id)?.human.mesh.visible;
   }
 
   /** Eases every bone toward its pose (quick, so the gait keeps its snap). */

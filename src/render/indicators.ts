@@ -3,6 +3,7 @@ import type { GameState } from '../sim/state';
 import type { CaptureTier } from '../sim/systems/capture';
 import { captureCandidate, captureTier } from '../sim/systems/capture';
 import { visibleTo } from '../sim/systems/vision';
+import { sniperTarget } from '../sim/systems/abilities';
 import { lerp } from './entityView';
 
 /** captureTier() calls anything with dot >= 0.15 'front', i.e. within ±81.4° of facing. */
@@ -18,6 +19,8 @@ const TIER_COLOR: Record<CaptureTier, number> = { deepback: 0x7dff9a, back: 0xc8
 export class Indicators {
   private front = new THREE.Group();
   private target: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
+  /** Sniper lock-on: red crosshair ring under whoever the shot would hit (grey while reloading). */
+  private reticle: THREE.Group;
 
   constructor(scene: THREE.Scene) {
     const arc = new THREE.Mesh(
@@ -37,6 +40,21 @@ export class Indicators {
     this.target.rotation.x = -Math.PI / 2;
     this.target.visible = false;
     scene.add(this.target);
+
+    this.reticle = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({ color: 0xff3030, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false });
+    const ring = new THREE.Mesh(new THREE.RingGeometry(27, 30, 36), mat);
+    ring.rotation.x = -Math.PI / 2;
+    this.reticle.add(ring);
+    for (let i = 0; i < 4; i++) {
+      const tick = new THREE.Mesh(new THREE.PlaneGeometry(3, 12), mat);
+      tick.rotation.x = -Math.PI / 2;
+      tick.rotation.z = (i * Math.PI) / 2;
+      tick.position.set(Math.sin((i * Math.PI) / 2) * 34, 0, Math.cos((i * Math.PI) / 2) * 34);
+      this.reticle.add(tick);
+    }
+    this.reticle.visible = false;
+    scene.add(this.reticle);
   }
 
   sync(state: GameState, alpha: number): void {
@@ -47,6 +65,13 @@ export class Indicators {
       const x = lerp(p.prevX, p.x, alpha), z = lerp(p.prevZ, p.z, alpha);
       this.front.position.set(x, lerp(p.prevY, p.y, alpha), z);
       this.front.rotation.y = Math.atan2(p.dirX, p.dirZ);
+    }
+    const s = active && p.role === 'sniper' && !state.meeting && p.stunUntil <= state.time ? sniperTarget(state, p) : null;
+    this.reticle.visible = !!s;
+    if (s) {
+      this.reticle.position.set(lerp(s.prevX, s.x, alpha), lerp(s.prevY, s.y, alpha) + 1, lerp(s.prevZ, s.z, alpha));
+      this.reticle.rotation.y = state.time / 900;
+      ((this.reticle.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial).color.setHex(p.cd.special > 0.5 ? 0x8a8a8a : 0xff3030);
     }
     const t = active && !state.meeting && p.stunUntil <= state.time ? captureCandidate(state, p) : null;
     this.target.visible = !!t && visibleTo(state, t, p);

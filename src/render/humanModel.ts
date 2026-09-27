@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 /**
  * A person at real proportions (≈7.7 heads tall, ~46.5 units ≈ 1.7 m) built as
@@ -124,9 +125,47 @@ export interface Human {
   look: Look;
   /** Repaints the jacket and headband in a nation's colour (disguise). */
   setNationColor(color: number): void;
+  /** Snipers only: the rifle (a child of the chest bone) and the point at its muzzle. */
+  gun: THREE.Group | null;
+  muzzle: THREE.Object3D | null;
 }
 
-export function buildHuman(id: number, nationColor: number, emblemMat: THREE.Material): Human {
+/**
+ * Scoped bolt-action rifle (≈1.25 m). Origin at the pistol grip, barrel along +Z,
+ * butt at z ≈ -9.5 so it sits against the shoulder when the grip is ~9 units forward.
+ */
+function buildRifle(): { gun: THREE.Group; muzzle: THREE.Object3D } {
+  const metal: THREE.BufferGeometry[] = [], wood: THREE.BufferGeometry[] = [];
+  const bx = (list: THREE.BufferGeometry[], w: number, h: number, d: number, x: number, y: number, z: number, rx = 0) =>
+    list.push(new THREE.BoxGeometry(w, h, d).rotateX(rx).translate(x, y, z).toNonIndexed());
+  const tube = (list: THREE.BufferGeometry[], r: number, len: number, x: number, y: number, z: number) =>
+    list.push(new THREE.CylinderGeometry(r, r, len, 10).rotateX(Math.PI / 2).translate(x, y, z).toNonIndexed());
+  bx(wood, 1.6, 2.7, 7, 0, -0.5, -6.2); // stock
+  bx(wood, 1.1, 2.4, 1.3, 0, -1.6, -1.9, -0.35); // grip
+  bx(wood, 1.7, 1.8, 7.5, 0, 0.1, 5.6); // fore-end
+  bx(metal, 1.5, 2.0, 8.5, 0, 0.3, 0.8); // receiver
+  bx(metal, 1.0, 2.6, 1.8, 0, -1.6, 1.8); // magazine
+  tube(metal, 0.33, 12, 0, 0.55, 14.5); // barrel
+  tube(metal, 0.5, 1.2, 0, 0.55, 20.5); // muzzle brake
+  tube(metal, 0.75, 7.5, 0, 2.3, 0.8); // scope
+  tube(metal, 0.95, 1.4, 0, 2.3, 4.6); // objective bell
+  bx(metal, 0.8, 1.0, 0.8, 0, 1.4, -1.5); // scope mount
+  bx(metal, 0.8, 1.0, 0.8, 0, 1.4, 3.0);
+  const gun = new THREE.Group();
+  const mk = (list: THREE.BufferGeometry[], color: number, rough: number, metalness: number) => {
+    const m = new THREE.Mesh(mergeGeometries(list)!, new THREE.MeshStandardMaterial({ color, roughness: rough, metalness }));
+    m.castShadow = true;
+    gun.add(m);
+  };
+  mk(metal, 0x2a2c30, 0.45, 0.6);
+  mk(wood, 0x5a3b24, 0.7, 0);
+  const muzzle = new THREE.Object3D();
+  muzzle.position.set(0, 0.55, 21.3);
+  gun.add(muzzle);
+  return { gun, muzzle };
+}
+
+export function buildHuman(id: number, nationColor: number, emblemMat: THREE.Material, opts: { gun?: boolean } = {}): Human {
   const look = lookFor(id);
   const w = look.build;
   const J = joints(w);
@@ -218,5 +257,10 @@ export function buildHuman(id: number, nationColor: number, emblemMat: THREE.Mat
     }
     colorAttr.needsUpdate = true;
   };
-  return { mesh, bones, rest, material, emblem, look, setNationColor };
+  let gun: THREE.Group | null = null, muzzle: THREE.Object3D | null = null;
+  if (opts.gun) {
+    ({ gun, muzzle } = buildRifle());
+    bones.chest.add(gun);
+  }
+  return { mesh, bones, rest, material, emblem, look, setNationColor, gun, muzzle };
 }

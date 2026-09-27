@@ -40,8 +40,12 @@ export function bindMessages(bus: EventBus<GameEvent>, state: GameState, log: Lo
     switch (ev.result) {
       case 'king_dodge': log.add(n + 'の王が回避を強化！'); break;
       case 'soldier_heal': log.add(n + 'の兵士が耐久回復！'); break;
-      case 'sniper_stun': log.add(n + 'の狙撃手が' + N(ent(ev.targetId!).nation) + 'をスタン！'); break;
-      case 'sniper_miss': log.add('狙撃手：射線が通らず外れた'); break;
+      case 'sniper_stun':
+        log.add(n + 'の狙撃手が' + N(ent(ev.targetId!).nation) + 'を狙撃、スタン！');
+        if (e.isPlayer) hud.banner('命中！', 900);
+        else if (ev.targetId === state.player.id) hud.banner('狙撃された！', 1200);
+        break;
+      case 'sniper_miss': if (e.isPlayer) log.add('狙撃手：照準内に敵がいない（前方±30°・射程内・射線が必要）'); break;
       case 'radar_outside_tower': log.add('通信士：管制塔内でEを押してください。'); break;
       case 'radar': log.add(n + 'の通信士がレーダーを展開！'); break;
       case 'disguise': log.add(n + 'の詐欺師が偽装を開始。'); break;

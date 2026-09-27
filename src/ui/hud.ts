@@ -12,6 +12,7 @@ import { captureCandidate, captureTier } from '../sim/systems/capture';
 import { jailDuration } from '../sim/systems/jail';
 import { dist } from '../sim/systems/collision';
 import { suspStars } from '../sim/systems/suspicion';
+import { sniperTarget } from '../sim/systems/abilities';
 import { visibleTo } from '../sim/systems/vision';
 import { $ } from './dom';
 
@@ -20,7 +21,7 @@ const SPECIAL_FILL_SCALE = { king: 15, soldier: 18, sniper: 8, keyholder: 1, com
 const SPECIAL_DESC = {
   king: '回避を強化',
   soldier: '耐久を全回復',
-  sniper: '前方の敵をスタン(射線必要)',
+  sniper: '照準（前方±30°・射程20m・高所から+25%）の敵を狙撃→3秒スタン。赤い線が出たら命中',
   keyholder: '牢屋の味方の近くでE(王は詠唱長め・進捗表示あり)',
   communicator: '管制塔内でレーダー展開',
   impostor: '他国に偽装(捕獲で解除)',
@@ -176,6 +177,19 @@ export class Hud {
       if (tt >= 2 && d < CAP_RANGE + 40 && captureTier(p, en) !== 'front') danger = true;
     }
     this.el.vignette.classList.toggle('on', danger);
+    // Snipers: someone drawing a bead on you (their red laser), or your own shot lined up.
+    if (!p.jailed && state.entities.some((e) => e.role === 'sniper' && e.nation !== p.nation && e.alive && !e.jailed && e.ai.aimId === p.id && visibleTo(state, e, p))) {
+      return '狙撃手に狙われている！赤い線から外れて物陰へ';
+    }
+    if (p.role === 'sniper' && !p.jailed) {
+      const t = sniperTarget(state, p);
+      if (t) {
+        const m = Math.round(Math.hypot(t.x - p.x, t.z - p.z, t.y - p.y) / 26);
+        return p.cd.special > 0.5
+          ? `照準: ${NATIONS[t.nation].name}国・${m}m ― 装填中（あと${Math.ceil(p.cd.special)}秒）`
+          : `照準: ${NATIONS[t.nation].name}国・${m}m ― E / 特殊 で狙撃！`;
+      }
+    }
     if (tier === 3) {
       if (!this.tier3Alerted) { beep(880, 0.15); this.tier3Alerted = true; }
       return '敵に発見された！警戒せよ';

@@ -12,6 +12,7 @@ import { closeMeeting, openMeeting, sayInMeeting, voteInMeeting } from './meetin
 import { CameraController } from './render/cameraController';
 import { EntityView, lerp } from './render/entityView';
 import { Indicators } from './render/indicators';
+import { Effects } from './render/effects';
 import { buildScene, followSun, resizeRenderer, updateTrain } from './render/sceneBuilder';
 import { navGraph } from './ai/nav';
 import type { GameEvent } from './sim/events';
@@ -47,6 +48,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize): void {
   const cam = new CameraController();
   const entityView = new EntityView(refs.scene, state);
   const indicators = new Indicators(refs.scene);
+  const effects = new Effects(refs.scene, entityView);
   const clock = new FixedStepClock();
 
   bindMessages(bus, state, log, hud);
@@ -60,6 +62,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize): void {
     });
   });
   bus.on('MEETING_CLOSED', () => meetingView.hide());
+  bus.on('ABILITY', (ev) => { if (ev.result === 'sniper_stun' && ev.targetId !== undefined) effects.shot(state, ev.entityId, ev.targetId); });
 
   const flush = () => { for (const ev of drainEvents(state)) bus.emit(ev); };
   const input = new InputManager(canvas, {
@@ -72,7 +75,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize): void {
   $('btnMeeting').onclick = () => { openMeeting(state); flush(); };
 
   hud.initFor(state);
-  log.add('v7.8: 2:30にハーフタイム会議。W/Sで前後、A/Dで旋回、Qで振り向き。');
+  log.add('v7.9: 狙撃手にライフル。赤い線が出たら命中。W/Sで前後、A/Dで旋回、Qで振り向き。');
   hud.banner('三国ドロケイ 開始　' + NATIONS[nation].name + 'の' + roleName(role), 2200);
   resizeRenderer(refs, canvas);
   cam.snap(Math.atan2(state.player.dirX, state.player.dirZ));
@@ -87,6 +90,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize): void {
     advanceFrame(state, clock, frameMs);
     flush();
     render(state, entityView, indicators, cam, clock.alpha, frameMs / 1000);
+    effects.sync(state, frameMs / 1000);
   });
 }
 

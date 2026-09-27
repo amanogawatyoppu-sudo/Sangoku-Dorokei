@@ -6,10 +6,34 @@ import type { GameState } from '../state';
 import { emit } from '../state';
 import { canAct } from './capture';
 import { nearTowerBase } from './towerZone';
-import { hasLineOfSight } from './vision';
+import { effNation, hasLineOfSight } from './vision';
 import { tryStartRescue } from './rescue';
 
-export const SNIPE_RANGE = 280;
+/** Sniper range (≈20 m), ×1.25 when shooting down from 60+ above the target (rooftops, footbridges, hills). */
+export const SNIPE_RANGE = 520;
+export const SNIPE_HIGH_BONUS = 1.25;
+/** Targets within ±30° of the facing can be shot (aim assist: the shooter turns to face them). */
+export const SNIPE_AIM_COS = Math.cos((30 * Math.PI) / 180);
+
+/**
+ * Who a sniper's shot would hit right now: the enemy in range, inside the aim cone
+ * and in the clear line of sight that is closest to the centre of the aim (and nearer).
+ * Shared by the shot itself, the player's red laser / reticle and the AI.
+ */
+export function sniperTarget(state: GameState, e: Entity): Entity | null {
+  let best: Entity | null = null, bs = Infinity;
+  for (const t of state.entities) {
+    if (t.nation === e.nation || !t.alive || t.jailed || effNation(state, t, e.nation) === e.nation) continue;
+    const vx = t.x - e.x, vz = t.z - e.z, flat = Math.hypot(vx, vz) || 1;
+    const range = SNIPE_RANGE * (e.y - t.y > 60 ? SNIPE_HIGH_BONUS : 1);
+    const d = Math.hypot(vx, vz, t.y - e.y);
+    const dot = (vx / flat) * e.dirX + (vz / flat) * e.dirZ;
+    if (d > range || dot < SNIPE_AIM_COS) continue;
+    const score = Math.acos(Math.min(1, dot)) + (d / range) * 0.35;
+    if (score < bs && hasLineOfSight(e, t)) { best = t; bs = score; }
+  }
+  return best;
+}
 
 /** The E / 特殊 action: keyholders rescue, everyone else uses their role's special. */
 export function activate(state: GameState, e: Entity): void {
@@ -29,17 +53,20 @@ export function useSpecial(state: GameState, e: Entity): void {
     e.hp = 3;
     emit(state, { type: 'ABILITY', entityId: e.id, result: 'soldier_heal' });
   } else if (e.role === 'sniper') {
-    e.cd.special = SPECIAL_CD.sniper;
-    let best: Entity | null = null, bd = SNIPE_RANGE;
-    for (const t of state.entities) {
-      if (t.nation === e.nation || !t.alive || t.jailed) continue;
-      const vx = t.x - e.x, vz = t.z - e.z, d = Math.hypot(vx, vz, t.y - e.y) || 1, dot = (vx / d) * e.dirX + (vz / d) * e.dirZ;
-      if (d < bd && dot > 0.5 && hasLineOfSight(e, t)) { best = t; bd = d; }
+    const best = sniperTarget(state, e);
+    if (!best) {
+      // Nothing in the sights: no shot, no reload (just a moment before trying again).
+      e.cd.special = 0.4;
+      emit(state, { type: 'ABILITY', entityId: e.id, result: 'sniper_miss' });
+      return;
     }
-    if (best) {
-      best.stunUntil = now + STUN_TIME;
-      emit(state, { type: 'ABILITY', entityId: e.id, result: 'sniper_stun', targetId: best.id });
-    } else emit(state, { type: 'ABILITY', entityId: e.id, result: 'sniper_miss' });
+    e.cd.special = SPECIAL_CD.sniper;
+    // Aim assist: swing to face the target as the shot goes off.
+    const l = Math.hypot(best.x - e.x, best.z - e.z) || 1;
+    e.dirX = (best.x - e.x) / l;
+    e.dirZ = (best.z - e.z) / l;
+    best.stunUntil = now + STUN_TIME;
+    emit(state, { type: 'ABILITY', entityId: e.id, result: 'sniper_stun', targetId: best.id });
   } else if (e.role === 'communicator') {
     if (!nearTowerBase(e, 16)) {
       emit(state, { type: 'ABILITY', entityId: e.id, result: 'radar_outside_tower' });

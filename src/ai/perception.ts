@@ -3,7 +3,7 @@ import { DASH_VISION_BONUS, VISION } from '../config/constants';
 import type { Entity } from '../sim/entity';
 import type { GameState } from '../sim/state';
 import { dist3 } from '../sim/systems/collision';
-import { hasLineOfSight, inRevealedJail, nearTower } from '../sim/systems/vision';
+import { hasLineOfSight, inRevealedJail, nearTower, scopeRange } from '../sim/systems/vision';
 import type { Sighting } from './memory';
 
 /**
@@ -37,7 +37,7 @@ export function canPerceive(state: GameState, observer: Entity, target: Entity):
   if (nearTower(target) || inRevealedJail(state, target)) return true;
   if (state.terminalActive[target.nation] > now && Math.hypot(target.x - NATIONS[target.nation].base.x, target.z - NATIONS[target.nation].base.z) < 90) return true;
   const d = dist3(observer, target);
-  if (d > VISION + (target.dashing ? DASH_VISION_BONUS : 0)) return false;
+  if (d > Math.max(VISION + (target.dashing ? DASH_VISION_BONUS : 0), scopeRange(observer, target))) return false;
   const dy = Math.abs(target.y - observer.y);
   if (dy < 40 && (d < HEAR_RANGE || (target.dashing && d < HEAR_DASH_RANGE))) return true;
   const len = Math.hypot(target.x - observer.x, target.z - observer.z) || 1;

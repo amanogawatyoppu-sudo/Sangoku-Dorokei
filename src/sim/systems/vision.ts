@@ -1,7 +1,7 @@
 import type { NationId } from '../../config/nations';
 import { NATION_IDS, NATIONS } from '../../config/nations';
 import { TOWER } from '../../config/map';
-import { DASH_VISION_BONUS, VISION } from '../../config/constants';
+import { DASH_VISION_BONUS, SCOPE_COS, SCOPE_RANGE, VISION } from '../../config/constants';
 import type { Entity } from '../entity';
 import type { GameState } from '../state';
 import { dist, dist3 } from './collision';
@@ -21,8 +21,15 @@ export function visibleTo(state: GameState, e: Entity, viewer: Entity): boolean 
   if (nearTower(e)) return true;
   if (inRevealedJail(state, e)) return true;
   if (state.terminalActive[e.nation] > now && dist(e, NATIONS[e.nation].base) < 90) return true;
-  const rng = e.dashing ? VISION + DASH_VISION_BONUS : VISION;
+  const rng = Math.max(e.dashing ? VISION + DASH_VISION_BONUS : VISION, scopeRange(viewer, e));
   return dist3(e, viewer) < rng && hasLineOfSight(viewer, e);
+}
+
+/** A sniper's scope reaches SCOPE_RANGE inside a narrow cone ahead (0 otherwise). */
+export function scopeRange(viewer: Entity, target: Entity): number {
+  if (viewer.role !== 'sniper') return 0;
+  const vx = target.x - viewer.x, vz = target.z - viewer.z, d = Math.hypot(vx, vz) || 1;
+  return (vx * viewer.dirX + vz * viewer.dirZ) / d >= SCOPE_COS ? SCOPE_RANGE : 0;
 }
 
 /** Standing at the foot of the watchtower exposes you to everyone (v6 rule). */

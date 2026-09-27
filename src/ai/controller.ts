@@ -373,9 +373,10 @@ function sniperThink(state: GameState, e: Entity): void {
     // Swing round toward the target (not instantly) and fire only once lined up.
     const dx = target.x - e.x, dz = target.z - e.z;
     e.ai.lookAt = { x: target.x, z: target.z };
+    e.ai.aimId = target.id;
     const d = Math.hypot(dx, dz) || 1;
-    if ((e.dirX * dx + e.dirZ * dz) / d > 0.9) useSpecial(state, e);
-  } else e.ai.lookAt = null;
+    if ((e.dirX * dx + e.dirZ * dz) / d > 0.9 && e.cd.special <= 0) useSpecial(state, e);
+  } else { e.ai.lookAt = null; e.ai.aimId = null; }
   const task = e.ai.task;
   if (task?.kind === 'rescueEscort') {
     if (escortKeyholder(state, e, NATIONS[task.jail].jail)) return;
