@@ -1,6 +1,6 @@
-import { BOUNDS, WORLD } from '../config/map';
+import { BOUNDS, WORLD, insideLoop } from '../config/map';
 import type { Body } from '../sim/systems/world';
-import { blocked, canWalk, supportHeight, topAt } from '../sim/systems/world';
+import { blocked, canWalk, primsAt, supportHeight, topAt } from '../sim/systems/world';
 import type { Waypoint } from './memory';
 
 /**
@@ -42,8 +42,9 @@ function build(): Graph {
   for (let gx = 1; gx < GX; gx++) {
     for (let gz = 1; gz < GZ; gz++) {
       const x = xOf(gx), z = zOf(gz);
+      if (!insideLoop(x, z, 0)) continue;
       const heights = [0];
-      for (const p of WORLD) {
+      for (const p of primsAt(x, z)) {
         if (p.noFloor || Math.abs(x - p.x) >= p.w / 2 || Math.abs(z - p.z) >= p.d / 2) continue;
         heights.push(topAt(p, x, z));
       }

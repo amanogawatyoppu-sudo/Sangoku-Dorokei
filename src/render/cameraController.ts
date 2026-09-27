@@ -19,10 +19,25 @@ export const FOLLOW_RATE = 9;
 /** Height follow rate (1/s), so stairs and drops don't jolt the view. */
 const HEIGHT_RATE = 10;
 
-/** Every solid in the world as a 3D box (ramps approximated by their mid height). */
-const SOLIDS = WORLD.filter((p) => p.mat !== 'water').map((p) => {
-  const top = p.kind === 'box' ? p.y1 : (p.hLow + p.hHigh) / 2;
-  return new THREE.Box3(new THREE.Vector3(p.x - p.w / 2, p.y0, p.z - p.d / 2), new THREE.Vector3(p.x + p.w / 2, top, p.z + p.d / 2));
+/** Ramps are cut into this many steps for camera collision. */
+const RAMP_SLICES = 6;
+
+/** Every solid in the world as 3D boxes (ramps as a staircase of boxes, each as high as its upper edge). */
+const SOLIDS = WORLD.filter((p) => p.mat !== 'water').flatMap((p) => {
+  if (p.kind === 'box') {
+    return [new THREE.Box3(new THREE.Vector3(p.x - p.w / 2, p.y0, p.z - p.d / 2), new THREE.Vector3(p.x + p.w / 2, p.y1, p.z + p.d / 2))];
+  }
+  const len = p.axis === 'x' ? p.w : p.d;
+  return Array.from({ length: RAMP_SLICES }, (_, i) => {
+    const a = -len / 2 + (len * i) / RAMP_SLICES, b = a + len / RAMP_SLICES;
+    // Height at the slice's higher edge (the ramp rises toward +axis when dir is 1).
+    const u = p.dir === 1 ? (b + len / 2) / len : 1 - (a + len / 2) / len;
+    const top = p.hLow + (p.hHigh - p.hLow) * u;
+    const [x0, x1, z0, z1] = p.axis === 'x'
+      ? [p.x + a, p.x + b, p.z - p.d / 2, p.z + p.d / 2]
+      : [p.x - p.w / 2, p.x + p.w / 2, p.z + a, p.z + b];
+    return new THREE.Box3(new THREE.Vector3(x0, p.y0, z0), new THREE.Vector3(x1, top, z1));
+  });
 });
 
 const tmpRay = new THREE.Ray();

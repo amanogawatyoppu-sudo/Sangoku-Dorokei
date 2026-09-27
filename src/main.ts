@@ -12,7 +12,8 @@ import { closeMeeting, openMeeting, sayInMeeting, voteInMeeting } from './meetin
 import { CameraController } from './render/cameraController';
 import { EntityView, lerp } from './render/entityView';
 import { Indicators } from './render/indicators';
-import { buildScene, followSun, resizeRenderer } from './render/sceneBuilder';
+import { buildScene, followSun, resizeRenderer, updateTrain } from './render/sceneBuilder';
+import { navGraph } from './ai/nav';
 import type { GameEvent } from './sim/events';
 import { advanceFrame } from './sim/game';
 import type { GameState } from './sim/state';
@@ -99,6 +100,7 @@ function render(state: GameState, entityView: EntityView, indicators: Indicators
   cam.update(refs.camera, px, py, pz, dtSec);
   entityView.playerOpacity = cam.boomLength < 70 ? 0.3 : 1;
   followSun(refs, px, py, pz);
+  updateTrain(refs, state.time / 1000);
   refs.renderer.render(refs.scene, refs.camera);
   hud.update(state);
   minimap.draw(state);
@@ -134,3 +136,5 @@ function exposeDebug(state: GameState, cam: CameraController): void {
 }
 
 initSetupScreen(startGame);
+// Build the AI's navigation graph while the player is still on the start screen.
+setTimeout(() => navGraph(), 300);

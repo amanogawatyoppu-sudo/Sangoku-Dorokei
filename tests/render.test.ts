@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { CameraController, DIST_MAX, DIST_MIN, firstWallHit } from '../src/render/cameraController';
 import { BASE_FOV, MAX_PIXEL_RATIO, fovForAspect, renderPixelRatio } from '../src/render/sceneBuilder';
 import { FRONT_HALF_ANGLE } from '../src/render/indicators';
+import { SITES } from '../src/config/map';
 
 describe('pixel ratio', () => {
   it('follows devicePixelRatio but is capped at 2', () => {
@@ -27,30 +28,33 @@ describe('field of view on resize', () => {
 });
 
 describe('camera wall occlusion (3D)', () => {
-  it('detects a wall along a low ray', () => {
-    // Stone wall at x=-230 (40 wide, 55 high) west of the tower: shoot east at y=20.
-    const ray = new THREE.Ray(new THREE.Vector3(-400, 20, -190), new THREE.Vector3(1, 0, 0));
-    expect(firstWallHit(ray, 1000)).toBeCloseTo(400 - 250, 6);
-    expect(firstWallHit(ray, 100)).toBe(Infinity);
+  it('detects a building along a low ray', () => {
+    // 国会議事堂: its north face is 20 south of the north test point.
+    const n = SITES.dietNorth;
+    const ray = new THREE.Ray(new THREE.Vector3(n.x, 20, n.z), new THREE.Vector3(0, 0, 1));
+    expect(firstWallHit(ray, 1000)).toBeCloseTo(20, 6);
+    expect(firstWallHit(ray, 10)).toBe(Infinity);
   });
 
   it('detects floors from below (second storey)', () => {
-    const ray = new THREE.Ray(new THREE.Vector3(-400, 20, -560), new THREE.Vector3(0, 1, 0));
+    const u = SITES.walkup.underFloor;
+    const ray = new THREE.Ray(new THREE.Vector3(u.x, 20, u.z), new THREE.Vector3(0, 1, 0));
     expect(firstWallHit(ray, 200)).toBeCloseTo(58 - 20, 6);
   });
 
-  it('does not pull the camera in when it is above a low wall (v6 did)', () => {
+  it('does not pull the camera in when it is above a low building (v6 did)', () => {
     const ctl = new CameraController();
     const cam = new THREE.PerspectiveCamera();
-    // Player east of the 55-high wall at x=-230; facing east, so the camera sits back over the wall.
-    ctl.snap(Math.PI / 2);
-    ctl.update(cam, -120, 0, -190);
+    // North of the Diet building, facing north: the camera sits back over its roof.
+    const n = SITES.dietNorth;
+    ctl.snap(Math.PI);
+    ctl.update(cam, n.x, 0, n.z);
     const open = new CameraController();
     const cam2 = new THREE.PerspectiveCamera();
-    open.snap(Math.PI / 2);
-    open.update(cam2, -700, 0, 420); // open field for reference
-    expect(cam.position.x).toBeLessThan(-230); // really is over / behind the wall
-    expect(cam.position.distanceTo(new THREE.Vector3(-120, 55, -190))).toBeCloseTo(cam2.position.distanceTo(new THREE.Vector3(-700, 55, 420)), 3);
+    open.snap(Math.PI);
+    open.update(cam2, SITES.open.x, 0, SITES.open.z);
+    expect(cam.position.z).toBeGreaterThan(n.z + 20); // really is over the building
+    expect(cam.position.distanceTo(new THREE.Vector3(n.x, 55, n.z))).toBeCloseTo(cam2.position.distanceTo(new THREE.Vector3(SITES.open.x, 55, SITES.open.z)), 3);
   });
 
   it('zoom stays within limits', () => {

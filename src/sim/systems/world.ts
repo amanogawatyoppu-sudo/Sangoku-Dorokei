@@ -1,5 +1,5 @@
 import type { Prim, RampPrim } from '../../config/map';
-import { BOUNDS, WORLD } from '../../config/map';
+import { BOUNDS, WORLD, insideLoop } from '../../config/map';
 import { CR } from '../../config/constants';
 
 /** Highest ledge a character can walk up without stairs. */
@@ -41,6 +41,11 @@ function near(x0: number, z0: number, x1: number, z1: number, out: Prim[]): Prim
   return out;
 }
 const scratch: Prim[] = [];
+
+/** Primitives whose footprint may contain the point (x, z) (a fresh array). */
+export function primsAt(x: number, z: number): Prim[] {
+  return [...near(x, z, x, z, scratch)];
+}
 
 // ---------------------------------------------------------------- primitive geometry
 export function rampHeight(p: RampPrim, x: number, z: number): number {
@@ -92,7 +97,7 @@ export function supportHeight(x: number, z: number, y: number): number {
 
 /** Whether a character at (x, y, z) would intersect a wall, parapet, cliff or water. */
 export function blocked(x: number, z: number, y: number, r = CR): boolean {
-  if (x < BOUNDS.minX || x > BOUNDS.maxX || z < BOUNDS.minZ || z > BOUNDS.maxZ) return true;
+  if (!insideLoop(x, z, r + 26)) return true; // the Yamanote tracks are the edge of the world
   for (const p of near(x - r, z - r, x + r, z + r, scratch)) {
     if (Math.abs(x - p.x) >= p.w / 2 + r || Math.abs(z - p.z) >= p.d / 2 + r) continue;
     if (p.y0 >= y + BODY_H) continue; // overhead: walk underneath
@@ -110,13 +115,51 @@ export function solidAt(x: number, y: number, z: number): boolean {
   return false;
 }
 
-/** 3D line of sight, sampled every ~18 units. */
+/** Does the segment a→b pass through the box's interior (slab test)? */
+function segmentHitsBox(ax: number, ay: number, az: number, bx: number, by: number, bz: number, p: Prim, y1: number): boolean {
+  let t0 = 0, t1 = 1;
+  const axes: [number, number, number, number][] = [
+    [ax, bx - ax, p.x - p.w / 2, p.x + p.w / 2],
+    [ay, by - ay, p.y0, y1],
+    [az, bz - az, p.z - p.d / 2, p.z + p.d / 2],
+  ];
+  for (const [o, d, lo, hi] of axes) {
+    if (Math.abs(d) < 1e-9) {
+      if (o <= lo || o >= hi) return false;
+      continue;
+    }
+    let ta = (lo - o) / d, tb = (hi - o) / d;
+    if (ta > tb) [ta, tb] = [tb, ta];
+    t0 = Math.max(t0, ta);
+    t1 = Math.min(t1, tb);
+    if (t0 >= t1) return false;
+  }
+  return true;
+}
+
+const losScratch: Prim[] = [];
+
+/**
+ * 3D line of sight. Boxes (walls, floors, buildings) are tested exactly, so
+ * even a thin floor slab blocks; ramps are sampled finely.
+ */
 export function lineOfSight(ax: number, ay: number, az: number, bx: number, by: number, bz: number): boolean {
+  const cand = near(Math.min(ax, bx), Math.min(az, bz), Math.max(ax, bx), Math.max(az, bz), losScratch);
+  let ramps = false;
+  for (const p of cand) {
+    if (p.seeThrough) continue;
+    if (p.kind === 'ramp') { ramps = true; continue; }
+    if (segmentHitsBox(ax, ay, az, bx, by, bz, p, p.y1)) return false;
+  }
+  if (!ramps) return true;
   const len = Math.hypot(bx - ax, by - ay, bz - az);
-  const n = Math.max(2, Math.ceil(len / 18));
+  const n = Math.max(2, Math.ceil(len / 8));
   for (let i = 1; i < n; i++) {
-    const t = i / n;
-    if (solidAt(ax + (bx - ax) * t, ay + (by - ay) * t, az + (bz - az) * t)) return false;
+    const t = i / n, x = ax + (bx - ax) * t, y = ay + (by - ay) * t, z = az + (bz - az) * t;
+    for (const p of cand) {
+      if (p.kind !== 'ramp' || !inside(p, x, z)) continue;
+      if (y > p.y0 && y < rampHeight(p, x, z)) return false;
+    }
   }
   return true;
 }
@@ -171,8 +214,6 @@ export function pushOut(b: Body, r = CR): void {
       b.x += opts[0][0];
       b.z += opts[0][1];
     }
-    b.x = Math.max(BOUNDS.minX, Math.min(BOUNDS.maxX, b.x));
-    b.z = Math.max(BOUNDS.minZ, Math.min(BOUNDS.maxZ, b.z));
   }
 }
 

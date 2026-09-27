@@ -1,3 +1,4 @@
+import { SITES } from '../src/config/map';
 import type { NationId } from '../src/config/nations';
 import { NATIONS } from '../src/config/nations';
 import type { RoleId } from '../src/config/roles';
@@ -9,8 +10,8 @@ import { advanceFrame } from '../src/sim/game';
 import type { GameState } from '../src/sim/state';
 import { createGameState } from '../src/sim/state';
 
-/** Open, flat ground (south-west field) with no world geometry within ~100 units. */
-export const SPOT = { x: -700, z: 420 };
+/** Open, flat ground (皇居前広場) with no world geometry nearby. */
+export const SPOT = { x: SITES.open.x, z: SITES.open.z };
 
 export function newGame(nation: NationId = 'sun', role: RoleId = 'soldier', seed = 1): GameState {
   return createGameState(nation, role, createRng(seed));

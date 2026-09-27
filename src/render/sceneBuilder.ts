@@ -2,18 +2,20 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { NATION_IDS, NATIONS } from '../config/nations';
 import type { BoxPrim, Prim, RampPrim } from '../config/map';
-import { BOUNDS, GROUND, RIVER, TOWER, WORLD } from '../config/map';
+import { GROUND, KANDA, LANDMARKS, LOOP, RIVER_WIDTH, STATIONS, TOWER, WORLD, insideLoop } from '../config/map';
 import { rampHeight } from '../sim/systems/world';
-import { detailNoise, emblemTexture, groundTexture, stoneTexture } from './textures';
+import { detailNoise, emblemTexture, groundTexture, stoneTexture, windowTexture } from './textures';
 
 export interface SceneRefs {
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
-  /** Banner on top of the watchtower; its colour shows the tower's owner. */
+  /** Flag on top of the 管制塔 radio tower; its colour shows the owner. */
   towerMesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
   /** Shadow-casting sun; main moves it with the player so shadows stay sharp on a big map. */
   sun: THREE.DirectionalLight;
+  /** The Yamanote train running round the loop (animated by `updateTrain`). */
+  train: THREE.Group;
 }
 
 /**
@@ -40,6 +42,8 @@ const COLORS = {
   hedge: 0x3f5e30,
   leaf: 0x2f4f2a,
   water: 0x3f7590,
+  towerRed: 0xd8492e,
+  yamanote: 0x9acd32,
 };
 
 function std(color: number, extra: THREE.MeshStandardMaterialParameters = {}): THREE.MeshStandardMaterial {
@@ -51,7 +55,7 @@ function shadowed<T extends THREE.Object3D>(o: T, cast = true, receive = true): 
   return o;
 }
 
-/** Rewrites a box geometry's UVs in world units (1 tile per `tile`) so textures never stretch. */
+/** Rewrites a geometry's UVs in world units (1 tile per `tile`) so textures never stretch. */
 function worldUv(geo: THREE.BufferGeometry, tile: number): THREE.BufferGeometry {
   const pos = geo.attributes.position, nrm = geo.attributes.normal, uv = geo.attributes.uv;
   for (let i = 0; i < pos.count; i++) {
@@ -68,7 +72,7 @@ function worldUv(geo: THREE.BufferGeometry, tile: number): THREE.BufferGeometry 
 
 function buildSky(scene: THREE.Scene): void {
   const sky = new THREE.Mesh(
-    new THREE.SphereGeometry(5200, 32, 16),
+    new THREE.SphereGeometry(9000, 32, 16),
     new THREE.ShaderMaterial({
       side: THREE.BackSide,
       depthWrite: false,
@@ -81,6 +85,8 @@ function buildSky(scene: THREE.Scene): void {
     }),
   );
   sky.renderOrder = -1;
+  sky.frustumCulled = false;
+  sky.onBeforeRender = (_r, _s, cam) => sky.position.copy(cam.position);
   scene.add(sky);
 }
 
@@ -90,35 +96,54 @@ function buildLights(scene: THREE.Scene): THREE.DirectionalLight {
   const sun = new THREE.DirectionalLight(0xffe0b8, 0.95 * L);
   sun.position.set(-700, 900, 500);
   sun.castShadow = true;
-  // Phones get a lighter shadow map.
   const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   sun.shadow.mapSize.setScalar(coarse ? 1024 : 2048);
   const cam = sun.shadow.camera;
-  cam.left = -900; cam.right = 900; cam.top = 900; cam.bottom = -900; cam.near = 100; cam.far = 2600;
+  cam.left = -900; cam.right = 900; cam.top = 900; cam.bottom = -900; cam.near = 100; cam.far = 3000;
   sun.shadow.bias = -0.0008;
   sun.shadow.normalBias = 1.5;
   scene.add(sun, sun.target);
   return sun;
 }
 
+const waterMat = () => new THREE.MeshStandardMaterial({ color: COLORS.water, roughness: 0.2, metalness: 0.1, transparent: true, opacity: 0.9 });
+
 function buildGround(scene: THREE.Scene): void {
   const bump = detailNoise();
   bump.repeat.set(GROUND.w / 18, GROUND.d / 18);
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(GROUND.w, GROUND.d),
-    std(0xffffff, { map: groundTexture(), bumpMap: bump, bumpScale: 0.6, roughness: 0.95 }),
+    std(0xffffff, { map: groundTexture(), bumpMap: bump, bumpScale: 0.5, roughness: 0.95 }),
   );
   ground.rotation.x = -Math.PI / 2;
+  ground.position.set(GROUND.cx, 0, GROUND.cz);
   ground.receiveShadow = true;
   scene.add(ground);
-  const water = new THREE.Mesh(
-    new THREE.PlaneGeometry(RIVER.maxX - RIVER.minX, RIVER.d),
-    new THREE.MeshStandardMaterial({ color: COLORS.water, roughness: 0.2, metalness: 0.1, transparent: true, opacity: 0.88 }),
-  );
-  water.rotation.x = -Math.PI / 2;
-  water.position.set((RIVER.minX + RIVER.maxX) / 2, 5, RIVER.z);
-  water.receiveShadow = true;
-  scene.add(water);
+  // Moat and ponds: flat water on their tiles.
+  const mat = waterMat();
+  for (const p of WORLD) {
+    if (p.mat !== 'water' || p.group === 'river') continue;
+    const w = new THREE.Mesh(new THREE.PlaneGeometry(p.w, p.d), mat);
+    w.rotation.x = -Math.PI / 2;
+    w.position.set(p.x, 5, p.z);
+    scene.add(w);
+  }
+  // Kanda river: one smooth strip along its course.
+  const pts: THREE.Vector3[] = [];
+  const idx: number[] = [];
+  KANDA.forEach((p, i) => {
+    const a = KANDA[Math.max(0, i - 1)], b = KANDA[Math.min(KANDA.length - 1, i + 1)];
+    const dx = b.x - a.x, dz = b.z - a.z, l = Math.hypot(dx, dz) || 1;
+    const nx = -dz / l * (RIVER_WIDTH / 2 + 2), nz = dx / l * (RIVER_WIDTH / 2 + 2);
+    pts.push(new THREE.Vector3(p.x + nx, 5, p.z + nz), new THREE.Vector3(p.x - nx, 5, p.z - nz));
+    if (i) idx.push(2 * i - 2, 2 * i - 1, 2 * i, 2 * i - 1, 2 * i + 1, 2 * i);
+  });
+  const g = new THREE.BufferGeometry().setFromPoints(pts);
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  const river = new THREE.Mesh(g, mat);
+  river.material.side = THREE.DoubleSide;
+  scene.add(river);
 }
 
 // ---------------------------------------------------------------- world primitives
@@ -129,11 +154,10 @@ function rampGeometry(p: RampPrim): THREE.BufferGeometry {
     const n = Math.max(3, Math.round(len / 11));
     const parts: THREE.BufferGeometry[] = [];
     for (let i = 0; i < n; i++) {
-      // Step i covers the slice [i/n, (i+1)/n] from the low end; its tread is the slice's top height.
       const t1 = (i + 1) / n;
       const h = p.hLow + (p.hHigh - p.hLow) * t1;
       const sliceLen = len / n;
-      const u = (i + 0.5) / n; // from the low end
+      const u = (i + 0.5) / n;
       const off = (p.dir === 1 ? u - 0.5 : 0.5 - u) * len;
       const g = new THREE.BoxGeometry(p.axis === 'x' ? sliceLen : p.w, h, p.axis === 'z' ? sliceLen : p.d);
       g.translate(p.axis === 'x' ? p.x + off : p.x, h / 2, p.axis === 'z' ? p.z + off : p.z);
@@ -149,121 +173,252 @@ function rampGeometry(p: RampPrim): THREE.BufferGeometry {
   }
   g.translate(p.x, 0, p.z);
   g.computeVertexNormals();
-  return g;
+  return g.toNonIndexed();
 }
 
-interface Mats {
-  stone: THREE.Material;
-  cap: THREE.Material;
-  plaster: THREE.Material;
-  wood: THREE.Material;
-  woodLight: THREE.Material;
-  earthSide: THREE.Material;
-  grass: THREE.Material;
-  hedge: THREE.Material;
+/** Material key for a primitive; boxes sharing a key are merged into one mesh. */
+function matKey(p: Prim): string {
+  if (p.kind === 'ramp') return p.mat === 'earth' ? 'grass' : p.mat === 'wood' ? 'woodLight' : p.mat;
+  return p.mat;
 }
 
-function materialsFor(p: Prim, m: Mats): THREE.Material | THREE.Material[] {
-  switch (p.mat) {
-    case 'stone': return m.stone;
-    case 'plaster': return m.plaster;
-    case 'wood': return p.kind === 'ramp' ? m.woodLight : m.wood;
-    case 'hedge': return m.hedge;
-    case 'earth': return p.kind === 'ramp' ? m.grass : [m.earthSide, m.earthSide, m.grass, m.earthSide, m.earthSide, m.earthSide];
-    default: return m.stone;
-  }
-}
-
-/** Turns every world primitive (walls, halls, floors, stairs, slopes, hills, bridges) into meshes. */
+/**
+ * Turns every world primitive into meshes. Primitives are grouped by material
+ * and merged, so a city of hundreds of buildings is a handful of draw calls.
+ */
 function buildWorld(scene: THREE.Scene): void {
   const stoneTex = stoneTexture();
-  const m: Mats = {
+  const mats: Record<string, THREE.Material | THREE.Material[]> = {
     stone: std(COLORS.stone, { map: stoneTex, roughness: 0.9 }),
-    cap: std(COLORS.stoneCap),
     plaster: std(COLORS.plaster, { roughness: 0.95 }),
     wood: std(COLORS.wood),
     woodLight: std(COLORS.woodLight),
-    earthSide: std(COLORS.earth, { map: stoneTex, color: 0x9a7d5a }),
     grass: std(COLORS.grass),
     hedge: std(COLORS.hedge, { roughness: 1 }),
+    concrete: std(0xffffff, { map: windowTexture('#a7a397', '#3d4a58'), roughness: 0.8 }),
+    glass: std(0xffffff, { map: windowTexture('#7f93a6', '#2b4257'), roughness: 0.35, metalness: 0.2 }),
+    brick: std(0xb5543a, { map: stoneTex, roughness: 0.9 }),
+    steel: std(COLORS.towerRed, { roughness: 0.6 }),
+    earth: [std(0x9a7d5a, { map: stoneTex }), std(0x9a7d5a, { map: stoneTex }), std(COLORS.grass), std(0x9a7d5a), std(0x9a7d5a, { map: stoneTex }), std(0x9a7d5a, { map: stoneTex })],
   };
-  const merlons: THREE.Matrix4[] = [];
+  const buckets = new Map<string, THREE.BufferGeometry[]>();
+  const add = (key: string, g: THREE.BufferGeometry) => { if (!buckets.has(key)) buckets.set(key, []); buckets.get(key)!.push(g); };
+  const trunks: THREE.Matrix4[] = [], crowns: THREE.Matrix4[] = [];
   for (const p of WORLD) {
     if (p.mat === 'water') continue;
-    if (p.group === 'tower') continue; // drawn as the pagoda
-    if (p.kind === 'ramp') {
-      scene.add(shadowed(new THREE.Mesh(rampGeometry(p), materialsFor(p, m))));
+    // Drawn as custom landmarks instead.
+    if (p.group === 'radioTower' || p.group === 'tokyoTowerSpire' || p.group === 'dome') continue;
+    if (p.mat === 'tree') {
+      const b = p as BoxPrim;
+      trunks.push(new THREE.Matrix4().makeTranslation(b.x, b.y1 / 2 - 8, b.z));
+      crowns.push(new THREE.Matrix4().compose(new THREE.Vector3(b.x, b.y1, b.z), new THREE.Quaternion(), new THREE.Vector3(1, 0.9, 1)));
       continue;
     }
+    if (p.kind === 'ramp') { add(matKey(p), rampGeometry(p)); continue; }
     const b = p as BoxPrim;
     const h = b.y1 - b.y0;
-    const geo = worldUv(new THREE.BoxGeometry(b.w, h, b.d), 64);
-    const mesh = new THREE.Mesh(geo, materialsFor(b, m));
-    mesh.position.set(b.x, b.y0 + h / 2, b.z);
-    scene.add(shadowed(mesh));
-    // Free-standing stone walls get a cap and battlements.
-    if (b.mat === 'stone' && b.y0 === 0 && !b.group && h >= 50) {
-      const cap = new THREE.Mesh(new THREE.BoxGeometry(b.w + 6, 4, b.d + 6), m.cap);
-      cap.position.set(b.x, b.y1 + 2, b.z);
-      scene.add(shadowed(cap));
-      const alongX = b.w >= b.d, len = alongX ? b.w : b.d, n = Math.floor(len / 26);
-      for (let i = 0; i < n; i++) {
-        const t = -len / 2 + (i + 0.5) * (len / n);
-        for (const side of [-1, 1]) {
-          const off = side * ((alongX ? b.d : b.w) / 2 - 3);
-          merlons.push(new THREE.Matrix4().makeTranslation(b.x + (alongX ? t : off), b.y1 + 9, b.z + (alongX ? off : t)));
-        }
-      }
+    const g = worldUv(new THREE.BoxGeometry(b.w, h, b.d), b.mat === 'concrete' || b.mat === 'glass' ? 48 : 64);
+    g.translate(b.x, b.y0 + h / 2, b.z);
+    if (b.mat === 'earth') {
+      const m = new THREE.Mesh(g, mats.earth);
+      scene.add(shadowed(m));
+      continue;
     }
-    // Houses get a decorative tiled roof (their tops are out of reach anyway).
-    if (b.group === 'house') {
-      const r = new THREE.Mesh(new THREE.ConeGeometry(Math.max(b.w, b.d) * 0.78, 30, 4), std(COLORS.roofTile, { roughness: 0.7 }));
-      r.rotation.y = Math.PI / 4;
-      r.scale.set(b.w / Math.max(b.w, b.d), 1, b.d / Math.max(b.w, b.d));
-      r.position.set(b.x, b.y1 + 15, b.z);
-      scene.add(shadowed(r));
-    }
+    add(matKey(b), g.toNonIndexed());
   }
-  const im = new THREE.InstancedMesh(new THREE.BoxGeometry(12, 10, 6), m.cap, merlons.length);
-  merlons.forEach((mat, i) => im.setMatrixAt(i, mat));
-  scene.add(shadowed(im));
+  for (const [key, list] of buckets) {
+    const merged = mergeGeometries(list.map((g) => { g.deleteAttribute('uv1'); return g; }));
+    if (!merged) continue;
+    scene.add(shadowed(new THREE.Mesh(merged, mats[key] ?? mats.concrete)));
+  }
+  if (trunks.length) {
+    const tm = new THREE.InstancedMesh(new THREE.CylinderGeometry(3, 4, 34, 6), std(COLORS.woodDark), trunks.length);
+    trunks.forEach((m, i) => tm.setMatrixAt(i, m));
+    const cm = new THREE.InstancedMesh(new THREE.SphereGeometry(22, 8, 6), std(COLORS.leaf, { flatShading: true }), crowns.length);
+    crowns.forEach((m, i) => cm.setMatrixAt(i, m));
+    scene.add(shadowed(tm), shadowed(cm));
+  }
 }
 
-function roof(size: number, height: number, mat: THREE.Material): THREE.Mesh {
-  const r = new THREE.Mesh(new THREE.ConeGeometry(size, height, 4, 1), mat);
-  r.rotation.y = Math.PI / 4;
-  return r;
-}
+// ---------------------------------------------------------------- landmarks
 
-/** Central watchtower: a three-tier pagoda (collision is the 46×46 core) with the owner's banner. */
-function buildTower(scene: THREE.Scene): THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial> {
+/** 管制塔: a red-and-white lattice radio tower in 日比谷公園, with the owner's flag on top. */
+function buildRadioTower(scene: THREE.Scene): THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial> {
   const g = new THREE.Group();
   g.position.set(TOWER.x, 0, TOWER.z);
-  const lacquer = std(COLORS.lacquer, { roughness: 0.6 });
-  const tile = std(COLORS.roofTile, { roughness: 0.7 });
-  const plinth = new THREE.Mesh(new THREE.BoxGeometry(52, 8, 52), std(COLORS.stone, { map: stoneTexture() }));
-  plinth.position.y = 4;
-  g.add(plinth);
-  let y = 8;
-  for (const [w, h] of [[46, 40], [36, 32], [26, 26]]) {
-    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), lacquer);
-    body.position.y = y + h / 2;
-    g.add(body);
-    const rf = roof(w * 1.05, 16, tile);
-    rf.position.y = y + h + 6;
-    g.add(rf);
-    y += h + 10;
+  const red = std(COLORS.towerRed, { roughness: 0.6 }), white = std(0xf1ede4, { roughness: 0.6 });
+  const segs = 6;
+  for (let i = 0; i < segs; i++) {
+    const h = 25, r0 = 22 - i * 3, r1 = 22 - (i + 1) * 3;
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, h, 4, 1, true), i % 2 ? white : red);
+    m.material.side = THREE.DoubleSide;
+    m.rotation.y = Math.PI / 4;
+    m.position.y = i * h + h / 2;
+    g.add(m);
   }
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 34, 6), std(COLORS.gold, { metalness: 0.6, roughness: 0.35 }));
-  pole.position.y = y + 14;
+  pole.position.y = segs * 25 + 14;
   g.add(pole);
-  const flag = new THREE.Mesh(new THREE.PlaneGeometry(26, 16), std(0x777777, { side: THREE.DoubleSide }));
-  flag.position.set(13, y + 22, 0);
+  const flag = new THREE.Mesh(new THREE.PlaneGeometry(30, 18), std(0x777777, { side: THREE.DoubleSide }));
+  flag.position.set(15, segs * 25 + 22, 0);
   g.add(flag);
   scene.add(shadowed(g));
   return flag;
 }
 
+/** Tokyo Tower's upper lattice, Tokyo Station's domes, the Diet's pyramid, Tokyo Dome's roof. */
+function buildLandmarks(scene: THREE.Scene): void {
+  const red = std(COLORS.towerRed, { roughness: 0.6 }), white = std(0xf1ede4, { roughness: 0.6 });
+  const t = LANDMARKS.tokyoTower;
+  const spire = new THREE.Group();
+  spire.position.set(t.x, 80, t.z);
+  let y = 0;
+  for (let i = 0; i < 9; i++) {
+    const h = 30 - i, r0 = 18 - i * 1.7, r1 = 18 - (i + 1) * 1.7;
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(Math.max(1, r1), Math.max(1.5, r0), h, 4, 1, true), i % 2 ? white : red);
+    m.material.side = THREE.DoubleSide;
+    m.rotation.y = Math.PI / 4;
+    m.position.y = y + h / 2;
+    spire.add(m);
+    y += h;
+  }
+  const deckRoof = new THREE.Mesh(new THREE.BoxGeometry(40, 14, 40), white);
+  deckRoof.position.y = 150;
+  spire.add(deckRoof);
+  scene.add(shadowed(spire));
+
+  const st = LANDMARKS.tokyoStation;
+  const domeMat = std(0x5b6067, { roughness: 0.5, metalness: 0.3 });
+  for (const dz of [-60, 60]) {
+    const d = new THREE.Mesh(new THREE.SphereGeometry(18, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), domeMat);
+    d.position.set(st.x, 44, st.z + dz);
+    scene.add(shadowed(d));
+  }
+  const roofTop = new THREE.Mesh(new THREE.BoxGeometry(42, 4, 162), std(0x3b3f4a));
+  roofTop.position.set(st.x, 46, st.z);
+  scene.add(shadowed(roofTop));
+
+  const dt = LANDMARKS.diet;
+  const pyr = new THREE.Mesh(new THREE.ConeGeometry(22, 34, 4), std(0x9a9486, { map: stoneTexture() }));
+  pyr.rotation.y = Math.PI / 4;
+  pyr.position.set(dt.x, 96 + 17, dt.z);
+  scene.add(shadowed(pyr));
+
+  const dm = LANDMARKS.dome;
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(92, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2), std(0xf2f0ea, { roughness: 0.5 }));
+  dome.scale.set(1, 0.62, 1);
+  dome.position.set(dm.x, 0, dm.z);
+  scene.add(shadowed(dome));
+}
+
+// ---------------------------------------------------------------- the Yamanote line
+
+/** Track viaduct along the loop, station name boards, and a skyline beyond. */
+function buildRailway(scene: THREE.Scene): THREE.Group {
+  const bed = std(0x77736a), rail = std(0x444444, { metalness: 0.6, roughness: 0.4 }), fence = std(0x3d4a3d);
+  for (let i = 0; i < LOOP.length; i++) {
+    const a = LOOP[i], b = LOOP[(i + 1) % LOOP.length];
+    const len = Math.hypot(b.x - a.x, b.z - a.z), ang = Math.atan2(b.x - a.x, b.z - a.z);
+    const seg = new THREE.Group();
+    seg.position.set((a.x + b.x) / 2, 0, (a.z + b.z) / 2);
+    seg.rotation.y = ang;
+    const v = new THREE.Mesh(new THREE.BoxGeometry(46, 18, len + 46), bed);
+    v.position.y = 9;
+    seg.add(v);
+    for (const off of [-10, 10]) {
+      const r = new THREE.Mesh(new THREE.BoxGeometry(2, 2, len + 40), rail);
+      r.position.set(off, 19, 0);
+      seg.add(r);
+    }
+    const f = new THREE.Mesh(new THREE.BoxGeometry(2, 30, len + 40), fence);
+    f.position.set(0, 15, 0);
+    // Fence on the inner side of the track (inside = to the right of travel for a clockwise loop).
+    f.position.x = 24;
+    seg.add(f);
+    scene.add(shadowed(seg));
+  }
+  // Station boards.
+  for (const s of STATIONS) {
+    const c = document.createElement('canvas');
+    c.width = 256;
+    c.height = 72;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#f7f5ef';
+    g.fillRect(0, 0, 256, 72);
+    g.fillStyle = '#' + COLORS.yamanote.toString(16);
+    g.fillRect(0, 58, 256, 14);
+    g.fillStyle = '#1b1b1b';
+    g.font = 'bold 40px sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(s.name, 128, 30);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), fog: true }));
+    sp.scale.set(90, 25, 1);
+    sp.position.set(s.x, 62, s.z);
+    scene.add(sp);
+  }
+  // Skyline beyond the tracks (visual only; nobody can go there).
+  const rnd = (() => { let a = 1234; return () => ((a = (a * 16807) % 2147483647) / 2147483647); })();
+  const mats: THREE.Matrix4[] = [];
+  let guard = 0;
+  while (mats.length < 520 && guard++ < 20000) {
+    const x = GROUND.cx + (rnd() - 0.5) * (GROUND.w + 1400), z = GROUND.cz + (rnd() - 0.5) * (GROUND.d + 1400);
+    if (insideLoop(x, z, -140)) continue;
+    const h = 30 + rnd() * rnd() * 220, w = 50 + rnd() * 90;
+    mats.push(new THREE.Matrix4().compose(new THREE.Vector3(x, h / 2, z), new THREE.Quaternion(), new THREE.Vector3(w, h, 40 + rnd() * 90)));
+  }
+  const sky = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), std(0xffffff, { map: windowTexture('#8e8a80', '#39434f') }), mats.length);
+  mats.forEach((m, i) => sky.setMatrixAt(i, m));
+  scene.add(sky);
+  // The train: six silver cars with the green stripe.
+  const train = new THREE.Group();
+  const body = std(0xd9dde2, { metalness: 0.4, roughness: 0.35 }), stripe = std(COLORS.yamanote), glass = std(0x223040, { roughness: 0.2 });
+  for (let i = 0; i < 6; i++) {
+    const car = new THREE.Group();
+    const b = new THREE.Mesh(new THREE.BoxGeometry(12, 13, 56), body);
+    b.position.y = 7;
+    const s = new THREE.Mesh(new THREE.BoxGeometry(12.4, 2.4, 56.2), stripe);
+    s.position.y = 5;
+    const w = new THREE.Mesh(new THREE.BoxGeometry(12.6, 3.4, 48), glass);
+    w.position.y = 9.5;
+    car.add(b, s, w);
+    car.userData.index = i;
+    train.add(car);
+  }
+  scene.add(shadowed(train));
+  return train;
+}
+
+const LOOP_LEN: number[] = [];
+{
+  let acc = 0;
+  for (let i = 0; i < LOOP.length; i++) {
+    LOOP_LEN.push(acc);
+    const a = LOOP[i], b = LOOP[(i + 1) % LOOP.length];
+    acc += Math.hypot(b.x - a.x, b.z - a.z);
+  }
+  LOOP_LEN.push(acc);
+}
+
+function pointOnLoop(s: number): { x: number; z: number; ang: number } {
+  const total = LOOP_LEN[LOOP_LEN.length - 1];
+  s = ((s % total) + total) % total;
+  let i = 0;
+  while (LOOP_LEN[i + 1] < s) i++;
+  const a = LOOP[i], b = LOOP[(i + 1) % LOOP.length];
+  const t = (s - LOOP_LEN[i]) / (LOOP_LEN[i + 1] - LOOP_LEN[i]);
+  return { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t, ang: Math.atan2(b.x - a.x, b.z - a.z) };
+}
+
+/** Moves the train round the loop (one lap ≈ 100 s). Purely visual. */
+export function updateTrain(refs: SceneRefs, timeSec: number): void {
+  const head = timeSec * 150;
+  for (const car of refs.train.children) {
+    const p = pointOnLoop(head - (car.userData.index as number) * 60);
+    car.position.set(p.x, 20, p.z);
+    car.rotation.y = p.ang;
+  }
+}
 function banner(glyph: string, color: number, height: number): THREE.Group {
   const g = new THREE.Group();
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.6, height, 6), std(COLORS.woodDark));
@@ -333,38 +488,6 @@ function buildJails(scene: THREE.Scene): void {
   scene.add(shadowed(pm));
 }
 
-/** Palisade along the play boundary and a forest beyond it. */
-function buildBorder(scene: THREE.Scene): void {
-  const rnd = (() => { let a = 99; return () => ((a = (a * 16807) % 2147483647) / 2147483647); })();
-  const fence: THREE.Matrix4[] = [];
-  const ex = BOUNDS.maxX + 30, ez = BOUNDS.maxZ + 30;
-  const q = new THREE.Quaternion();
-  const place = (x: number, z: number) => {
-    const h = 26 + rnd() * 8;
-    fence.push(new THREE.Matrix4().compose(new THREE.Vector3(x, h / 2, z), q, new THREE.Vector3(1, h / 30, 1)));
-  };
-  for (let x = -ex; x <= ex; x += 10) { place(x, -ez); place(x, ez); }
-  for (let z = -ez; z <= ez; z += 10) { place(-ex, z); place(ex, z); }
-  const fm = new THREE.InstancedMesh(new THREE.CylinderGeometry(2.6, 3, 30, 5), std(COLORS.wood), fence.length);
-  fence.forEach((mm, i) => fm.setMatrixAt(i, mm));
-  scene.add(shadowed(fm));
-
-  const trees: THREE.Matrix4[] = [], trunks: THREE.Matrix4[] = [];
-  let guard = 0;
-  while (trees.length < 520 && guard++ < 8000) {
-    const x = (rnd() * 2 - 1) * (GROUND.w / 2 - 20), z = (rnd() * 2 - 1) * (GROUND.d / 2 - 20);
-    if (Math.abs(x) < ex + 40 && Math.abs(z) < ez + 40) continue;
-    const k = 0.8 + rnd() * 0.9;
-    trees.push(new THREE.Matrix4().compose(new THREE.Vector3(x, 22 + 34 * k, z), q, new THREE.Vector3(k, k, k)));
-    trunks.push(new THREE.Matrix4().compose(new THREE.Vector3(x, 12 * k, z), q, new THREE.Vector3(k, k, k)));
-  }
-  const tm = new THREE.InstancedMesh(new THREE.ConeGeometry(22, 70, 7), std(COLORS.leaf, { flatShading: true }), trees.length);
-  trees.forEach((mm, i) => tm.setMatrixAt(i, mm));
-  const km = new THREE.InstancedMesh(new THREE.CylinderGeometry(3, 4, 24, 5), std(COLORS.woodDark), trunks.length);
-  trunks.forEach((mm, i) => km.setMatrixAt(i, mm));
-  scene.add(shadowed(tm), shadowed(km));
-}
-
 export function buildScene(canvas: HTMLCanvasElement): SceneRefs {
   THREE.ColorManagement.enabled = false;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -374,18 +497,19 @@ export function buildScene(canvas: HTMLCanvasElement): SceneRefs {
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(COLORS.fog);
-  scene.fog = new THREE.Fog(COLORS.fog, 800, 2600);
+  scene.fog = new THREE.Fog(COLORS.fog, 900, 3400);
   const camera = new THREE.PerspectiveCamera(65, 1, 1, 12000);
 
   buildSky(scene);
   const sun = buildLights(scene);
   buildGround(scene);
   buildWorld(scene);
-  const towerMesh = buildTower(scene);
+  buildLandmarks(scene);
+  const towerMesh = buildRadioTower(scene);
   buildBases(scene);
   buildJails(scene);
-  buildBorder(scene);
-  return { renderer, scene, camera, towerMesh, sun };
+  const train = buildRailway(scene);
+  return { renderer, scene, camera, towerMesh, sun, train };
 }
 
 /** Keeps the shadow frustum centred on the player so a big map still gets crisp shadows. */

@@ -22,10 +22,15 @@ export interface Nation {
 /** Iteration order matches v6 (`for (n in NATIONS)`). */
 export const NATION_IDS: readonly NationId[] = ['sun', 'moon', 'star'];
 
+import { BASE_SITES, JAIL_SITES } from './map';
+
+const jail = (n: NationId) => ({ ...JAIL_SITES[n], w: 240, d: 60 });
+
+/** 太陽 = 新宿, 月 = 上野, 星 = 高輪 (品川). Positions come from config/map.ts. */
 export const NATIONS: Record<NationId, Nation> = {
-  sun: { name: '太陽', emblem: '\u2600\uFE0E', color: 0xff9048, base: { x: -1560, z: 800 }, jail: { x: -1560, z: 1110, w: 240, d: 60 } },
-  moon: { name: '月', emblem: '\u263E\uFE0E', color: 0x57a8ff, base: { x: 1560, z: 800 }, jail: { x: 1560, z: 1110, w: 240, d: 60 } },
-  star: { name: '星', emblem: '\u2605\uFE0E', color: 0xf5e05a, base: { x: 0, z: -1030 }, jail: { x: 0, z: -1180, w: 240, d: 60 } },
+  sun: { name: '太陽', emblem: '\u2600\uFE0E', color: 0xff9048, base: BASE_SITES.sun, jail: jail('sun') },
+  moon: { name: '月', emblem: '\u263E\uFE0E', color: 0x57a8ff, base: BASE_SITES.moon, jail: jail('moon') },
+  star: { name: '星', emblem: '\u2605\uFE0E', color: 0xf5e05a, base: BASE_SITES.star, jail: jail('star') },
 };
 
 export function nationName(n: NationId): string {

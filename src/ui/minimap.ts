@@ -1,15 +1,19 @@
 import { NATION_IDS, NATIONS, nationCss } from '../config/nations';
 import type { BoxPrim } from '../config/map';
-import { BOUNDS, ROADS, TOWER, WORLD } from '../config/map';
+import { BOUNDS, KANDA, LOOP, PARKS, RIVER_WIDTH, ROADS, STATIONS, TOWER, WORLD } from '../config/map';
 import type { GameState } from '../sim/state';
 import { effNation, visibleTo } from '../sim/systems/vision';
 import { $ } from './dom';
 
-/** Canvas pixels (2x the CSS size for sharp lines). Keeps the map's 8:5 aspect. */
-const W = 352, H = 220;
-const SX = W / (BOUNDS.maxX - BOUNDS.minX), SZ = H / (BOUNDS.maxZ - BOUNDS.minZ);
-const mx = (x: number) => (x - BOUNDS.minX) * SX;
-const my = (z: number) => (z - BOUNDS.minZ) * SZ;
+/** Canvas pixels (2x the CSS size). The Yamanote loop is tall, so the map is portrait. */
+const PAD = 60;
+const W = 352;
+const SX = W / (BOUNDS.maxX - BOUNDS.minX + 2 * PAD);
+const SZ = SX;
+const H = Math.round((BOUNDS.maxZ - BOUNDS.minZ + 2 * PAD) * SZ);
+const mx = (x: number) => (x - BOUNDS.minX + PAD) * SX;
+const my = (z: number) => (z - BOUNDS.minZ + PAD) * SZ;
+export const MINIMAP_SIZE = { w: W, h: H };
 /** Above this height a character counts as "up high" (floors, hills, platforms). */
 const HIGH = 30;
 
@@ -20,7 +24,14 @@ export function levelLabel(y: number): string {
 }
 
 export class Minimap {
-  private ctx = ($('mini') as HTMLCanvasElement).getContext('2d')!;
+  private ctx: CanvasRenderingContext2D;
+
+  constructor() {
+    const c = $('mini') as HTMLCanvasElement;
+    c.width = W;
+    c.height = H;
+    this.ctx = c.getContext('2d')!;
+  }
   private base: HTMLCanvasElement | null = null;
 
   /** Static layer. Height reads as brightness; stairs and slopes are amber, water blue. */
@@ -30,27 +41,65 @@ export class Minimap {
     c.width = W;
     c.height = H;
     const g = c.getContext('2d')!;
-    g.fillStyle = '#2d3a22';
+    g.fillStyle = '#23252a';
     g.fillRect(0, 0, W, H);
-    g.strokeStyle = '#6e5b3e';
-    g.lineWidth = 2.5;
+    // Inside the loop.
+    g.fillStyle = '#4a4943';
+    g.beginPath();
+    LOOP.forEach((p, i) => (i ? g.lineTo(mx(p.x), my(p.z)) : g.moveTo(mx(p.x), my(p.z))));
+    g.closePath();
+    g.fill();
+    for (const pk of PARKS) {
+      g.fillStyle = pk.kind === 'park' ? '#4f6d38' : '#8d846f';
+      g.fillRect(mx(pk.x - pk.w / 2), my(pk.z - pk.d / 2), pk.w * SX, pk.d * SZ);
+    }
+    g.strokeStyle = '#2f3136';
+    g.lineWidth = 3;
     g.lineCap = g.lineJoin = 'round';
     for (const r of ROADS) {
       g.beginPath();
       r.forEach(([x, z], i) => (i ? g.lineTo(mx(x), my(z)) : g.moveTo(mx(x), my(z))));
       g.stroke();
     }
+    g.strokeStyle = '#3f7590';
+    g.lineWidth = Math.max(2, RIVER_WIDTH * SX);
+    g.beginPath();
+    KANDA.forEach((p, i) => (i ? g.lineTo(mx(p.x), my(p.z)) : g.moveTo(mx(p.x), my(p.z))));
+    g.stroke();
     const rect = (p: { x: number; z: number; w: number; d: number }) => g.fillRect(mx(p.x - p.w / 2), my(p.z - p.d / 2), Math.max(1, p.w * SX), Math.max(1, p.d * SZ));
     // Draw low things first so floors and platforms sit on top.
     const sorted = [...WORLD].sort((a, b) => (a.kind === 'box' ? a.y1 : a.hHigh) - (b.kind === 'box' ? b.y1 : b.hHigh));
     for (const p of sorted) {
-      if (p.mat === 'water') g.fillStyle = '#3f7590';
+      if (p.mat === 'water') { if (p.group === 'river') continue; g.fillStyle = '#3f7590'; }
+      else if (p.mat === 'tree') continue;
       else if (p.kind === 'ramp') g.fillStyle = '#d6a64e';
       else if (p.mat === 'earth') g.fillStyle = '#6f8a45';
       else if ((p as BoxPrim).y0 > 20) g.fillStyle = '#d8cda8'; // upper floors, skyways, platforms
       else if (p.mat === 'hedge') g.fillStyle = '#48633a';
-      else g.fillStyle = '#9a917e';
+      else if (p.kind === 'box' && p.y1 > 150) g.fillStyle = '#c6c1b3'; // towers
+      else g.fillStyle = '#8f887a';
       rect(p);
+    }
+    // The Yamanote line and its stations.
+    g.strokeStyle = '#9acd32';
+    g.lineWidth = 3;
+    g.beginPath();
+    LOOP.forEach((p, i) => (i ? g.lineTo(mx(p.x), my(p.z)) : g.moveTo(mx(p.x), my(p.z))));
+    g.closePath();
+    g.stroke();
+    g.font = '600 11px sans-serif';
+    g.textBaseline = 'middle';
+    for (const st of STATIONS) {
+      g.fillStyle = '#f4f1e8';
+      g.beginPath();
+      g.arc(mx(st.x), my(st.z), 2.5, 0, Math.PI * 2);
+      g.fill();
+      if (['東京', '品川', '渋谷', '新宿', '池袋', '上野', '秋葉原'].includes(st.name)) {
+        const left = st.x < (BOUNDS.minX + BOUNDS.maxX) / 2;
+        g.textAlign = left ? 'right' : 'left';
+        g.fillStyle = 'rgba(244,241,232,.85)';
+        g.fillText(st.name, mx(st.x) + (left ? -5 : 5), my(st.z));
+      }
     }
     for (const n of NATION_IDS) {
       const { jail: j, base: b } = NATIONS[n];

@@ -9,7 +9,10 @@ import { separate } from '../src/sim/systems/movement';
 import { stepSimulation } from '../src/sim/step';
 import type { GameState } from '../src/sim/state';
 import { drainEvents } from '../src/sim/state';
+import { SITES } from '../src/config/map';
 import { find, freezeOthers, newGame, placeAtBase, runFrames } from './helpers';
+
+const O = SITES.open;
 
 function steps(state: GameState, sec: number) {
   for (let t = 0; t < sec; t += STEP_SEC) stepSimulation(state, STEP_SEC);
@@ -27,8 +30,9 @@ describe('AI movement', () => {
       sunHigh = Math.max(sunHigh, sun.y);
       moonHigh = Math.max(moonHigh, moon.y);
     }
-    expect(sunHigh).toBeGreaterThan(40);
-    expect(moonHigh).toBeGreaterThan(40);
+    // Perches include 上野の山 (24) and 愛宕山 (28), not only rooftops.
+    expect(sunHigh).toBeGreaterThan(20);
+    expect(moonHigh).toBeGreaterThan(20);
   });
 
   it('never stays stuck on walls for long during full matches', () => {
@@ -43,7 +47,7 @@ describe('AI movement', () => {
   it('keeps characters from stacking on the same spot', () => {
     const state = newGame();
     const [a, b, c] = [find(state, 'moon', 'soldier'), find(state, 'star', 'soldier'), find(state, 'sun', 'sniper')];
-    for (const e of [a, b, c]) teleport(e, -700, 420);
+    for (const e of [a, b, c]) teleport(e, O.x, O.z);
     for (let i = 0; i < 20; i++) separate(state);
     for (const [p, q] of [[a, b], [a, c], [b, c]]) expect(Math.hypot(p.x - q.x, p.z - q.z)).toBeGreaterThan(CR * 2 - 1);
   });
@@ -76,10 +80,10 @@ describe('AI pursuit', () => {
     state.nextEventAt = Infinity;
     const hunter = find(state, 'moon', 'soldier');
     freezeOthers(state, [hunter, state.player]);
-    teleport(hunter, -600, 800); // south field, open line of sight
+    teleport(hunter, O.x, O.z + 180); // open plaza, clear line of sight
     hunter.dirX = 0;
     hunter.dirZ = -1;
-    teleport(state.player, -600, 450); // 350 in front of the hunter
+    teleport(state.player, O.x, O.z - 170); // 350 in front of the hunter
     state.player.dirX = 0;
     state.player.dirZ = -1; // walking away
     return { state, hunter };
@@ -97,7 +101,7 @@ describe('AI pursuit', () => {
     steps(state, 0.9); // after the AI's reaction time
     const last = { x: state.player.x, z: state.player.z };
     // The player vanishes behind the town (far and out of sight).
-    teleport(state.player, 600, -720);
+    teleport(state.player, NATIONS.star.base.x, NATIONS.star.base.z);
     state.player.stunUntil = Infinity;
     steps(state, 0.8);
     expect(hunter.ai.state).toBe('SEARCH');
@@ -109,11 +113,11 @@ describe('AI pursuit', () => {
     state.nextEventAt = Infinity;
     const hunters = [find(state, 'moon', 'soldier'), find(state, 'moon', 'impostor')];
     freezeOthers(state, [...hunters, state.player]);
-    teleport(hunters[0], -600, 820);
-    teleport(hunters[1], -540, 840);
+    teleport(hunters[0], O.x, O.z + 200);
+    teleport(hunters[1], O.x + 60, O.z + 220);
     for (const h of hunters) { h.dirX = 0; h.dirZ = -1; }
-    teleport(find(state, 'moon', 'king'), -560, 880); // the escort's king is right here
-    teleport(state.player, -600, 660);
+    teleport(find(state, 'moon', 'king'), O.x + 40, O.z + 250); // the escort's king is right here
+    teleport(state.player, O.x, O.z + 30);
     state.player.dirX = 0;
     state.player.dirZ = -1;
     // Both have already noticed the player (reaction time spent).

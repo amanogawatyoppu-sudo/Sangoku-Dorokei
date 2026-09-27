@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { CameraController, angleDelta } from '../src/render/cameraController';
 import { solidAt } from '../src/sim/systems/world';
+import { SITES } from '../src/config/map';
 
-const P = { x: -700, z: 420 }; // open ground
+const P = SITES.open; // 皇居前広場: open ground
 
 function behindness(cam: THREE.PerspectiveCamera, yaw: number, px: number, pz: number): number {
   // Negative when the camera is behind the character (opposite to its facing).
@@ -68,15 +69,17 @@ describe('rear-follow camera', () => {
     expect(cam.position.y - y0).toBeGreaterThan(55);
   });
 
-  it('never ends up inside a wall or floor (ground floor of the west hall)', () => {
+  it('never ends up inside a wall or floor (ground floor of a 2F building)', () => {
     const ctl = new CameraController();
     const cam = new THREE.PerspectiveCamera();
     for (const yaw of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
       ctl.snap(yaw);
-      for (let i = 0; i < 10; i++) ctl.update(cam, -400, 0, -560, 1 / 60);
+      const u = SITES.walkup.underFloor;
+      for (let i = 0; i < 10; i++) ctl.update(cam, u.x, 0, u.z, 1 / 60);
       expect(solidAt(cam.position.x, cam.position.y, cam.position.z)).toBe(false);
-      // Under the second floor the boom shrinks well below its open-field length.
-      expect(cam.position.distanceTo(new THREE.Vector3(-400, 55, -560))).toBeLessThan(120);
+      // Under the second floor the boom stays below the ceiling and shorter than in the open.
+      expect(cam.position.y).toBeLessThan(58);
+      expect(cam.position.distanceTo(new THREE.Vector3(u.x, 45, u.z))).toBeLessThan(180);
     }
   });
 });

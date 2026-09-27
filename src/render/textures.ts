@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { NATION_IDS, NATIONS } from '../config/nations';
-import { BOUNDS, GROUND, PLAZA, RIVER, ROADS, SQUARE } from '../config/map';
+import { GROUND, KANDA, LOOP, PARKS, RIVER_WIDTH, ROADS } from '../config/map';
 
 /** Small deterministic PRNG so the generated art is identical every load. */
 function prng(seed: number): () => number {
@@ -28,99 +28,93 @@ function hexCss(c: number, a = 1): string {
 export const GROUND_EXTENT = GROUND;
 
 /**
- * Paints the battlefield: grass, forest floor outside the play area,
- * each kingdom's territory tint, dirt roads from each base to the tower,
- * and stone plazas at the tower and bases.
+ * Paints Tokyo from above: the loop's pavement, main roads with lane marks,
+ * parks and gravel squares, each kingdom's district tint, the Kanda river bed,
+ * base plazas and jail yards. Outside the tracks is darker city.
  */
 export function groundTexture(): THREE.CanvasTexture {
-  const PX = 0.7; // pixels per world unit
-  const W = Math.round(GROUND_EXTENT.w * PX), H = Math.round(GROUND_EXTENT.d * PX);
+  const PX = 0.4; // pixels per world unit
+  const W = Math.round(GROUND.w * PX), H = Math.round(GROUND.d * PX);
   const [c, g] = canvas(W, H);
   const rnd = prng(7);
-  const X = (x: number) => (x + GROUND_EXTENT.w / 2) * PX;
-  const Z = (z: number) => (z + GROUND_EXTENT.d / 2) * PX;
-
-  g.fillStyle = '#2f3f24';
+  const X = (x: number) => (x - GROUND.cx + GROUND.w / 2) * PX;
+  const Z = (z: number) => (z - GROUND.cz + GROUND.d / 2) * PX;
+  g.fillStyle = '#34353a';
   g.fillRect(0, 0, W, H);
-  // Play area: lighter meadow.
-  g.fillStyle = '#4d6a36';
-  g.fillRect(X(BOUNDS.minX - 20), Z(BOUNDS.minZ - 20), (BOUNDS.maxX - BOUNDS.minX + 40) * PX, (BOUNDS.maxZ - BOUNDS.minZ + 40) * PX);
-  // Grass mottling.
-  for (let i = 0; i < 26000; i++) {
-    const s = 1 + rnd() * 3;
-    g.fillStyle = `hsla(${88 + rnd() * 30},${30 + rnd() * 20}%,${22 + rnd() * 16}%,${0.25 + rnd() * 0.35})`;
-    g.fillRect(rnd() * W, rnd() * H, s, s);
+  // Inside the loop: pale city pavement.
+  g.fillStyle = '#8b877d';
+  g.beginPath();
+  LOOP.forEach((p, i) => (i ? g.lineTo(X(p.x), Z(p.z)) : g.moveTo(X(p.x), Z(p.z))));
+  g.closePath();
+  g.fill();
+  for (let i = 0; i < 30000; i++) {
+    g.fillStyle = `rgba(${40 + rnd() * 60},${40 + rnd() * 60},${40 + rnd() * 60},${0.08 + rnd() * 0.1})`;
+    g.fillRect(rnd() * W, rnd() * H, 1 + rnd() * 2, 1 + rnd() * 2);
   }
-  // Kingdom territories.
   for (const n of NATION_IDS) {
     const b = NATIONS[n].base;
-    const grd = g.createRadialGradient(X(b.x), Z(b.z), 0, X(b.x), Z(b.z), 620 * PX);
+    const grd = g.createRadialGradient(X(b.x), Z(b.z), 0, X(b.x), Z(b.z), 700 * PX);
     grd.addColorStop(0, hexCss(NATIONS[n].color, 0.22));
     grd.addColorStop(1, hexCss(NATIONS[n].color, 0));
     g.fillStyle = grd;
     g.fillRect(0, 0, W, H);
   }
-  // Roads: each base to the tower, and a ring around the tower plaza.
+  for (const pk of PARKS) {
+    g.fillStyle = pk.kind === 'park' ? '#4f6d38' : '#b3a88f';
+    g.fillRect(X(pk.x - pk.w / 2), Z(pk.z - pk.d / 2), pk.w * PX, pk.d * PX);
+    if (pk.kind === 'park') for (let i = 0; i < 400; i++) {
+      g.fillStyle = `hsla(${90 + rnd() * 30},35%,${22 + rnd() * 14}%,.5)`;
+      g.fillRect(X(pk.x - pk.w / 2 + rnd() * pk.w), Z(pk.z - pk.d / 2 + rnd() * pk.d), 2, 2);
+    }
+  }
+  // Roads: asphalt with a dashed centre line.
   g.lineCap = 'round';
   g.lineJoin = 'round';
-  const road = (pts: [number, number][], width: number, color: string) => {
+  const line = (pts: readonly (readonly [number, number])[], width: number, color: string, dash: number[] = []) => {
     g.strokeStyle = color;
     g.lineWidth = width * PX;
+    g.setLineDash(dash);
     g.beginPath();
     pts.forEach(([x, z], i) => (i ? g.lineTo(X(x), Z(z)) : g.moveTo(X(x), Z(z))));
     g.stroke();
+    g.setLineDash([]);
   };
-  const routes = ROADS.map((r) => r.map(([x, z]) => [x, z] as [number, number]));
-  for (const r of routes) road(r, 54, 'rgba(92,74,48,.55)');
-  for (const r of routes) road(r, 40, '#9a8058');
-  for (let i = 0; i < 9000; i++) {
-    // Gravel speckle, only visible where it lands on a road colour.
-    g.fillStyle = `rgba(${60 + rnd() * 60},${50 + rnd() * 40},${30 + rnd() * 30},.35)`;
-    g.fillRect(rnd() * W, rnd() * H, 1.5, 1.5);
-  }
-  // Stone plazas.
-  const plaza = (x: number, z: number, r: number) => {
-    g.fillStyle = '#8a857a';
-    g.beginPath();
-    g.arc(X(x), Z(z), r * PX, 0, Math.PI * 2);
-    g.fill();
-    g.strokeStyle = 'rgba(40,36,30,.35)';
-    g.lineWidth = 1;
-    for (let k = 1; k <= 4; k++) {
-      g.beginPath();
-      g.arc(X(x), Z(z), (r * PX * k) / 4, 0, Math.PI * 2);
-      g.stroke();
-    }
-    for (let a = 0; a < 16; a++) {
-      const ang = (a / 16) * Math.PI * 2;
-      g.beginPath();
-      g.moveTo(X(x), Z(z));
-      g.lineTo(X(x) + Math.cos(ang) * r * PX, Z(z) + Math.sin(ang) * r * PX);
-      g.stroke();
-    }
-  };
-  // Town paving and the river bed (the water plane sits above it).
-  g.fillStyle = '#857d6c';
-  g.fillRect(X(-640), Z(-790), 1280 * PX, 400 * PX);
-  g.strokeStyle = 'rgba(40,36,30,.25)';
-  g.lineWidth = 1;
-  for (let x = -640; x <= 640; x += 32) { g.beginPath(); g.moveTo(X(x), Z(-790)); g.lineTo(X(x), Z(-390)); g.stroke(); }
-  for (let z = -790; z <= -390; z += 32) { g.beginPath(); g.moveTo(X(-640), Z(z)); g.lineTo(X(640), Z(z)); g.stroke(); }
-  g.fillStyle = '#4a5a3a';
-  g.fillRect(X(RIVER.minX - 30), Z(RIVER.z - RIVER.d / 2 - 14), (RIVER.maxX - RIVER.minX + 60) * PX, (RIVER.d + 28) * PX);
-  g.fillStyle = '#2c4250';
-  g.fillRect(X(RIVER.minX), Z(RIVER.z - RIVER.d / 2), (RIVER.maxX - RIVER.minX) * PX, RIVER.d * PX);
-  plaza(PLAZA.x, PLAZA.z, PLAZA.r);
-  plaza(SQUARE.x, SQUARE.z, SQUARE.r);
-  for (const n of NATION_IDS) plaza(NATIONS[n].base.x, NATIONS[n].base.z, 100);
-  // Packed earth yards under each jail.
+  for (const r of ROADS) line(r, 76, '#44464b');
+  for (const r of ROADS) line(r, 2, 'rgba(240,230,180,.8)', [10, 10]);
+  // Kanda river bed and banks (the water strip is drawn on top in 3D).
+  line(KANDA.map((p) => [p.x, p.z] as const), RIVER_WIDTH + 24, '#5a5d52');
+  line(KANDA.map((p) => [p.x, p.z] as const), RIVER_WIDTH, '#2c4250');
+  // Base plazas and jail yards.
   for (const n of NATION_IDS) {
-    const j = NATIONS[n].jail;
+    const b = NATIONS[n].base, j = NATIONS[n].jail;
+    g.fillStyle = '#a9a295';
+    g.beginPath();
+    g.arc(X(b.x), Z(b.z), 110 * PX, 0, Math.PI * 2);
+    g.fill();
     g.fillStyle = '#6d5a42';
     g.fillRect(X(j.x - j.w / 2 - 14), Z(j.z - j.d / 2 - 14), (j.w + 28) * PX, (j.d + 28) * PX);
   }
   const tex = new THREE.CanvasTexture(c);
   tex.anisotropy = 8;
+  return tex;
+}
+
+/** Office facade: rows of windows (1 tile = one 32-unit storey band, tiled by world UVs). */
+export function windowTexture(base: string, glass: string): THREE.CanvasTexture {
+  const [c, g] = canvas(128, 128);
+  const rnd = prng(base.length * 97 + glass.length);
+  g.fillStyle = base;
+  g.fillRect(0, 0, 128, 128);
+  for (let row = 0; row < 4; row++) {
+    for (let col = 0; col < 4; col++) {
+      const lit = rnd() < 0.25;
+      g.fillStyle = lit ? '#f3dca0' : glass;
+      g.fillRect(col * 32 + 5, row * 32 + 8, 22, 17);
+    }
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 4;
   return tex;
 }
 

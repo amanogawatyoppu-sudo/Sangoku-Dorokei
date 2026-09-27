@@ -1,6 +1,6 @@
 import type { NationId, Point } from '../config/nations';
 import { NATION_IDS, NATIONS } from '../config/nations';
-import { HOTSPOTS, SNIPE, TOWER, UPPER } from '../config/map';
+import { HOTSPOTS, PERCHES as MAP_PERCHES, TOWER } from '../config/map';
 import { AI_REACTION_MS, AI_SPEED, AI_TURN_RATE, CAP_RANGE } from '../config/constants';
 import type { Entity } from '../sim/entity';
 import type { GameState } from '../sim/state';
@@ -28,10 +28,7 @@ export function aggroRange(elapsed: number): number {
 }
 
 /** Places a sniper can shoot from: the two plateaus and the watch platforms. */
-const PERCHES: Waypoint[] = [
-  ...SNIPE.map((s) => ({ x: s.x, y: 44, z: s.z })),
-  { x: -1180, y: UPPER, z: 620 }, { x: 1180, y: UPPER, z: 620 }, { x: 420, y: UPPER, z: -930 },
-];
+const PERCHES: readonly Waypoint[] = MAP_PERCHES;
 
 // ---------------------------------------------------------------- movement plumbing
 
@@ -116,6 +113,19 @@ function visibleEnemies(state: GameState, e: Entity): Entity[] {
     .filter((id) => now - (e.ai.seen.get(id)?.since ?? now) >= AI_REACTION_MS)
     .map((id) => state.entities[id])
     .filter((t) => t.alive && !t.jailed);
+}
+
+/** An enemy in view that this AI has not reacted to yet (nearest), if any. */
+function noticing(state: GameState, e: Entity): Entity | null {
+  const now = state.time;
+  let best: Entity | null = null, bd = Infinity;
+  for (const id of e.ai.visible) {
+    const s = e.ai.seen.get(id);
+    if (!s || now - s.since >= AI_REACTION_MS) continue;
+    const t = state.entities[id], d = dist(e, t);
+    if (d < bd) { bd = d; best = t; }
+  }
+  return best;
 }
 
 function nearestVisible(state: GameState, e: Entity, range: number, near: Point = e): Entity | null {
@@ -481,7 +491,11 @@ export function aiTick(state: GameState, e: Entity, dt: number, aggro: number): 
   const speed = AI_SPEED * speedMul(state) * speedFor(ai.state) * (e.role === 'king' && ai.state !== 'FLEE' ? 0.75 : 1);
   // Close pursuit steers straight at the live position (only while it is in view).
   const t = ai.targetId !== null ? state.entities[ai.targetId] : null;
-  if (ai.state === 'CHASE' && t && ai.visible.includes(t.id) && dist(e, t) < 170 && Math.abs(t.y - e.y) < SAME_LEVEL) {
+  const glimpse = noticing(state, e);
+  if (glimpse && (ai.state === 'PATROL' || ai.state === 'GUARD')) {
+    // Something caught its eye but it has not reacted yet: stop and look (a tell for the player).
+    turnToward(e, glimpse.x - e.x, glimpse.z - e.z, AI_TURN_RATE * 0.6 * dt);
+  } else if (ai.state === 'CHASE' && t && ai.visible.includes(t.id) && dist(e, t) < 170 && Math.abs(t.y - e.y) < SAME_LEVEL) {
     moveToward(e, t.x - t.dirX * 30, t.z - t.dirZ * 30, dt, speed);
     ai.progressAt = now;
   } else follow(state, e, dt, speed);
