@@ -17,7 +17,8 @@ function runPlayerCommands(state: GameState): void {
   state.commands = [];
   for (const c of cmds) {
     if (c.type === 'capture') attemptCapture(state, state.player);
-    else activate(state, state.player);
+    else if (c.type === 'special') activate(state, state.player);
+    else state.playerFaceTarget = { x: c.x, z: c.z };
   }
 }
 

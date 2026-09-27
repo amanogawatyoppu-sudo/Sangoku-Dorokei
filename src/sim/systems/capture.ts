@@ -22,17 +22,23 @@ export function canAct(state: GameState, e: Entity): boolean {
   return e.alive && !e.jailed && !e.channeling && e.stunUntil <= state.time;
 }
 
-export function attemptCapture(state: GameState, attacker: Entity): void {
-  const now = state.time;
-  if (!canAct(state, attacker)) return;
-  if (attacker.cd.capture > 0) return;
-  attacker.cd.capture = CAPTURE_CD;
+/** Nearest enemy in range that the attacker is not in front of: who a capture would target. */
+export function captureCandidate(state: GameState, attacker: Entity): Entity | null {
   let best: Entity | null = null, bd = CAP_RANGE;
   for (const t of state.entities) {
     if (t.nation === attacker.nation || !t.alive || t.jailed) continue;
     const d = dist(t, attacker);
     if (d < bd && captureTier(t, attacker) !== 'front') { best = t; bd = d; }
   }
+  return best;
+}
+
+export function attemptCapture(state: GameState, attacker: Entity): void {
+  const now = state.time;
+  if (!canAct(state, attacker)) return;
+  if (attacker.cd.capture > 0) return;
+  attacker.cd.capture = CAPTURE_CD;
+  const best = captureCandidate(state, attacker);
   if (!best) return;
   const tier = captureTier(best, attacker);
   if (tier === 'side' && state.rng() < 0.5) { emit(state, { type: 'CAPTURE_FAILED', attackerId: attacker.id, reason: 'side' }); return; }

@@ -15,7 +15,7 @@ import { buildScene, resizeRenderer } from './render/sceneBuilder';
 import type { GameEvent } from './sim/events';
 import { advanceFrame } from './sim/game';
 import type { GameState } from './sim/state';
-import { createGameState, drainEvents } from './sim/state';
+import { createGameState, drainEvents, queueCommand } from './sim/state';
 import { $ } from './ui/dom';
 import { Hud } from './ui/hud';
 import { LogPanel } from './ui/log';
@@ -56,8 +56,8 @@ function startGame(nation: NationId, role: RoleId): void {
   const blocked = () => !!state.meeting || state.over;
   const input = new InputManager(canvas, {
     isBlocked: blocked,
-    onCapture: () => state.commands.push({ type: 'capture' }),
-    onSpecial: () => state.commands.push({ type: 'special' }),
+    onCapture: () => { queueCommand(state, { type: 'capture' }); },
+    onSpecial: () => { queueCommand(state, { type: 'special' }); },
   });
   $('btnMeeting').onclick = () => { openMeeting(state); flush(); };
 

@@ -30,7 +30,11 @@ export interface PlayerInput {
   dash: boolean;
 }
 
-export type Command = { type: 'capture' } | { type: 'special' };
+export type Command =
+  | { type: 'capture' }
+  | { type: 'special' }
+  /** Turn the player in place toward a world-space direction (振り向き). */
+  | { type: 'face'; x: number; z: number };
 
 export interface GameState {
   /** Game time in ms. Only advances inside `stepSimulation`. */
@@ -49,6 +53,8 @@ export interface GameState {
   nextEventAt: number;
   /** Seconds until the next dash footstep sound. */
   footTimer: number;
+  /** Direction the player is turning toward in place, until reached or they move. */
+  playerFaceTarget: { x: number; z: number } | null;
   winner: NationId | 'draw' | null;
   over: boolean;
   meeting: MeetingState | null;
@@ -87,6 +93,7 @@ export function createGameState(playerNation: NationId, playerRole: RoleId, rng:
     speedBoostUntil: 0,
     nextEventAt: FIRST_EVENT_AT,
     footTimer: 0,
+    playerFaceTarget: null,
     winner: null,
     over: false,
     meeting: null,
@@ -125,4 +132,11 @@ export function kingOf(state: GameState, nation: NationId): Entity | undefined {
 
 export function speedMul(state: GameState): number {
   return state.time < state.speedBoostUntil ? 1.3 : 1;
+}
+
+/** Queues a player action. Refused while a meeting is open or after the game ends. */
+export function queueCommand(state: GameState, cmd: Command): boolean {
+  if (state.over || state.meeting) return false;
+  state.commands.push(cmd);
+  return true;
 }

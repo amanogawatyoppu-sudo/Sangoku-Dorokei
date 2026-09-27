@@ -28,6 +28,9 @@ export const MEETING_AUTO_CLOSE = 30000;
 export const MEETINGS_PER_GAME = 2;
 export const MEETING_RANGE = 90;
 
+/** Player body turn speed (rad/s). Facing decides the back-capture rule, so it turns smoothly rather than snapping. */
+export const PLAYER_TURN_RATE = 4 * Math.PI;
+
 export const STAMINA_MAX = 100;
 export const STAMINA_DRAIN = 30;
 export const STAMINA_REGEN = 15;
