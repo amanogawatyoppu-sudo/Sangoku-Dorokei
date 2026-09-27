@@ -20,8 +20,8 @@ export class CameraController {
   /** Converts camera-relative axes (forward = W, right = D) into a world-space XZ vector. */
   toWorld(forward: number, right: number): { mx: number; mz: number } {
     const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
-    // v6 strafe vector; points to screen-left (see fix commit).
-    const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
+    // Screen-right = forward × up. (v6 used the opposite sign, so A/D were swapped.)
+    const rx = -Math.cos(this.yaw), rz = Math.sin(this.yaw);
     return { mx: fx * forward + rx * right, mz: fz * forward + rz * right };
   }
 
