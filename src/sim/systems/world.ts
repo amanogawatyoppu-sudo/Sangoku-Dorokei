@@ -136,11 +136,52 @@ export function moveBody(b: Body, nx: number, nz: number): void {
   if (!blocked(b.x, nz, b.y)) b.z = nz;
 }
 
+/** The blocking primitive a body at (x, y, z) overlaps, if any (same rule as `blocked`). */
+function blockingPrim(x: number, z: number, y: number, r: number): Prim | null {
+  for (const p of near(x - r, z - r, x + r, z + r, scratch)) {
+    if (Math.abs(x - p.x) >= p.w / 2 + r || Math.abs(z - p.z) >= p.d / 2 + r) continue;
+    if (p.y0 >= y + BODY_H) continue;
+    if (topOverCircle(p, x, z, r) > y + STEP_UP) return p;
+  }
+  return null;
+}
+
+/**
+ * If a body ended up overlapping a wall (dropped off the side of stairs,
+ * shoved by separation, teleported), push it out to the nearest free side.
+ * Without this every move from inside counts as blocked and the body freezes.
+ */
+export function pushOut(b: Body, r = CR): void {
+  for (let iter = 0; iter < 4; iter++) {
+    const p = blockingPrim(b.x, b.z, b.y, r);
+    if (!p) return;
+    const hw = p.w / 2, hd = p.d / 2;
+    const cx = Math.max(p.x - hw, Math.min(p.x + hw, b.x)), cz = Math.max(p.z - hd, Math.min(p.z + hd, b.z));
+    let dx = b.x - cx, dz = b.z - cz;
+    const d = Math.hypot(dx, dz);
+    if (d > 1e-6) {
+      // Centre outside the footprint: move straight away from the closest point.
+      dx /= d; dz /= d;
+      b.x = cx + dx * (r + 0.05);
+      b.z = cz + dz * (r + 0.05);
+    } else {
+      // Centre inside: leave through the nearest edge.
+      const ex = [p.x - hw - r - 0.05 - b.x, p.x + hw + r + 0.05 - b.x], ez = [p.z - hd - r - 0.05 - b.z, p.z + hd + r + 0.05 - b.z];
+      const opts = [[ex[0], 0], [ex[1], 0], [0, ez[0]], [0, ez[1]]].sort((u, v) => Math.hypot(u[0], u[1]) - Math.hypot(v[0], v[1]));
+      b.x += opts[0][0];
+      b.z += opts[0][1];
+    }
+    b.x = Math.max(BOUNDS.minX, Math.min(BOUNDS.maxX, b.x));
+    b.z = Math.max(BOUNDS.minZ, Math.min(BOUNDS.maxZ, b.z));
+  }
+}
+
 /**
  * Snaps up onto the floor underfoot (stairs and slopes rise smoothly) or falls
  * toward a lower one. Pass dt = Infinity to land instantly.
  */
 export function settle(b: Body, dt: number): void {
+  pushOut(b);
   const s = supportHeight(b.x, b.z, b.y);
   if (s >= b.y) b.y = s;
   else b.y = Math.max(s, b.y - FALL_SPEED * dt);

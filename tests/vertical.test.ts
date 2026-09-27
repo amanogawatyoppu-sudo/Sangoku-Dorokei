@@ -90,6 +90,21 @@ describe('stairs, slopes and upper floors', () => {
     expect(state.player.z).toBeLessThan(170 - 13);
   });
 
+  it.each([
+    ['watch-platform stairs', -1280, 620, 32, 0, 1],
+    ['watch-platform stairs (other side)', -1280, 620, 32, 0, -1],
+    ['plateau stairs', -945, -560, 22, 0, 1],
+    ['arched bridge slope', 0, 110, 12, 1, 0],
+  ] as const)('stepping off the side of the %s does not leave you stuck', (_n, x, z, y, dx, dz) => {
+    const state = soloPlayer();
+    teleport(state.player, x, z, y);
+    walk(state, dx, dz, 0.5); // step off and land beside the stairs
+    expect(state.player.y).toBe(0);
+    const a = { x: state.player.x, z: state.player.z };
+    walk(state, dx, dz, 0.5); // keep going: must move freely
+    expect(Math.hypot(state.player.x - a.x, state.player.z - a.z)).toBeGreaterThan(60);
+  });
+
   it('falls off a ledge instead of floating', () => {
     const state = soloPlayer();
     teleport(state.player, -1150, -520, 44);
