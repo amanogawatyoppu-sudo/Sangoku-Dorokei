@@ -3,8 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>三国ドロケイ v7.1 3D</title>
+<title>三国ドロケイ v7.2 3D</title>
 <link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
 </head>
 <body>
 <div id="app">
@@ -33,16 +36,16 @@
         <div id="mbtns"><div id="mStamWrap"><div id="mStam"></div></div><button id="mFace">振向</button><button id="mSpec">特殊</button><button id="mDash">ダッシュ</button><button id="mCap">捕獲</button></div>
       </div>
       <div id="setup">
-        <h1>三国ドロケイ v7.1 (3D)</h1>
-        <p style="opacity:.8;font-size:12px">太陽・月・星 ― 広大な戦場で敵国の王を探し出せ。</p>
-        <div>所属国を選択</div><div class="pickrow" id="pickNation"></div>
-        <div>役職を選択</div><div class="pickrow" id="pickRole"></div>
+        <h1>三国ドロケイ<span class="seal ver">v7.2</span></h1>
+        <p class="tagline">太陽・月・星 ― 広大な戦場で、正体を隠した敵国の王を探し出せ。</p>
+        <div class="step-label">所属国</div><div class="pickrow" id="pickNation"></div>
+        <div class="step-label">役職</div><div class="pickrow" id="pickRole"></div>
         <div id="roleDesc">役職を選ぶと詳細が表示されます。</div>
         <div class="pickrow">
           <button class="pickbtn" id="btnRandom">ランダム(国+役職をおまかせ)</button>
           <button class="go" id="btnStart">ゲーム開始</button>
         </div>
-        <p style="font-size:10px;opacity:.6">移動:WASD　視点:ドラッグ/スワイプ(ホイールで距離)　ダッシュ:Shift　捕獲:Space　特殊:E　振り向き:Q</p>
+        <p class="controls-note">移動:WASD　視点:ドラッグ/スワイプ(ホイールで距離)　ダッシュ:Shift　捕獲:Space　特殊:E　振り向き:Q</p>
       </div>
       <div id="overlay">
         <h1 id="ovTitle">勝敗</h1><p id="ovDesc"></p>
@@ -58,9 +61,9 @@
       </div>
     </div>
     <div id="side">
-      <canvas id="mini" width="150" height="150"></canvas>
-      <div>スタミナ<div class="barwrap"><div class="bar" id="stamBar" style="width:100%"></div></div></div>
-      <div><b style="font-size:11px;opacity:.8">王候補(推理)</b><div id="suspects"><div style="opacity:.5">まだ手がかりなし</div></div></div>
+      <canvas id="mini" width="352" height="352"></canvas>
+      <div><span class="panel-label">スタミナ</span><div class="barwrap"><div class="bar" id="stamBar" style="width:100%"></div></div></div>
+      <div><b>王候補（推理）</b><div id="suspects"><div style="opacity:.5">まだ手がかりなし</div></div></div>
       <div id="abilities">
         <button id="btnCapture"><span class="fill" id="fillCap"></span>捕獲(Space)</button>
         <button id="btnSpecial"><span class="fill" id="fillSpec"></span>特殊(E)</button>

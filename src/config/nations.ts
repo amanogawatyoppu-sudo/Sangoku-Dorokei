@@ -12,6 +12,8 @@ export interface JailArea extends Point {
 
 export interface Nation {
   name: string;
+  /** Text glyph used on banners and UI (rendered as text, not emoji). */
+  emblem: string;
   color: number;
   base: Point;
   jail: JailArea;
@@ -21,9 +23,9 @@ export interface Nation {
 export const NATION_IDS: readonly NationId[] = ['sun', 'moon', 'star'];
 
 export const NATIONS: Record<NationId, Nation> = {
-  sun: { name: '太陽', color: 0xff9048, base: { x: -720, z: 420 }, jail: { x: -760, z: 520, w: 220, d: 70 } },
-  moon: { name: '月', color: 0x57a8ff, base: { x: 720, z: 420 }, jail: { x: 760, z: 520, w: 220, d: 70 } },
-  star: { name: '星', color: 0xf5e05a, base: { x: 0, z: -460 }, jail: { x: 0, z: -540, w: 220, d: 70 } },
+  sun: { name: '太陽', emblem: '\u2600\uFE0E', color: 0xff9048, base: { x: -720, z: 420 }, jail: { x: -760, z: 520, w: 220, d: 70 } },
+  moon: { name: '月', emblem: '\u263E\uFE0E', color: 0x57a8ff, base: { x: 720, z: 420 }, jail: { x: 760, z: 520, w: 220, d: 70 } },
+  star: { name: '星', emblem: '\u2605\uFE0E', color: 0xf5e05a, base: { x: 0, z: -460 }, jail: { x: 0, z: -540, w: 220, d: 70 } },
 };
 
 export function nationName(n: NationId): string {

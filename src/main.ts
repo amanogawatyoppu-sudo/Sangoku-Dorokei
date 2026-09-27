@@ -67,7 +67,7 @@ function startGame(nation: NationId, role: RoleId): void {
   $('btnMeeting').onclick = () => { openMeeting(state); flush(); };
 
   hud.initFor(state);
-  log.add('v7.1: 操作・カメラ・スマホ表示を改善（ゲーム内容はv6準拠）。');
+  log.add('v7.2: 戦場とUIのデザインを刷新（ルールはv6準拠）。');
   hud.banner('三国ドロケイ 開始　' + NATIONS[nation].name + 'の' + roleName(role), 2200);
   resizeRenderer(refs, canvas);
   if (new URLSearchParams(location.search).has('debug')) exposeDebug(state, cam);
@@ -86,7 +86,7 @@ function startGame(nation: NationId, role: RoleId): void {
 
 function render(state: GameState, entityView: EntityView, indicators: Indicators, cam: CameraController, alpha: number, dtSec: number): void {
   const p = state.player;
-  entityView.sync(state, alpha);
+  entityView.sync(state, alpha, dtSec);
   indicators.sync(state, alpha);
   refs.towerMesh.material.color.setHex(state.tower.owner ? NATIONS[state.tower.owner].color : 0x777777);
   cam.update(refs.camera, lerp(p.prevX, p.x, alpha), lerp(p.prevZ, p.z, alpha), dtSec);

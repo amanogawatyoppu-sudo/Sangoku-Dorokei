@@ -36,3 +36,16 @@ export const TOWER: Circle = { x: 0, z: 0, r: 80 };
 export const BOUNDS = { minX: -1050, maxX: 1050, minZ: -650, maxZ: 650 };
 
 export const GROUND = { w: 2400, d: 1400 };
+
+/**
+ * Dirt roads painted on the ground and minimap (decoration only: no effect on
+ * movement, vision or AI). Polylines of [x, z].
+ */
+export const ROADS: readonly (readonly [number, number])[][] = [
+  [[-720, 420], [-520, 380], [-420, 150], [-200, 90], [0, 0]],
+  [[720, 420], [520, 380], [420, 150], [200, 90], [0, 0]],
+  [[0, -460], [-40, -350], [-180, -330], [-190, -200], [0, -120], [0, 0]],
+  [[-720, 420], [-460, 470], [-230, 600], [230, 600], [460, 470], [720, 420]],
+  [[0, -460], [-360, -420], [-720, -300], [-800, 250], [-720, 420]],
+  [[0, -460], [360, -420], [720, -300], [800, 250], [720, 420]],
+];

@@ -4,6 +4,7 @@ import type { CaptureTier } from '../sim/systems/capture';
 import { captureCandidate, captureTier } from '../sim/systems/capture';
 import { visibleTo } from '../sim/systems/vision';
 import { lerp } from './entityView';
+import { heightAt } from './terrain';
 
 /** captureTier() calls anything with dot >= 0.15 'front', i.e. within ±81.4° of facing. */
 export const FRONT_HALF_ANGLE = Math.acos(0.15);
@@ -44,13 +45,15 @@ export class Indicators {
     const active = p.alive && !p.jailed;
     this.front.visible = active;
     if (active) {
-      this.front.position.set(lerp(p.prevX, p.x, alpha), 0, lerp(p.prevZ, p.z, alpha));
+      const x = lerp(p.prevX, p.x, alpha), z = lerp(p.prevZ, p.z, alpha);
+      this.front.position.set(x, heightAt(x, z), z);
       this.front.rotation.y = Math.atan2(p.dirX, p.dirZ);
     }
     const t = active && !state.meeting && p.stunUntil <= state.time ? captureCandidate(state, p) : null;
     this.target.visible = !!t && visibleTo(state, t, p);
     if (t && this.target.visible) {
-      this.target.position.set(lerp(t.prevX, t.x, alpha), 0.8, lerp(t.prevZ, t.z, alpha));
+      const x = lerp(t.prevX, t.x, alpha), z = lerp(t.prevZ, t.z, alpha);
+      this.target.position.set(x, heightAt(x, z) + 0.8, z);
       this.target.material.color.setHex(TIER_COLOR[captureTier(t, p)]);
       this.target.material.opacity = p.cd.capture > 0 ? 0.35 : 0.85;
     }

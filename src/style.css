@@ -1,83 +1,142 @@
-/* v6 styles, ported unchanged. */
-  :root{--bg:#0e1420;--panel:#161f2e;--line:#2a3648;--text:#e8edf5;--accent:#6cf}
-  *{box-sizing:border-box}
-  body{margin:0;background:#000;color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;overflow:hidden;user-select:none}
-  #app{display:flex;flex-direction:column;height:100vh}
-  #topbar{display:flex;justify-content:space-between;align-items:center;background:var(--panel);padding:6px 12px;border-bottom:1px solid var(--line);font-size:12px;flex-wrap:wrap;gap:6px;z-index:5}
-  #topbar b{color:var(--accent)}
-  #topbar button{background:#c0473f;color:#fff;border:none;border-radius:5px;padding:5px 10px;font-size:11px;cursor:pointer}
-  #topbar button:disabled{opacity:.4}
-  #hintBox{background:#1c2536;padding:4px 12px;font-size:12px;text-align:center;border-bottom:1px solid var(--line);z-index:5}
-  #main{display:flex;flex:1;overflow:hidden;position:relative}
-  #log{width:170px;background:var(--panel);border-right:1px solid var(--line);padding:8px;font-size:10.5px;overflow-y:auto;flex-shrink:0;z-index:5}
-  #log div{margin-bottom:4px;opacity:.9;line-height:1.3}
-  #centerCol{flex:1;position:relative;background:#000}
-  canvas#game3d{width:100%;height:100%;display:block}
-  #vignette{position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 0 0 rgba(255,0,0,0);transition:box-shadow .15s}
-  #vignette.on{box-shadow:inset 0 0 140px 40px rgba(255,40,40,.55)}
-  #side{width:190px;background:var(--panel);border-left:1px solid var(--line);padding:8px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;overflow-y:auto;z-index:5}
-  canvas#mini{background:#0a0f18;border:1px solid var(--line);border-radius:4px}
-  .barwrap{width:100%;height:8px;background:#26314a;border-radius:4px;overflow:hidden;margin:2px 0 6px}
-  .bar{height:100%;background:#5ad06a}
-  #suspects div{font-size:10.5px;margin-bottom:5px;opacity:.9;line-height:1.4}
-  #abilities button{width:100%;padding:8px;margin-bottom:4px;background:#22314a;color:var(--text);border:1px solid var(--line);border-radius:6px;cursor:pointer;font-size:12px;position:relative;overflow:hidden}
-  #abilities button .fill{position:absolute;left:0;top:0;bottom:0;background:rgba(108,204,255,.25);width:0%}
-  #hint{font-size:10px;opacity:.65;line-height:1.5}
-  #overlay,#setup,#meetingOverlay{position:absolute;inset:0;background:rgba(5,8,14,.96);display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;z-index:10;padding:16px;text-align:center;overflow-y:auto}
-  #overlay h1{font-size:24px}
-  #overlay button,#setup button.go{padding:10px 22px;font-size:14px;background:var(--accent);color:#03202c;border:none;border-radius:6px;cursor:pointer;font-weight:bold}
-  #setup{display:flex}
-  .pickrow{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
-  .pickbtn{padding:8px 14px;border-radius:6px;border:2px solid var(--line);background:#1c2536;color:var(--text);cursor:pointer;font-size:13px}
-  .pickbtn.sel{border-color:var(--accent);background:#233248}
-  #roleDesc{max-width:460px;font-size:11.5px;opacity:.9;min-height:70px;text-align:left;line-height:1.6}
-  #banner{position:absolute;top:12%;left:50%;transform:translate(-50%,0);font-size:26px;font-weight:bold;letter-spacing:2px;text-shadow:0 0 12px #000;opacity:0;pointer-events:none;transition:opacity .35s;text-align:center;z-index:6}
-  #progText{position:absolute;top:22%;left:50%;transform:translate(-50%,0);font-size:15px;color:#6cf;text-shadow:0 0 8px #000;opacity:0;z-index:6}
-  #mctrl{position:absolute;bottom:10px;left:0;right:0;display:flex;justify-content:space-between;padding:0 14px;pointer-events:none;z-index:6}
-  #joyBase{width:96px;height:96px;border-radius:50%;background:rgba(255,255,255,.08);position:relative;pointer-events:auto;touch-action:none}
-  #joyStick{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.35);position:absolute;left:26px;top:26px}
-  #mbtns{display:flex;gap:8px;align-items:flex-end;pointer-events:auto}
-  #mbtns button{width:56px;height:56px;border-radius:50%;background:rgba(108,204,255,.3);border:2px solid var(--accent);color:#fff;font-size:12px}
-  #meetingLog{max-width:520px;max-height:180px;overflow-y:auto;font-size:12px;text-align:left;line-height:1.6;background:#0e1620;padding:8px;border-radius:6px}
-  #meetingChoices,#meetingVote{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:520px}
-  #meetingChoices button,#meetingVote button{padding:6px 10px;font-size:11.5px;background:#1c2536;border:1px solid var(--line);color:var(--text);border-radius:5px;cursor:pointer}
-
-/* ===== v7.1: input, feedback and responsive layout ===== */
+/* 三国ドロケイ — 漆と金の陣幕 theme. Layout structure follows v6; phones get the v7.1 overlay layout. */
+:root{
+  --ink:#0f1117; --panel:#16171d; --panel-2:#1d1e26; --line:#3b3325; --line-soft:#2a2620;
+  --text:#efe6d2; --muted:#a99f89; --accent:#e0b456; --accent-2:#f3d48a; --red:#c8452f; --jade:#7dcf9a;
+  --display:'Shippori Mincho B1','Hiragino Mincho ProN','Yu Mincho',serif;
+  --ui:'Zen Kaku Gothic New','Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;
+  --bg:var(--ink);
+}
+*{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{height:100%}
-body{overscroll-behavior:none}
-#app{height:100vh;height:100dvh}
-canvas#game3d,#joyBase,#mbtns button{touch-action:none;-webkit-user-select:none;-webkit-touch-callout:none}
-#tbActions{display:flex;gap:6px;align-items:center}
-#joyStick{left:calc(50% - 22px);top:calc(50% - 22px);pointer-events:none}
-.drawer-btn{display:none}
-#topbar #btnInfo,#topbar #btnLog{background:#22314a;border:1px solid var(--line)}
-
-/* Desktop keeps the v6 row: 捕獲 特殊 ダッシュ, then 振向. */
-#mCap{order:1} #mSpec{order:2} #mDash{order:3} #mFace{order:4}
-#mStamWrap{display:none}
-#mbtns button{transition:background .12s,box-shadow .12s,opacity .12s}
-#mbtns button:disabled{opacity:.4}
-#mbtns button.on{background:rgba(255,176,64,.55);border-color:#ffb040}
-#mbtns button.ready,#abilities #btnCapture.ready{box-shadow:0 0 0 2px #7dff9a,0 0 14px rgba(125,255,154,.6)}
-#abilities #btnCapture.ready{border-color:#7dff9a}
-.bar.dashing{background:#ffb040}
-#statusBadge{position:absolute;left:50%;bottom:118px;transform:translateX(-50%);z-index:6;pointer-events:none;
-  background:rgba(12,18,28,.82);border:1px solid var(--line);border-radius:14px;padding:4px 12px;font-size:12px;white-space:nowrap}
-#statusBadge.jail{border-color:#ff6a5a;color:#ffb3a8}
-#statusBadge.stun{border-color:#c9a3ff;color:#e2d0ff}
-#statusBadge.capture{border-color:#7dff9a;color:#c9ffd5}
+body{margin:0;background:var(--ink);color:var(--text);font-family:var(--ui);overflow:hidden;user-select:none;overscroll-behavior:none;-webkit-font-smoothing:antialiased}
+button{font-family:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#app{display:flex;flex-direction:column;height:100vh;height:100dvh}
+
+/* ---------- top bar ---------- */
+#topbar{display:flex;justify-content:space-between;align-items:center;gap:6px 18px;flex-wrap:wrap;z-index:5;
+  padding:7px 14px;font-size:12px;color:var(--muted);
+  background:linear-gradient(#1c1a1b,#131318);border-bottom:1px solid var(--line);box-shadow:inset 0 -1px 0 rgba(224,180,86,.08)}
+#topbar b{color:var(--text);font-weight:700}
+#topbar #tbNation,#topbar #tbRole{color:var(--accent-2)}
+#tbTime{font-family:var(--display);font-size:17px;color:var(--accent)!important;font-variant-numeric:tabular-nums;letter-spacing:1px}
+#topbar button{border:1px solid transparent;border-radius:3px;padding:6px 12px;font-size:11.5px;cursor:pointer;color:#fff;letter-spacing:.5px}
+#topbar button:disabled{opacity:.4;cursor:default}
+#btnMeeting{background:linear-gradient(#cf4b33,#a8322a);border-color:#e0715a!important;box-shadow:0 1px 0 rgba(0,0,0,.4)}
+#tbActions{display:flex;gap:6px;align-items:center}
+.drawer-btn{display:none}
+#topbar #btnInfo,#topbar #btnLog{background:#24232a;border-color:var(--line)!important;color:var(--text)}
+#hintBox{background:#15161c;padding:5px 12px;font-size:12px;text-align:center;border-bottom:1px solid var(--line-soft);z-index:5;color:var(--muted)}
+#hintText{color:var(--text)}
+
+/* ---------- side panels ---------- */
+#main{display:flex;flex:1;overflow:hidden;position:relative}
+#log{width:180px;background:var(--panel);border-right:1px solid var(--line);padding:10px;font-size:11px;overflow-y:auto;flex-shrink:0;z-index:5}
+#log div{margin-bottom:5px;line-height:1.4;padding-left:8px;border-left:2px solid var(--line-soft);color:#d9cfba}
+#log div:first-child{border-left-color:var(--accent);color:var(--text)}
+#centerCol{flex:1;position:relative;background:#000}
+canvas#game3d{width:100%;height:100%;display:block;touch-action:none}
+#vignette{position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 0 0 rgba(255,0,0,0);transition:box-shadow .15s}
+#vignette.on{box-shadow:inset 0 0 140px 40px rgba(200,40,30,.55)}
+#side{width:196px;background:var(--panel);border-left:1px solid var(--line);padding:10px;flex-shrink:0;display:flex;flex-direction:column;gap:10px;overflow-y:auto;z-index:5;font-size:12px}
+#side > div > b,.panel-label{display:block;font-size:10.5px;letter-spacing:2px;color:var(--accent);font-weight:700;margin-bottom:4px}
+canvas#mini{width:176px;height:176px;background:#1c2417;border:1px solid var(--line);border-radius:4px;align-self:center}
+.barwrap{width:100%;height:8px;background:#2a2822;border-radius:4px;overflow:hidden;margin:4px 0 2px;border:1px solid var(--line-soft)}
+.bar{height:100%;background:linear-gradient(90deg,#4fae66,#8fe0a0);transition:background .15s}
+.bar.dashing{background:linear-gradient(90deg,#d9822b,#ffc36a)}
+#suspects div{font-size:11px;margin-bottom:6px;line-height:1.5;padding:5px 7px;background:var(--panel-2);border-radius:3px;border:1px solid var(--line-soft)}
+#abilities button{width:100%;padding:9px;margin-bottom:5px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:3px;cursor:pointer;font-size:12.5px;position:relative;overflow:hidden;letter-spacing:.5px}
+#abilities button:hover:not(:disabled){border-color:var(--accent)}
+#abilities button:disabled{opacity:.55;cursor:default}
+#abilities button .fill{position:absolute;left:0;top:0;bottom:0;background:rgba(224,180,86,.18);width:0%}
+#abilities #btnCapture.ready{border-color:var(--jade);box-shadow:0 0 0 1px var(--jade),0 0 14px rgba(125,207,154,.5)}
+#specialDesc{color:var(--muted)}
+#hint{font-size:10.5px;color:var(--muted);line-height:1.6;border-top:1px solid var(--line-soft);padding-top:8px}
+
+/* ---------- overlays (setup / result / meeting) ---------- */
+#overlay,#setup,#meetingOverlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;z-index:10;padding:20px;text-align:center;overflow-y:auto;
+  background:
+    radial-gradient(circle at 50% 0%,rgba(224,180,86,.10),transparent 60%),
+    radial-gradient(circle at 0 100%,transparent 18px,rgba(224,180,86,.05) 19px,transparent 20px) 0 0/40px 20px,
+    radial-gradient(circle at 20px 100%,transparent 18px,rgba(224,180,86,.05) 19px,transparent 20px) 0 0/40px 20px,
+    linear-gradient(#14131a,#0b0c10)}
+#setup{display:flex}
+/* Full-window on desktop too, so the side panels do not frame the start / result screens. */
+#setup,#overlay{position:fixed;z-index:20}
+#setup h1,#overlay h1,#meetingOverlay h1{font-family:var(--display);font-weight:800;margin:0;letter-spacing:4px;color:var(--text);text-wrap:balance}
+#setup h1{font-size:clamp(34px,7vw,64px);line-height:1.1;background:linear-gradient(#fff4d6,#e0b456 70%,#a8792e);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 0 rgba(0,0,0,.6))}
+.seal{display:inline-flex;align-items:center;justify-content:center;font-family:var(--display);font-weight:800;color:#fff4e6;background:var(--red);border-radius:4px;box-shadow:inset 0 0 0 2px rgba(255,255,255,.18)}
+#setup .ver{font-size:12px;padding:2px 7px;margin-left:10px;vertical-align:middle;letter-spacing:1px}
+#setup .tagline{color:var(--muted);font-size:13px;margin:0 0 6px;letter-spacing:1px}
+.step-label{font-size:11px;letter-spacing:3px;color:var(--accent);font-weight:700;margin-top:6px}
+.pickrow{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.pickbtn{padding:9px 16px;border-radius:4px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);cursor:pointer;font-size:13px;transition:border-color .12s,background .12s,transform .12s}
+.pickbtn:hover{border-color:var(--accent)}
+.pickbtn.sel{border-color:var(--accent)!important;background:#2a2518;box-shadow:0 0 0 1px var(--accent),0 6px 18px rgba(224,180,86,.18)}
+.nation-card{width:124px;padding:14px 8px 10px;display:flex;flex-direction:column;align-items:center;gap:4px;border-top:3px solid var(--nc)!important}
+.nation-card .emblem{font-size:34px;line-height:1;color:var(--nc);text-shadow:0 0 18px color-mix(in srgb,var(--nc) 45%,transparent)}
+.nation-card .nname{font-family:var(--display);font-weight:800;font-size:18px;letter-spacing:2px}
+#pickRole{display:grid;grid-template-columns:repeat(3,minmax(0,150px));gap:8px}
+.role-card{display:flex;align-items:center;gap:10px;text-align:left;padding:8px 10px}
+.role-card .seal{width:30px;height:30px;font-size:17px;flex:none}
+.role-card .rname{font-weight:700;letter-spacing:1px}
+#roleDesc{max-width:480px;font-size:12.5px;min-height:72px;text-align:left;line-height:1.75;color:#d9cfba;background:var(--panel-2);border:1px solid var(--line-soft);border-radius:4px;padding:10px 14px}
+#overlay button,#setup button.go{padding:11px 30px;font-size:15px;font-weight:700;letter-spacing:3px;cursor:pointer;border-radius:3px;
+  color:#2a1b06;background:linear-gradient(#f3d48a,#d19a3c);border:1px solid #f7e2a8;box-shadow:0 2px 0 #7a5519,0 8px 22px rgba(224,180,86,.25)}
+#setup button.go:active,#overlay button:active{transform:translateY(1px)}
+#setup .controls-note{font-size:11px;color:var(--muted);max-width:520px;line-height:1.6}
+#overlay h1{font-size:34px}
+#ovDesc{font-size:15px;margin:0}
+#ovStats{font-size:12.5px;line-height:1.9;color:#d9cfba;background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:12px 18px;font-variant-numeric:tabular-nums;white-space:pre-line;margin:0}
+#meetingOverlay h1{font-size:28px}
+#meetingLog{width:min(560px,100%);max-height:200px;overflow-y:auto;font-size:12.5px;text-align:left;line-height:1.7;background:var(--panel-2);border:1px solid var(--line);padding:10px 14px;border-radius:4px}
+#meetingChoices,#meetingVote{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:560px}
+#meetingChoices button,#meetingVote button{padding:7px 12px;font-size:12px;background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:3px;cursor:pointer}
+#meetingChoices button:hover:not(:disabled),#meetingVote button:hover:not(:disabled){border-color:var(--accent)}
+#meetingChoices button:disabled,#meetingVote button:disabled{opacity:.45}
+#meetingVote > div{color:var(--accent)!important;letter-spacing:2px;opacity:1!important}
+
+/* ---------- in-view HUD ---------- */
+#banner{position:absolute;top:12%;left:50%;transform:translate(-50%,0);opacity:0;pointer-events:none;transition:opacity .35s;text-align:center;z-index:6;white-space:nowrap;
+  font-family:var(--display);font-weight:800;font-size:30px;letter-spacing:4px;color:#fff4d6;padding:8px 40px;
+  text-shadow:0 2px 0 #000,0 0 18px rgba(0,0,0,.8);
+  background:linear-gradient(90deg,transparent,rgba(12,10,8,.72) 18%,rgba(12,10,8,.72) 82%,transparent);
+  border-top:1px solid rgba(224,180,86,.55);border-bottom:1px solid rgba(224,180,86,.55)}
+#progText{position:absolute;top:24%;left:50%;transform:translate(-50%,0);font-size:15px;color:var(--accent-2);text-shadow:0 0 8px #000;opacity:0;z-index:6;font-weight:700;letter-spacing:1px}
+#statusBadge{position:absolute;left:50%;bottom:118px;transform:translateX(-50%);z-index:6;pointer-events:none;white-space:nowrap;
+  background:rgba(15,14,18,.85);border:1px solid var(--line);border-radius:3px;padding:5px 14px;font-size:12.5px;letter-spacing:.5px}
+#statusBadge.jail{border-color:#e0715a;color:#ffc2b3}
+#statusBadge.stun{border-color:#b89bf0;color:#e4d6ff}
+#statusBadge.capture{border-color:var(--jade);color:#c9f5d6}
+
+/* ---------- touch controls ---------- */
+#mctrl{position:absolute;bottom:10px;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-end;padding:0 14px;pointer-events:none;z-index:6}
+#joyBase{width:96px;height:96px;border-radius:50%;position:relative;pointer-events:auto;touch-action:none;
+  background:radial-gradient(circle,rgba(20,18,16,.25) 40%,rgba(20,18,16,.55));border:2px solid rgba(224,180,86,.45)}
+#joyStick{width:44px;height:44px;border-radius:50%;position:absolute;left:calc(50% - 22px);top:calc(50% - 22px);pointer-events:none;
+  background:radial-gradient(circle at 35% 30%,#fff4d6,#c99a45);box-shadow:0 2px 6px rgba(0,0,0,.5)}
+#mbtns{display:flex;gap:8px;align-items:flex-end;pointer-events:auto}
+#mbtns button{width:56px;height:56px;border-radius:50%;background:radial-gradient(circle at 50% 35%,rgba(40,36,34,.85),rgba(14,13,15,.85));
+  border:2px solid rgba(224,180,86,.75);color:#fff4d6;font-size:12px;font-weight:700;letter-spacing:.5px;touch-action:none;-webkit-user-select:none;-webkit-touch-callout:none;
+  transition:background .12s,box-shadow .12s,opacity .12s;box-shadow:0 3px 8px rgba(0,0,0,.45)}
+#mbtns button:disabled{opacity:.4}
+#mbtns button.on{background:radial-gradient(circle at 50% 35%,#e0913a,#8a4a12);border-color:#ffc36a}
+#mbtns button.ready{box-shadow:0 0 0 2px var(--jade),0 0 16px rgba(125,207,154,.7)}
+#mCap{order:1} #mSpec{order:2} #mDash{order:3} #mFace{order:4}
+#mCap{border-color:var(--jade)!important}
+#mStamWrap{display:none}
+#joyBase,canvas#game3d{-webkit-user-select:none;-webkit-touch-callout:none}
 
 /* ===== Phones (portrait or landscape): full-screen 3D, HUD overlays, drawers ===== */
 @media (max-width:760px),(max-height:520px){
   #app{position:relative;display:block}
-  /* Top HUD floats over the 3D view and lets touches pass through except its buttons. */
-  #topbar{position:relative;z-index:11;pointer-events:none;border:none;background:linear-gradient(rgba(14,20,32,.88),rgba(14,20,32,0));
-    padding:calc(4px + env(safe-area-inset-top,0px)) calc(8px + env(safe-area-inset-right,0px)) 12px calc(8px + env(safe-area-inset-left,0px));
-    font-size:11px;gap:2px 10px;justify-content:flex-start}
+  #topbar{position:relative;z-index:11;pointer-events:none;border:none;box-shadow:none;background:linear-gradient(rgba(15,14,18,.9),rgba(15,14,18,0));
+    padding:calc(5px + env(safe-area-inset-top,0px)) calc(8px + env(safe-area-inset-right,0px)) 12px calc(8px + env(safe-area-inset-left,0px));
+    font-size:11px;gap:2px 10px;justify-content:flex-start;text-shadow:0 1px 2px #000}
   #topbar button{pointer-events:auto;padding:6px 9px}
   #topbar .tb-tower{display:none}
+  #tbTime{font-size:15px}
   #tbActions{margin-left:auto}
   .drawer-btn{display:inline-block}
   #hintBox{position:relative;z-index:6;pointer-events:none;border:none;background:none;margin:-6px auto 0;padding:2px 12px;width:max-content;max-width:calc(100% - 24px);
@@ -85,35 +144,36 @@ canvas#game3d,#joyBase,#mbtns button{touch-action:none;-webkit-user-select:none;
   #main{position:absolute;inset:0;display:block}
   #centerCol{position:absolute;inset:0}
   #setup,#overlay,#meetingOverlay{z-index:12;padding:calc(16px + env(safe-area-inset-top,0px)) calc(16px + env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) calc(16px + env(safe-area-inset-left,0px));justify-content:flex-start}
-  #setup h1,#overlay h1,#meetingOverlay h1{font-size:20px;margin:8px 0 0}
-  /* Side panels become slide-in drawers under the top HUD. */
+  #setup h1{font-size:38px;margin-top:6px}
+  #overlay h1,#meetingOverlay h1{font-size:22px;margin:8px 0 0}
+  #pickRole{grid-template-columns:repeat(2,minmax(0,1fr));width:100%;max-width:340px}
+  .nation-card{width:96px;padding:10px 6px 8px}
+  .nation-card .emblem{font-size:26px}
   #log,#side{position:absolute;top:0;bottom:0;z-index:9;transition:transform .2s ease;box-shadow:0 0 24px rgba(0,0,0,.6);
     padding-top:calc(env(safe-area-inset-top,0px) + 64px);padding-bottom:calc(8px + env(safe-area-inset-bottom,0px))}
   #log{left:0;width:min(270px,82vw);transform:translateX(-105%);padding-left:calc(8px + env(safe-area-inset-left,0px));font-size:11.5px}
   #side{right:0;width:min(230px,82vw);transform:translateX(105%);padding-right:calc(8px + env(safe-area-inset-right,0px))}
   #log.open,#side.open{transform:none}
-  #mini{align-self:center}
-  #banner{top:30%;font-size:19px;width:90%;letter-spacing:1px}
+  #banner{top:30%;font-size:20px;letter-spacing:2px;padding:6px 24px;max-width:94%}
   #progText{top:40%}
-  #mctrl{bottom:calc(12px + env(safe-area-inset-bottom,0px));padding:0 calc(14px + env(safe-area-inset-right,0px)) 0 calc(14px + env(safe-area-inset-left,0px));align-items:flex-end}
+  #mctrl{bottom:calc(12px + env(safe-area-inset-bottom,0px));padding:0 calc(14px + env(safe-area-inset-right,0px)) 0 calc(14px + env(safe-area-inset-left,0px))}
   #joyBase{width:112px;height:112px}
-  /* 2x2 thumb cluster: capture where the thumb rests (bottom-right). */
   #mbtns{display:grid;grid-template-columns:repeat(2,58px);grid-template-areas:"stam stam" "face spec" "dash cap";gap:8px}
   #mbtns button{width:58px;height:58px;padding:0;font-size:11.5px;letter-spacing:-.5px}
   #mCap{grid-area:cap} #mSpec{grid-area:spec} #mDash{grid-area:dash} #mFace{grid-area:face}
-  #mCap{background:rgba(125,255,154,.18);border-color:#7dff9a}
-  #mStamWrap{display:block;grid-area:stam;height:6px;background:#26314a;border-radius:3px;overflow:hidden}
-  #mStam{height:100%;width:100%;background:#5ad06a}
-  #mStam.dashing{background:#ffb040}
+  #mCap{background:radial-gradient(circle at 50% 35%,rgba(40,70,52,.9),rgba(14,24,18,.9))}
+  #mStamWrap{display:block;grid-area:stam;height:6px;background:rgba(20,18,16,.7);border-radius:3px;overflow:hidden;border:1px solid var(--line)}
+  #mStam{height:100%;width:100%;background:linear-gradient(90deg,#4fae66,#8fe0a0)}
+  #mStam.dashing{background:linear-gradient(90deg,#d9822b,#ffc36a)}
   #statusBadge{bottom:calc(150px + env(safe-area-inset-bottom,0px))}
 }
 @media (max-height:520px){
-  /* Landscape phones: short screen, keep the top HUD to one line where possible. */
   #topbar{padding-bottom:6px}
   #joyBase{width:100px;height:100px}
   #mbtns{grid-template-columns:repeat(2,52px);gap:6px}
   #mbtns button{width:52px;height:52px;font-size:11px}
   #statusBadge{bottom:calc(20px + env(safe-area-inset-bottom,0px))}
   #log,#side{padding-top:calc(env(safe-area-inset-top,0px) + 44px)}
+  #setup h1{font-size:30px}
 }
-@media (prefers-reduced-motion:reduce){#log,#side,#mbtns button{transition:none}}
+@media (prefers-reduced-motion:reduce){#log,#side,#mbtns button,.pickbtn{transition:none}}

@@ -1,4 +1,4 @@
-# 三国ドロケイ v7.1 (3D)
+# 三国ドロケイ v7.2 (3D)
 
 太陽・月・星の三国で敵国の王を探し出して捕らえる、ブラウザ向けの3Dドロケイゲームです。
 v7.0 はゲーム内容を v6 のまま、Vite + TypeScript + Three.js (npm) + Vitest の構成へ移しました。
@@ -42,7 +42,7 @@ src/
   ai/controller.ts      v6 の AI（挙動はそのまま）
   meeting/              緊急会議のロジック
   input/                キーボード + Pointer Events → 軸 / コマンド
-  render/               シーン構築・キャラ表示・カメラ・地面マーカー
+  render/               シーン構築（空・地形・城壁・楼閣など）・キャラ表示・カメラ・地面マーカー・生成テクスチャ
   ui/                   HUD・ログ・ミニマップ・各画面・ドロワー・イベント→文言
   audio/sfx.ts          効果音
 tests/                  Vitest
