@@ -23,6 +23,8 @@ export interface Sighting {
   z: number;
   /** Game time (ms) of the sighting. */
   t: number;
+  /** When this continuous sighting began (reaction time counts from here). */
+  since: number;
   /** Estimated ground velocity (units/s) from consecutive sightings. */
   vx: number;
   vz: number;
@@ -64,6 +66,8 @@ export interface AiMemory {
   alert: number;
   goal: Waypoint | null;
   path: NavPath | null;
+  /** Point to turn toward while standing (sniper aim); turned a little each step. */
+  lookAt: { x: number; z: number } | null;
   /** Game time of the next decision and perception update. */
   thinkAt: number;
   perceiveAt: number;
@@ -87,7 +91,7 @@ export interface AiMemory {
 export function createAiMemory(): AiMemory {
   return {
     state: 'PATROL', targetId: null, visible: [], seen: new Map(), alert: 0,
-    goal: null, path: null, thinkAt: 0, perceiveAt: 0, replanAt: 0,
+    goal: null, path: null, lookAt: null, thinkAt: 0, perceiveAt: 0, replanAt: 0,
     searchUntil: 0, searchCenter: null, chaseRole: 'direct', flankSide: 1, task: null,
     progressX: 0, progressZ: 0, progressAt: 0, maxStuckSec: 0, highSec: 0,
   };

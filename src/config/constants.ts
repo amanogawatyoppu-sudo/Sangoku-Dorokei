@@ -7,7 +7,12 @@ export const CAP_RANGE = 95;
 export const CAP_HEIGHT = 30;
 export const PLAYER_WALK = 300;
 export const PLAYER_DASH = 520;
-export const AI_SPEED = 330;
+/** AI run speed: equal to the player's walk (was 330), so walking away holds distance and dashing escapes. */
+export const AI_SPEED = 300;
+/** AI body turn speed (rad/s, ~260°/s). AI now turns smoothly like the player, so it cannot spin instantly to face you. */
+export const AI_TURN_RATE = 4.5;
+/** Time from first spotting an enemy until an AI reacts to it (ms). */
+export const AI_REACTION_MS = 550;
 
 /** Match length in seconds. */
 export const GAME_TIME = 300;

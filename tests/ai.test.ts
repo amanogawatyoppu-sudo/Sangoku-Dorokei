@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CR, GAME_TIME } from '../src/config/constants';
+import { AI_TURN_RATE, CR, GAME_TIME } from '../src/config/constants';
 import { NATIONS } from '../src/config/nations';
 import { STEP_SEC } from '../src/core/clock';
 import { openMeeting } from '../src/meeting/meetingSystem';
@@ -49,16 +49,37 @@ describe('AI movement', () => {
   });
 });
 
+describe('AI turning', () => {
+  it('AI bodies turn smoothly: never faster than the turn rate, even while chasing', () => {
+    const state = newGame('sun', 'soldier', 31);
+    state.player.stunUntil = Infinity;
+    const limit = AI_TURN_RATE * STEP_SEC + 1e-6;
+    let worst = 0;
+    const prev = state.entities.map((e) => Math.atan2(e.dirX, e.dirZ));
+    for (let i = 0; i < 60 * 40; i++) {
+      stepSimulation(state, STEP_SEC);
+      state.entities.forEach((e, k) => {
+        const a = Math.atan2(e.dirX, e.dirZ);
+        if (!e.isPlayer && e.alive && !e.jailed && e.stunUntil <= state.time) {
+          worst = Math.max(worst, Math.abs(Math.atan2(Math.sin(a - prev[k]), Math.cos(a - prev[k]))));
+        }
+        prev[k] = a;
+      });
+    }
+    expect(worst).toBeLessThanOrEqual(limit);
+  });
+});
+
 describe('AI pursuit', () => {
   function chaseSetup() {
     const state = newGame('sun', 'sniper', 5);
     state.nextEventAt = Infinity;
     const hunter = find(state, 'moon', 'soldier');
     freezeOthers(state, [hunter, state.player]);
-    teleport(hunter, -700, 250 + 300); // south field, open
+    teleport(hunter, -600, 800); // south field, open line of sight
     hunter.dirX = 0;
     hunter.dirZ = -1;
-    teleport(state.player, -700, 330); // 220 in front of the hunter
+    teleport(state.player, -600, 450); // 350 in front of the hunter
     state.player.dirX = 0;
     state.player.dirZ = -1; // walking away
     return { state, hunter };
@@ -66,14 +87,14 @@ describe('AI pursuit', () => {
 
   it('chases an enemy it can see', () => {
     const { state, hunter } = chaseSetup();
-    steps(state, 0.3);
+    steps(state, 0.9); // after the AI's reaction time
     expect(hunter.ai.state === 'CHASE' || hunter.ai.state === 'INTERCEPT').toBe(true);
     expect(hunter.ai.targetId).toBe(state.player.id);
   });
 
   it('when it loses sight, searches the last known position instead of giving up', () => {
     const { state, hunter } = chaseSetup();
-    steps(state, 0.3);
+    steps(state, 0.9); // after the AI's reaction time
     const last = { x: state.player.x, z: state.player.z };
     // The player vanishes behind the town (far and out of sight).
     teleport(state.player, 600, -720);
@@ -88,12 +109,22 @@ describe('AI pursuit', () => {
     state.nextEventAt = Infinity;
     const hunters = [find(state, 'moon', 'soldier'), find(state, 'moon', 'impostor')];
     freezeOthers(state, [...hunters, state.player]);
-    teleport(hunters[0], -700, 560);
-    teleport(hunters[1], -640, 580);
+    teleport(hunters[0], -600, 820);
+    teleport(hunters[1], -540, 840);
     for (const h of hunters) { h.dirX = 0; h.dirZ = -1; }
-    teleport(state.player, -700, 360);
+    teleport(find(state, 'moon', 'king'), -560, 880); // the escort's king is right here
+    teleport(state.player, -600, 660);
+    state.player.dirX = 0;
     state.player.dirZ = -1;
-    steps(state, 0.3);
+    // Both have already noticed the player (reaction time spent).
+    const p = state.player;
+    for (const h of hunters) {
+      h.ai.seen.set(p.id, { id: p.id, x: p.x, y: p.y, z: p.z, t: state.time, vx: 0, vz: 0, since: state.time - 1000 });
+      h.ai.visible = [p.id];
+    }
+    const chasing = () => hunters.every((h) => h.ai.state === 'CHASE' || h.ai.state === 'INTERCEPT');
+    for (let t = 0; t < 1.5 && !chasing(); t += 0.05) steps(state, 0.05);
+    expect(chasing()).toBe(true);
     const roles = hunters.map((h) => h.ai.chaseRole);
     expect(new Set(roles).size).toBe(2);
     expect(Math.hypot(hunters[0].ai.goal!.x - hunters[1].ai.goal!.x, hunters[0].ai.goal!.z - hunters[1].ai.goal!.z)).toBeGreaterThan(60);

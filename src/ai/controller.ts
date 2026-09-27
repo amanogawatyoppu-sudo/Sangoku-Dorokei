@@ -1,14 +1,14 @@
 import type { NationId, Point } from '../config/nations';
 import { NATION_IDS, NATIONS } from '../config/nations';
 import { HOTSPOTS, SNIPE, TOWER, UPPER } from '../config/map';
-import { AI_SPEED, CAP_RANGE } from '../config/constants';
+import { AI_REACTION_MS, AI_SPEED, AI_TURN_RATE, CAP_RANGE } from '../config/constants';
 import type { Entity } from '../sim/entity';
 import type { GameState } from '../sim/state';
 import { elapsedSec, kingOf, speedMul } from '../sim/state';
 import { SNIPE_RANGE, useSpecial } from '../sim/systems/abilities';
 import { attemptCapture, captureCandidate } from '../sim/systems/capture';
 import { SAME_LEVEL, dist, dist3 } from '../sim/systems/collision';
-import { moveToward } from '../sim/systems/movement';
+import { moveToward, turnToward } from '../sim/systems/movement';
 import { tryStartRescue } from '../sim/systems/rescue';
 import { canWalk } from '../sim/systems/world';
 import type { AiState, Sighting, Waypoint } from './memory';
@@ -109,8 +109,13 @@ function follow(state: GameState, e: Entity, dt: number, speed: number): void {
 
 // ---------------------------------------------------------------- targeting helpers
 
+/** Enemies in view that this AI has had time to react to. */
 function visibleEnemies(state: GameState, e: Entity): Entity[] {
-  return e.ai.visible.map((id) => state.entities[id]).filter((t) => t.alive && !t.jailed);
+  const now = state.time;
+  return e.ai.visible
+    .filter((id) => now - (e.ai.seen.get(id)?.since ?? now) >= AI_REACTION_MS)
+    .map((id) => state.entities[id])
+    .filter((t) => t.alive && !t.jailed);
 }
 
 function nearestVisible(state: GameState, e: Entity, range: number, near: Point = e): Entity | null {
@@ -224,6 +229,8 @@ function investigate(state: GameState, e: Entity): boolean {
     if (state.time - s.t > 6000) continue;
     const t = state.entities[s.id];
     if (!t.alive || t.jailed) continue;
+    // Something I am looking at right now but have not reacted to yet: not a report.
+    if (e.ai.visible.includes(s.id)) continue;
     const d = Math.hypot(s.x - e.x, s.z - e.z);
     if (d > bd) continue;
     const already = state.entities.filter((o) => o !== e && o.nation === e.nation && o.ai.targetId === s.id && o.ai.state !== 'PATROL').length;
@@ -347,11 +354,12 @@ function sniperThink(state: GameState, e: Entity): void {
   if (threat && Math.abs(threat.y - e.y) < SAME_LEVEL) { flee(state, e, threat); return; }
   const target = nearestVisible(state, e, SNIPE_RANGE);
   if (target) {
-    const dx = target.x - e.x, dz = target.z - e.z, d = Math.hypot(dx, dz) || 1;
-    e.dirX = dx / d;
-    e.dirZ = dz / d;
-    useSpecial(state, e);
-  }
+    // Swing round toward the target (not instantly) and fire only once lined up.
+    const dx = target.x - e.x, dz = target.z - e.z;
+    e.ai.lookAt = { x: target.x, z: target.z };
+    const d = Math.hypot(dx, dz) || 1;
+    if ((e.dirX * dx + e.dirZ * dz) / d > 0.9) useSpecial(state, e);
+  } else e.ai.lookAt = null;
   const task = e.ai.task;
   if (task?.kind === 'rescueEscort') {
     if (escortKeyholder(state, e, NATIONS[task.jail].jail)) return;
@@ -447,7 +455,12 @@ function opportunisticCapture(state: GameState, e: Entity): void {
   if (e.role !== 'soldier' && e.role !== 'impostor') return;
   if (e.cd.capture > 0) return;
   const t = captureCandidate(state, e);
-  if (t && dist(t, e) < CAP_RANGE * 0.9) attemptCapture(state, e);
+  if (!t || dist(t, e) > CAP_RANGE * 0.75) return;
+  // Only grab what it is actually facing (and has noticed).
+  const d = dist(t, e) || 1;
+  if ((e.dirX * (t.x - e.x) + e.dirZ * (t.z - e.z)) / d < 0.3) return;
+  if (!visibleEnemies(state, e).includes(t)) return;
+  attemptCapture(state, e);
 }
 
 /** One simulation step of AI for one character. */
@@ -472,6 +485,8 @@ export function aiTick(state: GameState, e: Entity, dt: number, aggro: number): 
     moveToward(e, t.x - t.dirX * 30, t.z - t.dirZ * 30, dt, speed);
     ai.progressAt = now;
   } else follow(state, e, dt, speed);
+  // Standing still with something to aim at: swing round smoothly.
+  if (!ai.path && ai.lookAt) turnToward(e, ai.lookAt.x - e.x, ai.lookAt.z - e.z, AI_TURN_RATE * dt);
   opportunisticCapture(state, e);
 }
 

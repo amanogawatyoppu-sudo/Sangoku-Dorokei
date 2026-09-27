@@ -58,7 +58,8 @@ function record(prev: Sighting | undefined, t: Entity, now: number): Sighting {
     vx = prev.vx * 0.4 + vx * 0.6;
     vz = prev.vz * 0.4 + vz * 0.6;
   }
-  return { id: t.id, x: t.x, y: t.y, z: t.z, t: now, vx, vz };
+  const since = prev && now - prev.t < 1500 ? prev.since : now;
+  return { id: t.id, x: t.x, y: t.y, z: t.z, t: now, vx, vz, since };
 }
 
 /** Refreshes one AI's view of the world and shares sightings with its nation. */

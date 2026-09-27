@@ -1,18 +1,22 @@
-import { CR, PLAYER_DASH, PLAYER_QUICK_TURN_RATE, PLAYER_TURN_RATE, PLAYER_WALK, STAMINA_DRAIN, STAMINA_MAX, STAMINA_REGEN } from '../../config/constants';
+import { AI_TURN_RATE, CR, PLAYER_DASH, PLAYER_QUICK_TURN_RATE, PLAYER_TURN_RATE, PLAYER_WALK, STAMINA_DRAIN, STAMINA_MAX, STAMINA_REGEN } from '../../config/constants';
 import type { Entity } from '../entity';
 import type { GameState } from '../state';
 import { emit, speedMul } from '../state';
 import { SAME_LEVEL } from './collision';
 import { blocked, moveBody, settle } from './world';
 
-/** Walks toward (tx, tz) on the terrain and faces the direction of travel. */
+/**
+ * AI walking: the body turns toward (tx, tz) at AI_TURN_RATE and moves along its
+ * current facing, slowing down while it still points the wrong way. So an AI
+ * cannot reverse on the spot: turning takes time, as for the player.
+ */
 export function moveToward(e: Entity, tx: number, tz: number, dt: number, speed: number): void {
   const dx = tx - e.x, dz = tz - e.z, d = Math.hypot(dx, dz);
   if (d < 2) return;
-  const step = Math.min(d, speed * dt);
-  moveBody(e, e.x + (dx / d) * step, e.z + (dz / d) * step);
-  e.dirX = dx / d;
-  e.dirZ = dz / d;
+  turnToward(e, dx, dz, AI_TURN_RATE * dt);
+  const align = (e.dirX * dx + e.dirZ * dz) / d;
+  const step = Math.min(d, speed * dt * Math.max(0.15, align));
+  moveBody(e, e.x + e.dirX * step, e.z + e.dirZ * step);
 }
 
 export function fleeFrom(e: Entity, threat: Entity, dt: number, speed: number): void {
