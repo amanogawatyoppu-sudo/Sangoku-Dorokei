@@ -35,7 +35,11 @@ export interface PlayerInput {
   dash: boolean;
 }
 
+/** Orders the player gives their squad: follow in formation, spread out and search here, hold this spot. */
+export type SquadOrder = 'follow' | 'spread' | 'hold';
+
 export type Command =
+  | { type: 'squad'; order: SquadOrder }
   | { type: 'capture' }
   | { type: 'special' }
   /** Turn the player in place toward a world-space direction (振り向き). */
@@ -69,6 +73,9 @@ export interface GameState {
   meeting: MeetingState | null;
   /** Game time of the next scheduled meeting, whether it has been announced, and meetings held so far. */
   nextMeetingAt: number;
+  /** The player's squad order and where it was given (spread / hold happen around that point). */
+  squadOrder: SquadOrder;
+  squadAnchor: { x: number; y: number; z: number } | null;
   meetingWarned: boolean;
   meetingsHeld: number;
   input: PlayerInput;
@@ -118,6 +125,8 @@ export function createGameState(playerNation: NationId, playerRole: RoleId, rng:
     over: false,
     meeting: null,
     nextMeetingAt: SCHEDULED_MEETING_AT,
+    squadOrder: 'follow',
+    squadAnchor: null,
     meetingWarned: false,
     meetingsHeld: 0,
     input: { forward: 0, turn: 0, dash: false },

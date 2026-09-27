@@ -10,7 +10,7 @@ import { attemptCapture, captureCandidate } from '../sim/systems/capture';
 import { SAME_LEVEL, dist, dist3 } from '../sim/systems/collision';
 import { accelerate, moveToward, turnBy, turnToward } from '../sim/systems/movement';
 import { tryStartRescue } from '../sim/systems/rescue';
-import { canWalk } from '../sim/systems/world';
+import { blocked, canWalk } from '../sim/systems/world';
 import type { AiState, Sighting, Waypoint } from './memory';
 import { planPath, randomNodeNear } from './nav';
 import { PERCEIVE_MS, perceive, predict } from './perception';
@@ -452,12 +452,112 @@ function kingThink(state: GameState, e: Entity): void {
   if (n) setGoal(state, e, { x: n.x, y: n.y, z: n.z }, 'PATROL');
 }
 
+// ---------------------------------------------------------------- squads
+
+/** Formation spots behind the leader: [units back, units to the right]. */
+const FORMATION: readonly [number, number][] = [[-48, 42], [-48, -42], [-95, 20], [-95, -20]];
+/** Sector each slot watches when the squad stops (radians from the leader's facing): front-right, front-left, rear, rear. */
+const WATCH: readonly number[] = [0.6, -0.6, Math.PI, Math.PI - 0.6];
+
+/** The leader this character follows, if the squad is still valid. */
+function leaderOf(state: GameState, e: Entity): Entity | null {
+  const id = e.ai.leaderId;
+  if (id === null) return null;
+  const L = state.entities[id];
+  return L && L.alive && !L.jailed ? L : null;
+}
+
+/** Where a follower should stand: its slot behind the leader (or straight behind, if that spot is inside a wall). */
+function formationSpot(e: Entity, L: Entity): Waypoint {
+  const [back, side] = FORMATION[e.ai.slot % FORMATION.length];
+  const rx = -L.dirZ, rz = L.dirX;
+  const x = L.x + L.dirX * back + rx * side, z = L.z + L.dirZ * back + rz * side;
+  if (!blocked(x, z, L.y)) return { x, y: L.y, z };
+  return { x: L.x + L.dirX * back, y: L.y, z: L.z + L.dirZ * back };
+}
+
+/**
+ * A squad member's decision: fight what the squad sees, help with the leader's
+ * chase or search, carry out the player's order (follow / spread / hold), and
+ * otherwise keep formation. Returns false when there is no squad to follow.
+ */
+function squadThink(state: GameState, e: Entity, L: Entity, aggro: number): boolean {
+  const ai = e.ai;
+  if (e.role === 'sniper') {
+    // A sniper in the squad still shoots from where it stands.
+    const t = nearestVisible(state, e, SNIPE_RANGE);
+    ai.aimId = t ? t.id : null;
+    ai.lookAt = t ? { x: t.x, z: t.z } : null;
+    if (t && (e.dirX * (t.x - e.x) + e.dirZ * (t.z - e.z)) / (dist(e, t) || 1) > 0.9 && e.cd.special <= 0) useSpecial(state, e);
+    if (t && dist(e, t) < 380) { stop(e, 'HOLD'); return true; }
+  } else {
+    if (engage(state, e, L.isPlayer ? 420 : Math.min(aggro, 520))) return true;
+    if (dist(e, L) < 600 && lostTargetSearch(state, e)) return true;
+  }
+  if (L.isPlayer) {
+    const a = state.squadAnchor ?? L;
+    if (state.squadOrder === 'hold') {
+      const ang = e.ai.slot * 2.1;
+      setGoal(state, e, { x: a.x + Math.cos(ang) * 70, y: a.y, z: a.z + Math.sin(ang) * 70 }, 'GUARD');
+      return true;
+    }
+    if (state.squadOrder === 'spread') {
+      if (!ai.goal || ai.state !== 'SEARCH' || Math.hypot(ai.goal.x - e.x, ai.goal.z - e.z) < 40) {
+        const n = randomNodeNear(a.x, a.y, a.z, 420, state.rng);
+        if (n) setGoal(state, e, { x: n.x, y: n.y, z: n.z }, 'SEARCH');
+      }
+      return true;
+    }
+  } else {
+    // Help the leader with its chase or search.
+    const lt = L.ai.targetId;
+    if (lt !== null && (L.ai.state === 'CHASE' || L.ai.state === 'INTERCEPT' || L.ai.state === 'SEARCH' || L.ai.state === 'INVESTIGATE')) {
+      const s = ai.seen.get(lt) ?? state.factions[e.nation].intel.get(lt);
+      if (s && state.time - s.t < 6000) {
+        ai.targetId = lt;
+        setGoal(state, e, predict(s, state.time), 'INVESTIGATE');
+        return true;
+      }
+    }
+  }
+  if (ai.state !== 'SQUAD') { ai.goal = null; ai.path = null; }
+  ai.state = 'SQUAD';
+  return true;
+}
+
+/** Keep formation: walk straight to the slot when it is close and clear, else take a path; catch up when behind. */
+function squadMove(state: GameState, e: Entity, L: Entity, dt: number): void {
+  const ai = e.ai, now = state.time;
+  const spot = formationSpot(e, L);
+  const d = Math.hypot(spot.x - e.x, spot.z - e.z);
+  const catchUp = Math.max(0.4, Math.min(L.isPlayer ? 1.2 : 1.05, 0.35 + d / 220));
+  const speed = AI_SPEED * e.gait * speedMul(state) * catchUp;
+  if (now >= ai.directAt) {
+    ai.directAt = now + 400;
+    ai.directOk = d < 320 && Math.abs(L.y - e.y) < 20 && canWalk(e, spot.x, e.y, spot.z, 16);
+  }
+  if (!ai.directOk) {
+    setGoal(state, e, spot, 'SQUAD');
+    follow(state, e, dt, speed);
+    return;
+  }
+  ai.goal = null;
+  ai.path = null;
+  ai.progressAt = now;
+  if (d > 14) { moveToward(e, spot.x, spot.z, dt, speed); return; }
+  // In place: watch this slot's sector, sweeping a little.
+  const a = Math.atan2(L.dirX, L.dirZ) + WATCH[ai.slot % WATCH.length] + Math.sin(now / 1300 + e.id) * 0.35;
+  turnToward(e, Math.sin(a), Math.cos(a), AI_TURN_RATE * 0.5 * dt);
+}
+
 function think(state: GameState, e: Entity, aggro: number): void {
   const ai = e.ai;
   if (ai.path && ai.path.i + 1 < ai.path.points.length) {
     const nx = ai.path.points[ai.path.i + 1];
     if (Math.abs(nx.y - e.y) < 6 && canWalk(e, nx.x, nx.y, nx.z)) ai.path.i++;
   }
+  const leader = leaderOf(state, e);
+  if (leader && squadThink(state, e, leader, aggro)) return;
   switch (e.role) {
     case 'king': kingThink(state, e); break;
     case 'sniper': sniperThink(state, e); break;
@@ -506,6 +606,12 @@ export function aiTick(state: GameState, e: Entity, dt: number, aggro: number): 
   } else if (ai.state === 'CHASE' && t && ai.visible.includes(t.id) && dist(e, t) < 170 && Math.abs(t.y - e.y) < SAME_LEVEL) {
     moveToward(e, t.x - t.dirX * 30, t.z - t.dirZ * 30, dt, speed);
     ai.progressAt = now;
+  } else if (ai.state === 'SQUAD' && leaderOf(state, e)) {
+    squadMove(state, e, leaderOf(state, e)!, dt);
+  } else if (ai.state === 'PATROL' && !ai.visible.length && squadStraggles(state, e)) {
+    // A squad leader waits for a follower who fell behind.
+    turnBy(e, Math.sin(now / 900 + e.id) * 0.6 * dt);
+    ai.progressAt = now;
   } else if (now < ai.idleUntil && (ai.state === 'PATROL' || ai.state === 'SEARCH') && !ai.visible.length) {
     // Pausing: look left and right before moving on.
     turnBy(e, Math.sin(now / 650 + e.id) * 1.1 * dt);
@@ -515,6 +621,14 @@ export function aiTick(state: GameState, e: Entity, dt: number, aggro: number): 
   // Standing still with something to aim at: swing round smoothly.
   if (!ai.path && ai.lookAt) turnToward(e, ai.lookAt.x - e.x, ai.lookAt.z - e.z, AI_TURN_RATE * dt);
   opportunisticCapture(state, e);
+}
+
+/** A leader's follower is far behind (on the same level). */
+function squadStraggles(state: GameState, L: Entity): boolean {
+  for (const o of state.entities) {
+    if (o.ai.leaderId === L.id && o.alive && !o.jailed && Math.hypot(o.x - L.x, o.z - L.z) > 280) return true;
+  }
+  return false;
 }
 
 export function aggroFor(state: GameState): number {

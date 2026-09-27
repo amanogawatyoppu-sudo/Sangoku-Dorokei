@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>三国ドロケイ v7.9 3D</title>
+<title>三国ドロケイ v7.10 3D</title>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -33,10 +33,10 @@
       <div id="statusBadge" hidden></div>
       <div id="mctrl">
         <div id="joyBase"><div id="joyStick"></div></div>
-        <div id="mbtns"><div id="mStamWrap"><div id="mStam"></div></div><button id="mFace">振向</button><button id="mSpec">特殊</button><button id="mDash">ダッシュ</button><button id="mCap">捕獲</button></div>
+        <div id="mbtns"><div id="mStamWrap"><div id="mStam"></div></div><button id="mFace">振向</button><button id="mSpec">特殊</button><button id="mDash">ダッシュ</button><button id="mCap">捕獲</button><button id="mSquad">分隊<br><small>同行</small></button></div>
       </div>
       <div id="setup">
-        <h1>三国ドロケイ<span class="seal ver">v7.9</span></h1>
+        <h1>三国ドロケイ<span class="seal ver">v7.10</span></h1>
         <p class="tagline">太陽・月・星 ― 広大な戦場で、正体を隠した敵国の王を探し出せ。</p>
         <div class="step-label">所属国</div><div class="pickrow" id="pickNation"></div>
         <div class="step-label">役職</div><div class="pickrow" id="pickRole"></div>
@@ -65,6 +65,9 @@
       <canvas id="mini" width="352" height="220"></canvas>
       <div><span class="panel-label">スタミナ</span><div class="barwrap"><div class="bar" id="stamBar" style="width:100%"></div></div></div>
       <div><b>王候補（推理）</b><div id="suspects"><div style="opacity:.5">まだ手がかりなし</div></div></div>
+      <div id="squadBox"><b>分隊</b><div id="squadList"></div>
+        <div class="squad-orders"><button data-order="follow" title="ついて来い（周りを警戒しながら同行）">同行<small>1</small></button><button data-order="spread" title="散開して周囲を探せ">散開<small>2</small></button><button data-order="hold" title="ここを守れ">守備<small>3</small></button></div>
+      </div>
       <div id="abilities">
         <button id="btnCapture"><span class="fill" id="fillCap"></span>捕獲(Space)</button>
         <button id="btnSpecial"><span class="fill" id="fillSpec"></span>特殊(E)</button>

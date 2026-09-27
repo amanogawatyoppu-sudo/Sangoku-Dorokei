@@ -63,7 +63,35 @@ export class Hud {
     setTimeout(() => { if (b.textContent === text) b.style.opacity = '0'; }, ms);
   }
 
+  private squadAt = 0;
+
+  /** Squad panel: each member's role and what they are doing; the current order is highlighted. */
+  private updateSquad(state: GameState): void {
+    const now = performance.now();
+    if (now - this.squadAt < 250) return;
+    this.squadAt = now;
+    const p = state.player;
+    const members = state.entities.filter((e) => e.ai.leaderId === p.id);
+    const STATUS: Record<string, string> = {
+      SQUAD: '同行', CHASE: '追跡中', INTERCEPT: '回り込み', SEARCH: '捜索中', INVESTIGATE: '確認中', GUARD: '守備', HOLD: '狙撃待機', FLEE: '退避',
+    };
+    const list = $('squadList');
+    list.replaceChildren(...(members.length ? members : []).map((e) => {
+      const d = document.createElement('div');
+      d.className = 'squad-member';
+      const st = e.jailed ? '牢屋' : !e.alive ? '脱落' : e.stunUntil > state.time ? 'スタン' : STATUS[e.ai.state] ?? '行動中';
+      d.textContent = `${roleName(e.role)}　${st}　${Math.round(Math.hypot(e.x - p.x, e.z - p.z) / 26)}m`;
+      if (st === '追跡中' || st === '回り込み') d.classList.add('hot');
+      return d;
+    }));
+    if (!members.length) list.textContent = p.jailed ? '（あなたが牢屋にいる間は各自で行動）' : '（仲間を集めています…）';
+    for (const b of Array.from(document.querySelectorAll<HTMLButtonElement>('#squadBox [data-order]'))) b.classList.toggle('sel', b.dataset.order === state.squadOrder);
+    const m = document.querySelector('#mSquad small');
+    if (m) m.textContent = { follow: '同行', spread: '散開', hold: '守備' }[state.squadOrder];
+  }
+
   update(state: GameState): void {
+    this.updateSquad(state);
     const p = state.player, el = this.el;
     const left = timeLeftSec(state);
     const mm = Math.floor(left / 60), ss = Math.floor(left % 60);

@@ -3,6 +3,8 @@ export interface InputHandlers {
   onSpecial: () => void;
   /** Quick half-turn to check behind (Q / 振向). */
   onFace: () => void;
+  /** Squad orders: 1 follow, 2 spread and search, 3 hold here; the touch button cycles them. */
+  onSquad: (order: 'follow' | 'spread' | 'hold' | 'next') => void;
   /** Actions are ignored while this returns true (meeting open, game over). */
   isBlocked: () => boolean;
 }
@@ -55,6 +57,7 @@ export class InputManager {
       if (e.key === ' ') { e.preventDefault(); handlers.onCapture(); }
       if (k === 'e') handlers.onSpecial();
       if (k === 'q' && !e.repeat) handlers.onFace();
+      if (!e.repeat && (k === '1' || k === '2' || k === '3')) handlers.onSquad(k === '1' ? 'follow' : k === '2' ? 'spread' : 'hold');
     });
     window.addEventListener('keyup', (e) => { this.keys[e.key.toLowerCase()] = false; });
     // Keys released while the window is unfocused never send keyup.
@@ -67,6 +70,10 @@ export class InputManager {
     this.pressButton(byId('mCap'), action(handlers.onCapture));
     this.pressButton(byId('mSpec'), action(handlers.onSpecial));
     this.pressButton(byId('mFace'), action(handlers.onFace));
+    this.pressButton(byId('mSquad'), action(() => handlers.onSquad('next')));
+    for (const b of Array.from(document.querySelectorAll<HTMLButtonElement>('#squadBox [data-order]'))) {
+      b.addEventListener('click', action(() => handlers.onSquad(b.dataset.order as 'follow' | 'spread' | 'hold')));
+    }
     this.bindDash(byId('mDash'));
     this.bindJoystick(byId('joyBase'), byId('joyStick'));
     this.bindCamera(canvas);

@@ -151,6 +151,14 @@ export class Minimap {
       g.arc(mx(e.x), my(e.z), 4.5, 0, Math.PI * 2);
       g.fill();
       g.stroke();
+      if (e.ai.leaderId === p.id) {
+        // Your squad: green ring.
+        g.strokeStyle = '#7dcf9a';
+        g.lineWidth = 2;
+        g.beginPath();
+        g.arc(mx(e.x), my(e.z), 7, 0, Math.PI * 2);
+        g.stroke();
+      }
       if (e.y > HIGH) {
         // Up high: white ring, so stacked floors don't read as the same spot.
         g.strokeStyle = '#fff4d6';

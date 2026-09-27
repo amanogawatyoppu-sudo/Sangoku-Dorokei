@@ -21,6 +21,8 @@ export class Indicators {
   private target: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
   /** Sniper lock-on: red crosshair ring under whoever the shot would hit (grey while reloading). */
   private reticle: THREE.Group;
+  /** Small green rings under the player's squad members. */
+  private squad: THREE.Mesh[] = [];
 
   constructor(scene: THREE.Scene) {
     const arc = new THREE.Mesh(
@@ -55,6 +57,15 @@ export class Indicators {
     }
     this.reticle.visible = false;
     scene.add(this.reticle);
+
+    const sqMat = new THREE.MeshBasicMaterial({ color: 0x7dcf9a, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false });
+    for (let i = 0; i < 6; i++) {
+      const r = new THREE.Mesh(new THREE.RingGeometry(15, 18, 24), sqMat);
+      r.rotation.x = -Math.PI / 2;
+      r.visible = false;
+      scene.add(r);
+      this.squad.push(r);
+    }
   }
 
   sync(state: GameState, alpha: number): void {
@@ -73,6 +84,13 @@ export class Indicators {
       this.reticle.rotation.y = state.time / 900;
       ((this.reticle.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial).color.setHex(p.cd.special > 0.5 ? 0x8a8a8a : 0xff3030);
     }
+    let k = 0;
+    for (const e of state.entities) {
+      if (k >= this.squad.length || e.ai.leaderId !== p.id || !e.alive || e.jailed) continue;
+      this.squad[k].position.set(lerp(e.prevX, e.x, alpha), lerp(e.prevY, e.y, alpha) + 0.7, lerp(e.prevZ, e.z, alpha));
+      this.squad[k++].visible = true;
+    }
+    for (; k < this.squad.length; k++) this.squad[k].visible = false;
     const t = active && !state.meeting && p.stunUntil <= state.time ? captureCandidate(state, p) : null;
     this.target.visible = !!t && visibleTo(state, t, p);
     if (t && this.target.visible) {

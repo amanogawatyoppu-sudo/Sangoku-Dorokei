@@ -71,5 +71,10 @@ export function bindMessages(bus: EventBus<GameEvent>, state: GameState, log: Lo
     log.add(`まもなくハーフタイム会議（${ev.inSec}秒後）。全員が集まり、戦況を共有する。`);
     hud.banner(`${ev.inSec}秒後にハーフタイム会議`, 2500);
   });
+  bus.on('SQUAD_ORDER', (ev) => {
+    const text = { follow: '分隊：ついて来い（同行して周りを警戒）', spread: '分隊：散開して周囲を探せ', hold: '分隊：ここを守れ' }[ev.order];
+    log.add(text);
+    hud.banner(text.replace('分隊：', ''), 1100);
+  });
   bus.on('MEETING_CLOSED', (ev) => log.add('会議終了。' + (ev.focusSet ? '重点捜索対象を設定した。' : '次の情報を待とう。')));
 }

@@ -71,11 +71,16 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize): void {
     onSpecial: () => { queueCommand(state, { type: 'special' }); },
     // Q / 振向: a quick half-turn to check behind (the camera follows the body round).
     onFace: () => { queueCommand(state, { type: 'face', x: -state.player.dirX, z: -state.player.dirZ }); },
+    onSquad: (order) => {
+      const cycle = ['follow', 'spread', 'hold'] as const;
+      const next = order === 'next' ? cycle[(cycle.indexOf(state.squadOrder) + 1) % 3] : order;
+      queueCommand(state, { type: 'squad', order: next });
+    },
   });
   $('btnMeeting').onclick = () => { openMeeting(state); flush(); };
 
   hud.initFor(state);
-  log.add('v7.9: 狙撃手にライフル。赤い線が出たら命中。W/Sで前後、A/Dで旋回、Qで振り向き。');
+  log.add('v7.10: 分隊で行動。1 同行・2 散開・3 守備。W/Sで前後、A/Dで旋回、Qで振り向き。');
   hud.banner('三国ドロケイ 開始　' + NATIONS[nation].name + 'の' + roleName(role), 2200);
   resizeRenderer(refs, canvas);
   cam.snap(Math.atan2(state.player.dirX, state.player.dirZ));

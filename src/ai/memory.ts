@@ -13,7 +13,8 @@ export type AiState =
   | 'ESCORT' // stay by the king
   | 'RESCUE' // head for a jail to free an ally
   | 'FLEE' // get away from a threat
-  | 'HOLD'; // stand at a post (sniper perch, tower)
+  | 'HOLD' // stand at a post (sniper perch, tower)
+  | 'SQUAD'; // move with the squad leader, in formation
 
 /** What this character last knew about an enemy. */
 export interface Sighting {
@@ -70,6 +71,12 @@ export interface AiMemory {
   lookAt: { x: number; z: number } | null;
   /** Enemy a sniper is drawing a bead on (its red laser is visible). */
   aimId: number | null;
+  /** Squad: the leader this character follows (an AI or the player), and its place in the formation. */
+  leaderId: number | null;
+  slot: number;
+  /** Cached "can walk straight to the formation spot" check. */
+  directOk: boolean;
+  directAt: number;
   /** Game time of the next decision and perception update. */
   thinkAt: number;
   perceiveAt: number;
@@ -95,7 +102,7 @@ export interface AiMemory {
 export function createAiMemory(): AiMemory {
   return {
     state: 'PATROL', targetId: null, visible: [], seen: new Map(), alert: 0,
-    goal: null, path: null, lookAt: null, aimId: null, thinkAt: 0, perceiveAt: 0, replanAt: 0,
+    goal: null, path: null, lookAt: null, aimId: null, leaderId: null, slot: 0, directOk: false, directAt: 0, thinkAt: 0, perceiveAt: 0, replanAt: 0,
     searchUntil: 0, searchCenter: null, chaseRole: 'direct', flankSide: 1, task: null,
     progressX: 0, progressZ: 0, progressAt: 0, maxStuckSec: 0, highSec: 0, idleUntil: 0,
   };
