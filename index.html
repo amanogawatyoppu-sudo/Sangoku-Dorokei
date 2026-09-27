@@ -2,8 +2,8 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>三国ドロケイ v7.0 3D</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>三国ドロケイ v7.1 3D</title>
 <link rel="icon" href="data:,">
 </head>
 <body>
@@ -11,9 +11,13 @@
   <div id="topbar">
     <div>所属:<b id="tbNation">-</b>/役職:<b id="tbRole">-</b></div>
     <div>自国王:<b id="tbKing">-</b>／牢屋:<b id="tbJailed">0</b>人</div>
-    <div>管制塔:<b id="tbTower">未占領</b></div>
+    <div class="tb-tower">管制塔:<b id="tbTower">未占領</b></div>
     <div>残り時間:<b id="tbTime">--:--</b></div>
-    <button id="btnMeeting">緊急会議(残<span id="mtLeft">2</span>)</button>
+    <div id="tbActions">
+      <button id="btnMeeting">緊急会議(残<span id="mtLeft">2</span>)</button>
+      <button id="btnInfo" class="drawer-btn" aria-controls="side" aria-expanded="false">情報</button>
+      <button id="btnLog" class="drawer-btn" aria-controls="log" aria-expanded="false">ログ</button>
+    </div>
   </div>
   <div id="hintBox">状況: <span id="hintText">-</span></div>
   <div id="main">
@@ -23,12 +27,13 @@
       <div id="vignette"></div>
       <div id="banner"></div>
       <div id="progText"></div>
+      <div id="statusBadge" hidden></div>
       <div id="mctrl">
         <div id="joyBase"><div id="joyStick"></div></div>
-        <div id="mbtns"><button id="mCap">捕獲</button><button id="mSpec">特殊</button><button id="mDash">ダッシュ</button></div>
+        <div id="mbtns"><div id="mStamWrap"><div id="mStam"></div></div><button id="mFace">振向</button><button id="mSpec">特殊</button><button id="mDash">ダッシュ</button><button id="mCap">捕獲</button></div>
       </div>
       <div id="setup">
-        <h1>三国ドロケイ v7.0 (3D)</h1>
+        <h1>三国ドロケイ v7.1 (3D)</h1>
         <p style="opacity:.8;font-size:12px">太陽・月・星 ― 広大な戦場で敵国の王を探し出せ。</p>
         <div>所属国を選択</div><div class="pickrow" id="pickNation"></div>
         <div>役職を選択</div><div class="pickrow" id="pickRole"></div>
@@ -37,7 +42,7 @@
           <button class="pickbtn" id="btnRandom">ランダム(国+役職をおまかせ)</button>
           <button class="go" id="btnStart">ゲーム開始</button>
         </div>
-        <p style="font-size:10px;opacity:.6">移動:WASD　視点:ドラッグ/スワイプ　ダッシュ:Shift　捕獲:Space　特殊:E</p>
+        <p style="font-size:10px;opacity:.6">移動:WASD　視点:ドラッグ/スワイプ(ホイールで距離)　ダッシュ:Shift　捕獲:Space　特殊:E　振り向き:Q</p>
       </div>
       <div id="overlay">
         <h1 id="ovTitle">勝敗</h1><p id="ovDesc"></p>
@@ -61,7 +66,7 @@
         <button id="btnSpecial"><span class="fill" id="fillSpec"></span>特殊(E)</button>
         <div id="specialDesc" style="font-size:10px;opacity:.7;line-height:1.4"></div>
       </div>
-      <div id="hint">移動:WASD 視点:ドラッグ ダッシュ:Shift<br>会議は自国拠点付近で開ける(1試合2回)<br>ダッシュ中は足音が大きく見つかりやすい</div>
+      <div id="hint">移動:WASD 視点:ドラッグ ダッシュ:Shift<br>振り向き(カメラの向きへ):Q<br>会議は自国拠点付近で開ける(1試合2回)<br>ダッシュ中は足音が大きく見つかりやすい</div>
     </div>
   </div>
 </div>

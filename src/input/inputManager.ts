@@ -1,17 +1,42 @@
 export interface InputHandlers {
   onCapture: () => void;
   onSpecial: () => void;
-  /** Actions are ignored while this returns true (v6: meeting open). */
+  /** Turn the character in place toward the camera's forward direction (Q / 振向). */
+  onFace: () => void;
+  /** Actions are ignored while this returns true (meeting open, game over). */
   isBlocked: () => boolean;
 }
 
+export interface MoveAxes {
+  /** +1 = away from the camera (W). */
+  forward: number;
+  /** +1 = screen-right (D). */
+  right: number;
+}
+
 const JOY_MAX = 40;
-const JOY_REST = 26;
+
+/** Camera-relative movement axes from held keys plus the virtual joystick. */
+export function axesFrom(keys: Readonly<Record<string, boolean>>, joy: { x: number; y: number }): MoveAxes {
+  let forward = 0 - joy.y, right = joy.x;
+  if (keys['w'] || keys['arrowup']) forward += 1;
+  if (keys['s'] || keys['arrowdown']) forward -= 1;
+  if (keys['d'] || keys['arrowright']) right += 1;
+  if (keys['a'] || keys['arrowleft']) right -= 1;
+  return { forward, right };
+}
+
+/** Joystick knob offset for a pointer at (dx, dy) from the base centre, clamped to the ring. */
+export function joystickVector(dx: number, dy: number): { x: number; y: number; px: number; py: number } {
+  const d = Math.hypot(dx, dy);
+  if (d > JOY_MAX) { dx = (dx / d) * JOY_MAX; dy = (dy / d) * JOY_MAX; }
+  return { x: dx / JOY_MAX, y: dy / JOY_MAX, px: dx, py: dy };
+}
 
 /**
- * Collects keyboard, mouse and touch input. It never touches game state
- * directly: movement is read as axes, actions are forwarded to handlers, and
- * camera drags accumulate as look deltas.
+ * Collects keyboard and pointer (mouse / touch / pen) input. It never touches
+ * game state: movement is read as axes, actions go to handlers, and camera
+ * drags / wheel accumulate until the frame consumes them.
  */
 export class InputManager {
   private keys: Record<string, boolean> = {};
@@ -19,101 +44,103 @@ export class InputManager {
   private touchDash = false;
   private lookDX = 0;
   private lookDY = 0;
+  private zoom = 0;
 
   constructor(canvas: HTMLCanvasElement, handlers: InputHandlers) {
     window.addEventListener('keydown', (e) => {
-      this.keys[e.key.toLowerCase()] = true;
+      const k = e.key.toLowerCase();
+      this.keys[k] = true;
       if (handlers.isBlocked()) return;
       if (e.key === ' ') { e.preventDefault(); handlers.onCapture(); }
-      if (e.key.toLowerCase() === 'e') handlers.onSpecial();
+      if (k === 'e') handlers.onSpecial();
+      if (k === 'q' && !e.repeat) handlers.onFace();
     });
     window.addEventListener('keyup', (e) => { this.keys[e.key.toLowerCase()] = false; });
+    // Keys released while the window is unfocused never send keyup.
+    window.addEventListener('blur', () => { this.keys = {}; this.touchDash = false; });
 
     const action = (fn: () => void) => () => { if (!handlers.isBlocked()) fn(); };
-    byId('btnCapture').onclick = action(handlers.onCapture);
-    byId('btnSpecial').onclick = action(handlers.onSpecial);
-    byId('mCap').onclick = action(handlers.onCapture);
-    byId('mSpec').onclick = action(handlers.onSpecial);
-
-    const mDash = byId('mDash');
-    const dashOn = (e: Event) => { e.preventDefault(); this.touchDash = true; };
-    const dashOff = (e: Event) => { e.preventDefault(); this.touchDash = false; };
-    mDash.addEventListener('touchstart', dashOn);
-    mDash.addEventListener('touchend', dashOff);
-    mDash.addEventListener('touchcancel', dashOff);
-
-    this.bindJoystick();
-    this.bindCameraDrag(canvas);
+    byId('btnCapture').addEventListener('click', action(handlers.onCapture));
+    byId('btnSpecial').addEventListener('click', action(handlers.onSpecial));
+    // Touch buttons act on press so they work while another finger holds the joystick.
+    this.pressButton(byId('mCap'), action(handlers.onCapture));
+    this.pressButton(byId('mSpec'), action(handlers.onSpecial));
+    this.pressButton(byId('mFace'), action(handlers.onFace));
+    this.bindDash(byId('mDash'));
+    this.bindJoystick(byId('joyBase'), byId('joyStick'));
+    this.bindCamera(canvas);
   }
 
-  private bindJoystick(): void {
-    const joyBase = byId('joyBase'), joyStick = byId('joyStick');
-    let joyId: number | null = null;
-    joyBase.addEventListener('touchstart', (e) => { joyId = e.changedTouches[0].identifier; }, { passive: true });
-    joyBase.addEventListener('touchmove', (e) => {
-      for (const t of Array.from(e.changedTouches)) {
-        if (t.identifier !== joyId) continue;
-        const r = joyBase.getBoundingClientRect();
-        let dx = t.clientX - (r.left + r.width / 2), dy = t.clientY - (r.top + r.height / 2);
-        const d = Math.hypot(dx, dy);
-        if (d > JOY_MAX) { dx = (dx / d) * JOY_MAX; dy = (dy / d) * JOY_MAX; }
-        joyStick.style.left = JOY_REST + dx + 'px';
-        joyStick.style.top = JOY_REST + dy + 'px';
-        this.joy.x = dx / JOY_MAX;
-        this.joy.y = dy / JOY_MAX;
-      }
-    }, { passive: true });
-    const reset = () => {
-      joyId = null;
-      this.joy.x = 0;
-      this.joy.y = 0;
-      joyStick.style.left = JOY_REST + 'px';
-      joyStick.style.top = JOY_REST + 'px';
-    };
-    joyBase.addEventListener('touchend', reset, { passive: true });
-    joyBase.addEventListener('touchcancel', reset, { passive: true });
+  private pressButton(el: HTMLElement, fn: () => void): void {
+    el.addEventListener('pointerdown', (e) => { e.preventDefault(); fn(); });
   }
 
-  private bindCameraDrag(canvas: HTMLCanvasElement): void {
-    let dragging = false, lastMX = 0, lastMY = 0;
-    canvas.addEventListener('mousedown', (e) => { dragging = true; lastMX = e.clientX; lastMY = e.clientY; });
-    window.addEventListener('mouseup', () => { dragging = false; });
-    window.addEventListener('mousemove', (e) => {
-      if (!dragging) return;
-      this.lookDX += e.clientX - lastMX;
-      this.lookDY += e.clientY - lastMY;
-      lastMX = e.clientX;
-      lastMY = e.clientY;
+  private bindDash(el: HTMLElement): void {
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      el.setPointerCapture(e.pointerId);
+      this.touchDash = true;
     });
-    let camTouchId: number | null = null, lastTX = 0, lastTY = 0;
-    canvas.addEventListener('touchstart', (e) => {
-      for (const t of Array.from(e.changedTouches)) {
-        if (camTouchId === null) { camTouchId = t.identifier; lastTX = t.clientX; lastTY = t.clientY; }
-      }
-    }, { passive: true });
-    canvas.addEventListener('touchmove', (e) => {
-      for (const t of Array.from(e.changedTouches)) {
-        if (t.identifier !== camTouchId) continue;
-        this.lookDX += t.clientX - lastTX;
-        this.lookDY += t.clientY - lastTY;
-        lastTX = t.clientX;
-        lastTY = t.clientY;
-      }
-    }, { passive: true });
-    canvas.addEventListener('touchend', (e) => {
-      for (const t of Array.from(e.changedTouches)) if (t.identifier === camTouchId) camTouchId = null;
-    }, { passive: true });
+    const off = () => { this.touchDash = false; };
+    el.addEventListener('pointerup', off);
+    el.addEventListener('pointercancel', off);
+    el.addEventListener('lostpointercapture', off);
   }
 
-  /** Camera-relative movement axes: forward (+W) and right (+D), keyboard plus joystick. */
-  moveAxes(): { forward: number; right: number } {
-    const k = this.keys;
-    let forward = -this.joy.y, right = this.joy.x;
-    if (k['w'] || k['arrowup']) forward += 1;
-    if (k['s'] || k['arrowdown']) forward -= 1;
-    if (k['d'] || k['arrowright']) right += 1;
-    if (k['a'] || k['arrowleft']) right -= 1;
-    return { forward, right };
+  private bindJoystick(base: HTMLElement, stick: HTMLElement): void {
+    let id: number | null = null;
+    const move = (e: PointerEvent) => {
+      const r = base.getBoundingClientRect();
+      const v = joystickVector(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2));
+      stick.style.transform = `translate(${v.px}px, ${v.py}px)`;
+      this.joy.x = v.x;
+      this.joy.y = v.y;
+    };
+    const reset = (e: PointerEvent) => {
+      if (e.pointerId !== id) return;
+      id = null;
+      this.joy.x = this.joy.y = 0;
+      stick.style.transform = '';
+    };
+    base.addEventListener('pointerdown', (e) => {
+      if (id !== null) return;
+      e.preventDefault();
+      id = e.pointerId;
+      base.setPointerCapture(e.pointerId);
+      move(e);
+    });
+    base.addEventListener('pointermove', (e) => { if (e.pointerId === id) move(e); });
+    base.addEventListener('pointerup', reset);
+    base.addEventListener('pointercancel', reset);
+    base.addEventListener('lostpointercapture', reset);
+  }
+
+  private bindCamera(canvas: HTMLCanvasElement): void {
+    let id: number | null = null, lastX = 0, lastY = 0;
+    canvas.addEventListener('pointerdown', (e) => {
+      if (id !== null) return;
+      id = e.pointerId;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      canvas.setPointerCapture(e.pointerId);
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== id) return;
+      this.lookDX += e.clientX - lastX;
+      this.lookDY += e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+    });
+    const end = (e: PointerEvent) => { if (e.pointerId === id) id = null; };
+    canvas.addEventListener('pointerup', end);
+    canvas.addEventListener('pointercancel', end);
+    canvas.addEventListener('lostpointercapture', end);
+    canvas.addEventListener('wheel', (e) => { e.preventDefault(); this.zoom += Math.sign(e.deltaY); }, { passive: false });
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+
+  moveAxes(): MoveAxes {
+    return axesFrom(this.keys, this.joy);
   }
 
   get dash(): boolean {
@@ -125,6 +152,13 @@ export class InputManager {
     const out = { dx: this.lookDX, dy: this.lookDY };
     this.lookDX = this.lookDY = 0;
     return out;
+  }
+
+  /** Returns and clears accumulated wheel steps (+ = zoom out). */
+  consumeZoom(): number {
+    const z = this.zoom;
+    this.zoom = 0;
+    return z;
   }
 }
 

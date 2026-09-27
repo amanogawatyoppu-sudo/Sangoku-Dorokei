@@ -7,7 +7,9 @@ import { jailedAlly } from '../ai/controller';
 import { compass } from '../meeting/meetingSystem';
 import type { GameState } from '../sim/state';
 import { kingOf, timeLeftSec } from '../sim/state';
-import { captureTier } from '../sim/systems/capture';
+import type { CaptureTier } from '../sim/systems/capture';
+import { captureCandidate, captureTier } from '../sim/systems/capture';
+import { jailDuration } from '../sim/systems/jail';
 import { dist } from '../sim/systems/collision';
 import { suspStars } from '../sim/systems/suspicion';
 import { visibleTo } from '../sim/systems/vision';
@@ -24,6 +26,14 @@ const SPECIAL_DESC = {
   impostor: '他国に偽装(捕獲で解除)',
 } as const;
 
+/** Which part of the target the player is on; matches the capture success rules. */
+const TIER_LABEL: Record<CaptureTier, string> = {
+  deepback: '真後ろ（確実）',
+  back: '背後（高確率）',
+  side: '側面（不安定）',
+  front: '正面（不可）',
+};
+
 /** Top bar, side panel, hint line, vignette, banner and rescue progress. */
 export class Hud {
   private el = {
@@ -32,6 +42,8 @@ export class Hud {
     fillCap: $('fillCap'), fillSpec: $('fillSpec'), btnSpecial: $('btnSpecial') as HTMLButtonElement, specialDesc: $('specialDesc'),
     stamBar: $('stamBar'), hintText: $('hintText'), suspects: $('suspects'), vignette: $('vignette'),
     banner: $('banner'), progText: $('progText'),
+    btnCapture: $('btnCapture'), mCap: $('mCap'), mSpec: $('mSpec') as HTMLButtonElement, mFace: $('mFace') as HTMLButtonElement,
+    mDash: $('mDash'), mStam: $('mStam'), statusBadge: $('statusBadge'),
   };
   /** Game time at which each enemy became continuously visible (danger hint). */
   private visSince = new Map<number, number>();
@@ -66,12 +78,56 @@ export class Hud {
     el.fillSpec.style.width = Math.min(100, (p.cd.special / SPECIAL_FILL_SCALE[p.role]) * 100) + '%';
     el.specialDesc.textContent = SPECIAL_DESC[p.role];
     el.stamBar.style.width = p.stamina + '%';
+    this.updateControlFeedback(state);
     el.hintText.textContent = this.computeHint(state);
     this.updateSuspects(state);
     if (p.channeling) {
       el.progText.style.opacity = '1';
       el.progText.textContent = '救出詠唱 [' + Math.round((p.channeling.prog / p.channeling.need) * 100) + '%]';
     } else el.progText.style.opacity = '0';
+  }
+
+  /** Dash / special / capture-ready states on the buttons, plus the status badge. */
+  private updateControlFeedback(state: GameState): void {
+    const p = state.player, el = this.el;
+    const canAct = p.alive && !p.jailed && !state.meeting && !state.over;
+    el.stamBar.classList.toggle('dashing', p.dashing);
+    el.mStam.style.width = p.stamina + '%';
+    el.mStam.classList.toggle('dashing', p.dashing);
+    el.mDash.classList.toggle('on', p.dashing);
+    el.mSpec.disabled = p.cd.special > 0 || !canAct;
+    el.mFace.disabled = !canAct;
+    const target = canAct && p.stunUntil <= state.time ? captureCandidate(state, p) : null;
+    const ready = !!target && p.cd.capture <= 0;
+    el.btnCapture.classList.toggle('ready', ready);
+    el.mCap.classList.toggle('ready', ready);
+    this.setStatus(this.statusFor(state, target ? captureTier(target, p) : null));
+  }
+
+  private statusFor(state: GameState, tier: CaptureTier | null): { text: string; kind: string } | null {
+    const p = state.player, now = state.time;
+    if (!p.alive) return { text: '処刑済み — 観戦中', kind: 'jail' };
+    if (p.jailed) {
+      const left = Math.max(0, Math.ceil((p.jailedAt + jailDuration(p) - now) / 1000));
+      return { text: '牢屋に捕縛中 — 処刑まで ' + left + '秒', kind: 'jail' };
+    }
+    if (p.stunUntil > now) return { text: 'スタン中 ' + ((p.stunUntil - now) / 1000).toFixed(1) + '秒', kind: 'stun' };
+    if (p.channeling) return null; // progText shows the rescue
+    if (tier) return { text: '捕獲可能: ' + TIER_LABEL[tier] + (p.cd.capture > 0 ? '（準備中）' : ''), kind: 'capture' };
+    return null;
+  }
+
+  private statusKey = '';
+  private setStatus(s: { text: string; kind: string } | null): void {
+    const key = s ? s.kind + s.text : '';
+    if (key === this.statusKey) return;
+    this.statusKey = key;
+    const b = this.el.statusBadge;
+    b.hidden = !s;
+    if (s) {
+      b.textContent = s.text;
+      b.className = s.kind;
+    }
   }
 
   private updateSuspects(state: GameState): void {

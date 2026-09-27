@@ -41,3 +41,79 @@
   #meetingLog{max-width:520px;max-height:180px;overflow-y:auto;font-size:12px;text-align:left;line-height:1.6;background:#0e1620;padding:8px;border-radius:6px}
   #meetingChoices,#meetingVote{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:520px}
   #meetingChoices button,#meetingVote button{padding:6px 10px;font-size:11.5px;background:#1c2536;border:1px solid var(--line);color:var(--text);border-radius:5px;cursor:pointer}
+
+/* ===== v7.1: input, feedback and responsive layout ===== */
+[hidden]{display:none!important}
+html,body{height:100%}
+body{overscroll-behavior:none}
+#app{height:100vh;height:100dvh}
+canvas#game3d,#joyBase,#mbtns button{touch-action:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#tbActions{display:flex;gap:6px;align-items:center}
+#joyStick{left:calc(50% - 22px);top:calc(50% - 22px);pointer-events:none}
+.drawer-btn{display:none}
+#topbar #btnInfo,#topbar #btnLog{background:#22314a;border:1px solid var(--line)}
+
+/* Desktop keeps the v6 row: 捕獲 特殊 ダッシュ, then 振向. */
+#mCap{order:1} #mSpec{order:2} #mDash{order:3} #mFace{order:4}
+#mStamWrap{display:none}
+#mbtns button{transition:background .12s,box-shadow .12s,opacity .12s}
+#mbtns button:disabled{opacity:.4}
+#mbtns button.on{background:rgba(255,176,64,.55);border-color:#ffb040}
+#mbtns button.ready,#abilities #btnCapture.ready{box-shadow:0 0 0 2px #7dff9a,0 0 14px rgba(125,255,154,.6)}
+#abilities #btnCapture.ready{border-color:#7dff9a}
+.bar.dashing{background:#ffb040}
+#statusBadge{position:absolute;left:50%;bottom:118px;transform:translateX(-50%);z-index:6;pointer-events:none;
+  background:rgba(12,18,28,.82);border:1px solid var(--line);border-radius:14px;padding:4px 12px;font-size:12px;white-space:nowrap}
+#statusBadge.jail{border-color:#ff6a5a;color:#ffb3a8}
+#statusBadge.stun{border-color:#c9a3ff;color:#e2d0ff}
+#statusBadge.capture{border-color:#7dff9a;color:#c9ffd5}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ===== Phones (portrait or landscape): full-screen 3D, HUD overlays, drawers ===== */
+@media (max-width:760px),(max-height:520px){
+  #app{position:relative;display:block}
+  /* Top HUD floats over the 3D view and lets touches pass through except its buttons. */
+  #topbar{position:relative;z-index:11;pointer-events:none;border:none;background:linear-gradient(rgba(14,20,32,.88),rgba(14,20,32,0));
+    padding:calc(4px + env(safe-area-inset-top,0px)) calc(8px + env(safe-area-inset-right,0px)) 12px calc(8px + env(safe-area-inset-left,0px));
+    font-size:11px;gap:2px 10px;justify-content:flex-start}
+  #topbar button{pointer-events:auto;padding:6px 9px}
+  #topbar .tb-tower{display:none}
+  #tbActions{margin-left:auto}
+  .drawer-btn{display:inline-block}
+  #hintBox{position:relative;z-index:6;pointer-events:none;border:none;background:none;margin:-6px auto 0;padding:2px 12px;width:max-content;max-width:calc(100% - 24px);
+    font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 0 6px #000}
+  #main{position:absolute;inset:0;display:block}
+  #centerCol{position:absolute;inset:0}
+  #setup,#overlay,#meetingOverlay{z-index:12;padding:calc(16px + env(safe-area-inset-top,0px)) calc(16px + env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) calc(16px + env(safe-area-inset-left,0px));justify-content:flex-start}
+  #setup h1,#overlay h1,#meetingOverlay h1{font-size:20px;margin:8px 0 0}
+  /* Side panels become slide-in drawers under the top HUD. */
+  #log,#side{position:absolute;top:0;bottom:0;z-index:9;transition:transform .2s ease;box-shadow:0 0 24px rgba(0,0,0,.6);
+    padding-top:calc(env(safe-area-inset-top,0px) + 64px);padding-bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+  #log{left:0;width:min(270px,82vw);transform:translateX(-105%);padding-left:calc(8px + env(safe-area-inset-left,0px));font-size:11.5px}
+  #side{right:0;width:min(230px,82vw);transform:translateX(105%);padding-right:calc(8px + env(safe-area-inset-right,0px))}
+  #log.open,#side.open{transform:none}
+  #mini{align-self:center}
+  #banner{top:30%;font-size:19px;width:90%;letter-spacing:1px}
+  #progText{top:40%}
+  #mctrl{bottom:calc(12px + env(safe-area-inset-bottom,0px));padding:0 calc(14px + env(safe-area-inset-right,0px)) 0 calc(14px + env(safe-area-inset-left,0px));align-items:flex-end}
+  #joyBase{width:112px;height:112px}
+  /* 2x2 thumb cluster: capture where the thumb rests (bottom-right). */
+  #mbtns{display:grid;grid-template-columns:repeat(2,58px);grid-template-areas:"stam stam" "face spec" "dash cap";gap:8px}
+  #mbtns button{width:58px;height:58px;padding:0;font-size:11.5px;letter-spacing:-.5px}
+  #mCap{grid-area:cap} #mSpec{grid-area:spec} #mDash{grid-area:dash} #mFace{grid-area:face}
+  #mCap{background:rgba(125,255,154,.18);border-color:#7dff9a}
+  #mStamWrap{display:block;grid-area:stam;height:6px;background:#26314a;border-radius:3px;overflow:hidden}
+  #mStam{height:100%;width:100%;background:#5ad06a}
+  #mStam.dashing{background:#ffb040}
+  #statusBadge{bottom:calc(150px + env(safe-area-inset-bottom,0px))}
+}
+@media (max-height:520px){
+  /* Landscape phones: short screen, keep the top HUD to one line where possible. */
+  #topbar{padding-bottom:6px}
+  #joyBase{width:100px;height:100px}
+  #mbtns{grid-template-columns:repeat(2,52px);gap:6px}
+  #mbtns button{width:52px;height:52px;font-size:11px}
+  #statusBadge{bottom:calc(20px + env(safe-area-inset-bottom,0px))}
+  #log,#side{padding-top:calc(env(safe-area-inset-top,0px) + 44px)}
+}
+@media (prefers-reduced-motion:reduce){#log,#side,#mbtns button{transition:none}}
