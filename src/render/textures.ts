@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { NATION_IDS, NATIONS } from '../config/nations';
-import { BOUNDS, GROUND, PLAZA, RIVER, ROADS, TOWER } from '../config/map';
+import { BOUNDS, GROUND, PLAZA, RIVER, ROADS, SQUARE } from '../config/map';
 
 /** Small deterministic PRNG so the generated art is identical every load. */
 function prng(seed: number): () => number {
@@ -111,7 +111,7 @@ export function groundTexture(): THREE.CanvasTexture {
   g.fillStyle = '#2c4250';
   g.fillRect(X(RIVER.minX), Z(RIVER.z - RIVER.d / 2), (RIVER.maxX - RIVER.minX) * PX, RIVER.d * PX);
   plaza(PLAZA.x, PLAZA.z, PLAZA.r);
-  plaza(TOWER.x, TOWER.z, 130);
+  plaza(SQUARE.x, SQUARE.z, SQUARE.r);
   for (const n of NATION_IDS) plaza(NATIONS[n].base.x, NATIONS[n].base.z, 100);
   // Packed earth yards under each jail.
   for (const n of NATION_IDS) {

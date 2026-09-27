@@ -290,6 +290,7 @@ function hunterThink(state: GameState, e: Entity, aggro: number): void {
     }
     case 'rescueEscort': case 'raidJail': {
       const j = NATIONS[task.jail].jail;
+      if (task.kind === 'rescueEscort' && escortKeyholder(state, e, j)) return;
       if (engage(state, e, 300, j)) return;
       setGoal(state, e, around(j, e, task.kind === 'raidJail' ? 200 : 80), task.kind === 'raidJail' ? 'INVESTIGATE' : 'RESCUE');
       return;
@@ -328,6 +329,19 @@ function hunterThink(state: GameState, e: Entity, aggro: number): void {
   patrol(state, e);
 }
 
+/**
+ * Rescue escorts travel with the keyholder until it is near the jail (it is the
+ * only one who can open it), dealing with anyone who comes for it on the way.
+ */
+function escortKeyholder(state: GameState, e: Entity, j: Point): boolean {
+  const kh = state.entities.find((o) => o.nation === e.nation && o.role === 'keyholder' && o.alive && !o.jailed);
+  if (!kh || dist(kh, j) < 420) return false;
+  if (engage(state, e, 260, kh)) return true;
+  const side = e.id % 2 ? 1 : -1;
+  setGoal(state, e, { x: kh.x - kh.dirZ * 45 * side + kh.dirX * 30, y: kh.y, z: kh.z + kh.dirX * 45 * side + kh.dirZ * 30 }, 'ESCORT');
+  return true;
+}
+
 function sniperThink(state: GameState, e: Entity): void {
   const threat = nearestVisible(state, e, 130);
   if (threat && Math.abs(threat.y - e.y) < SAME_LEVEL) { flee(state, e, threat); return; }
@@ -339,7 +353,11 @@ function sniperThink(state: GameState, e: Entity): void {
     useSpecial(state, e);
   }
   const task = e.ai.task;
-  if (task?.kind === 'rescueEscort') { setGoal(state, e, around(NATIONS[task.jail].jail, e, 200), 'RESCUE'); return; }
+  if (task?.kind === 'rescueEscort') {
+    if (escortKeyholder(state, e, NATIONS[task.jail].jail)) return;
+    setGoal(state, e, around(NATIONS[task.jail].jail, e, 200), 'RESCUE');
+    return;
+  }
   if (task?.kind === 'guardJail') { setGoal(state, e, around(NATIONS[e.nation].jail, e, 160), 'GUARD'); return; }
   const base = NATIONS[e.nation].base;
   const perch = [...PERCHES].sort((a, b) => Math.hypot(a.x - base.x, a.z - base.z) - Math.hypot(b.x - base.x, b.z - base.z))[e.id % 2];
@@ -362,6 +380,18 @@ function keyholderThink(state: GameState, e: Entity): void {
   if (threat && (!ally || dist(e, ally) > 70)) { flee(state, e, threat); return; }
   if (ally && ally.capturedBy) {
     if (dist3(e, ally) < 42) { stop(e, 'RESCUE'); if (!e.channeling) tryStartRescueQuiet(state, e); return; }
+    const j = NATIONS[ally.capturedBy].jail;
+    // Don't walk into the guards alone: wait at a staging point until an escort
+    // is fighting at the jail (or no guard is in sight).
+    const guarded = visibleEnemies(state, e).some((t) => dist(t, j) < 200);
+    const escortIn = state.entities.some((o) => o.nation === e.nation && o !== e && o.alive && !o.jailed
+      && (o.ai.task?.kind === 'rescueEscort' || o.isPlayer) && dist(o, j) < 230);
+    const dj = dist(e, j);
+    if (dj < 380 && guarded && !escortIn) {
+      const k = 340 / (dj || 1);
+      setGoal(state, e, { x: j.x + (e.x - j.x) * k, y: 0, z: j.z + (e.z - j.z) * k }, 'RESCUE');
+      return;
+    }
     setGoal(state, e, { x: ally.x + (e.x < ally.x ? -28 : 28), y: ally.y, z: ally.z }, 'RESCUE');
     return;
   }

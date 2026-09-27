@@ -11,9 +11,9 @@ import type { Point } from './nations';
  *
  *              ┌──────────── 星国拠点 / 牢屋 ────────────┐
  *        西の高台 ── 中央街 (2階建て・空中回廊・通り抜け) ── 東の高台
- *              │               管制塔               │
+ *              │              噴水広場              │
  *      ════════╪══ 西橋 ═══ 中央の太鼓橋 ═══ 東橋 ══╪════  川（両端は陸路）
- *   見張り台   │              中央広場               │   見張り台
+ *   見張り台   │        中央広場（中心に管制塔）        │   見張り台
  *   太陽国拠点 ─────────────── 南街道 ─────────────── 月国拠点
  *   太陽の牢屋                                      月の牢屋
  */
@@ -69,8 +69,14 @@ export const GROUND = { w: 4400, d: 2900 };
 export const UPPER = 64;
 const SLAB = 6;
 
-export const TOWER: Circle = { x: 0, z: -180, r: 80 };
-export const PLAZA: Circle = { x: 0, z: 520, r: 230 };
+/**
+ * The watchtower stands in the central plaza: the one point about equally far
+ * from all three bases (~1575), since tower time counts toward the time-up score.
+ */
+export const TOWER: Circle = { x: 0, z: 540, r: 80 };
+export const PLAZA: Circle = { x: 0, z: 540, r: 230 };
+/** Fountain square in front of the town (between the bridge and the halls). */
+export const SQUARE: Circle = { x: 0, z: -180, r: 130 };
 export const RIVER = { minX: -1700, maxX: 1700, z: 220, d: 100 };
 
 const prims: Prim[] = [];
@@ -164,8 +170,8 @@ box(210, -440, 90, 60, 46, 'plaster', { group: 'house' });
 box(-600, -720, 70, 110, 50, 'plaster', { group: 'house' });
 box(600, -720, 70, 110, 50, 'plaster', { group: 'house' });
 
-// ---------------------------------------------------------------- 管制塔 and surroundings
-box(TOWER.x, TOWER.z, 46, 46, 130, 'stone', { group: 'tower' });
+// ---------------------------------------------------------------- fountain square (before the town)
+box(SQUARE.x, SQUARE.z, 60, 60, 20, 'stone', { group: 'fountain' });
 box(-230, -190, 40, 170, 55, 'stone');
 box(230, -190, 40, 170, 55, 'stone');
 box(-110, -350, 150, 36, 55, 'stone');
@@ -214,8 +220,8 @@ ramp(0, RIVER.z + RIVER.d / 2 + 50, 150, 100, 'z', -1, 0, 26, 'slope', 'stone', 
 // Narrow side bridges: low wooden decks (step up 8).
 for (const bx of [-1000, 1000]) box(bx, RIVER.z, 70, RIVER.d + 24, 8, 'wood', { y0: 0, group: 'bridgeS' });
 
-// ---------------------------------------------------------------- 中央広場
-box(PLAZA.x, PLAZA.z, 60, 60, 20, 'stone', { group: 'fountain' });
+// ---------------------------------------------------------------- 中央広場 and the watchtower
+box(TOWER.x, TOWER.z, 46, 46, 130, 'stone', { group: 'tower' });
 for (const s of [-1, 1]) {
   box(330 * s, 400, 60, 150, 50, 'hedge');
   box(330 * s, 660, 60, 150, 50, 'hedge');
@@ -244,8 +250,9 @@ export const WORLD: readonly Prim[] = prims;
  * produces encounters (bridges, plaza, tower, town, stairs, high ground).
  */
 export const HOTSPOTS: readonly (Point & { name: string; weight: number })[] = [
-  { name: '中央広場', x: 0, z: 520, weight: 4 },
-  { name: '管制塔', x: 0, z: -80, weight: 4 },
+  { name: '中央広場', x: 0, z: 400, weight: 4 },
+  { name: '管制塔', x: 0, z: 650, weight: 3 },
+  { name: '噴水広場', x: 0, z: -180, weight: 3 },
   { name: '中央の太鼓橋', x: 0, z: 90, weight: 3 },
   { name: '西橋', x: -1000, z: 110, weight: 2 },
   { name: '東橋', x: 1000, z: 110, weight: 2 },
@@ -259,8 +266,8 @@ export const HOTSPOTS: readonly (Point & { name: string; weight: number })[] = [
 
 /** Dirt roads painted on the ground and minimap (decoration; AI uses the nav graph). */
 export const ROADS: readonly (readonly [number, number])[][] = [
-  [[-1560, 780], [-900, 780], [-300, 700], [0, 520], [300, 700], [900, 780], [1560, 780]],
-  [[0, 520], [0, 60], [0, -100]],
+  [[-1560, 780], [-900, 780], [-300, 700], [0, 540], [300, 700], [900, 780], [1560, 780]],
+  [[0, 540], [0, 60], [0, -100]],
   [[0, -260], [-40, -420], [-40, -760], [0, -1020]],
   [[-1560, 780], [-1300, 400], [-1000, 60], [-1000, -330], [-1150, -380]],
   [[1560, 780], [1300, 400], [1000, 60], [1000, -330], [1150, -380]],

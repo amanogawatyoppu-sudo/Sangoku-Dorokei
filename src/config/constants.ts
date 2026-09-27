@@ -12,15 +12,20 @@ export const AI_SPEED = 330;
 /** Match length in seconds. */
 export const GAME_TIME = 300;
 /** All durations below are in milliseconds of game time. */
-export const JAIL_TIME = 22000;
-export const KING_JAIL_EXTRA = 6000;
+/**
+ * Jail sentences scale with the v7.3 map (~1.9x wider than v6): v6's 22 s / +6 s
+ * left no time to cross the map for a king rescue (0 of 10 simulated rescues
+ * succeeded). Normal 32 s, king 48 s.
+ */
+export const JAIL_TIME = 32000;
+export const KING_JAIL_EXTRA = 16000;
 export const STUN_TIME = 3000;
 export const TOWER_CHANNEL = 3000;
-export const KING_REVEAL_TIME = 16000;
-export const KING_RESCUE_ALERT_TIME = 24000;
+export const KING_REVEAL_TIME = 24000;
+export const KING_RESCUE_ALERT_TIME = 40000;
 /** How long the jail holding a captured king is visible to every nation. */
-export const JAIL_REVEAL_TIME = 20000;
-export const JAIL_GUARD_TIME = 16000;
+export const JAIL_REVEAL_TIME = 30000;
+export const JAIL_GUARD_TIME = 30000;
 export const RADAR_TIME = 7000;
 export const DISGUISE_TIME = 8000;
 export const EVIDENCE_INTERVAL = 7000;
