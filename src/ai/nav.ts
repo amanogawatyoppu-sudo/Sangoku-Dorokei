@@ -255,6 +255,21 @@ export function planPath(body: Body, goal: Waypoint): Waypoint[] | null {
   if (!ids) return null;
   const { nodes } = navGraph();
   const pts: Waypoint[] = ids.map((id) => ({ x: nodes[id].x, y: nodes[id].y, z: nodes[id].z }));
+  // String pulling: from each kept point, jump to the farthest later point on the same
+  // level that can be walked straight to, so people cut corners instead of zig-zagging.
+  const pulled: Waypoint[] = [];
+  for (let i = 0; i < pts.length;) {
+    pulled.push(pts[i]);
+    let next = i + 1;
+    for (let j = Math.min(pts.length - 1, i + 8); j > i + 1; j--) {
+      const a = pts[i], b = pts[j];
+      if (pts.slice(i, j + 1).some((p) => Math.abs(p.y - a.y) > 1) || Math.hypot(b.x - a.x, b.z - a.z) > 450) continue;
+      if (canWalk(a, b.x, b.y, b.z)) { next = j; break; }
+    }
+    i = next;
+  }
+  pts.length = 0;
+  pts.push(...pulled);
   // Drop collinear middle points on the same level to keep paths short.
   const out: Waypoint[] = [];
   for (let i = 0; i < pts.length; i++) {

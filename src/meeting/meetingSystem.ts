@@ -66,10 +66,10 @@ export function openMeeting(state: GameState): boolean {
   const foes = state.entities.filter((e) => e.nation !== p.nation && e.alive && !e.jailed);
   const topSusp = [...foes].sort((a, b) => b.susp - a.susp)[0];
   const lines = ['（自国が生存中の仲間が集まった）'];
-  for (const m of mates) {
-    const line = mateLine(state, m, foes, topSusp);
-    if (line) lines.push(line);
-  }
+  // With a big roster, only the first few reports are read out.
+  const reports = mates.map((m) => mateLine(state, m, foes, topSusp)).filter((l): l is string => !!l);
+  lines.push(...reports.slice(0, 6));
+  if (reports.length > 6) lines.push(`（ほか ${reports.length - 6} 人の報告は省略）`);
   if (!mates.length) lines.push('（生存している仲間がいない…）');
 
   const choices = ['管制塔を優先しよう', '牢屋を警戒しよう', '情報が足りない'];

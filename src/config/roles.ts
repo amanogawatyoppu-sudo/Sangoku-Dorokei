@@ -4,6 +4,15 @@ export type Persona = 'cautious' | 'aggressive' | 'analytical' | 'trickster';
 
 export const ROLES: readonly RoleId[] = ['king', 'soldier', 'sniper', 'communicator', 'keyholder', 'impostor'];
 
+/** Characters per nation the player can choose (one king each; the rest scale up). */
+export type RosterSize = 6 | 10 | 15;
+export const ROSTER_SIZES: readonly RosterSize[] = [6, 10, 15];
+export const ROSTERS: Record<RosterSize, readonly RoleId[]> = {
+  6: ROLES,
+  10: ['king', 'soldier', 'soldier', 'soldier', 'sniper', 'sniper', 'communicator', 'keyholder', 'keyholder', 'impostor'],
+  15: ['king', 'soldier', 'soldier', 'soldier', 'soldier', 'soldier', 'soldier', 'sniper', 'sniper', 'sniper', 'communicator', 'communicator', 'keyholder', 'keyholder', 'impostor'],
+};
+
 export const ROLE_INFO: Record<RoleId, { n: string; d: string }> = {
   king: { n: '王', d: '目的:生き延びる。強み:捕獲回避能力。弱み:捕まると牢屋処刑で即敗北。おすすめ:目立たぬよう時々前線にも出て正体を隠そう。' },
   soldier: { n: '兵士', d: '目的:前線で戦い王を守る。強み:捕獲に3回耐える。弱み:情報収集力なし。おすすめ:広場や街道で敵を迎撃、孤立しないこと。' },

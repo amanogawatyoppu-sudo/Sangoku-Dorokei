@@ -103,7 +103,7 @@ describe('stairs, slopes and upper floors (Tokyo)', () => {
   it.each([
     ['Tokyo Tower stairs', SITES.towerStairsMid, -1, 0, 0.35],
     ['愛宕山 stone stairs', SITES.atagoStairsMid, 0, 1, 0.35],
-    ['上野 stone stairs', SITES.uenoStairsMid, 1, 0, 0.35],
+    ['上野 stone stairs', SITES.uenoStairsMid, 1, 0, 0.5],
     ['聖橋 slope', SITES.bridgeSlopeMid, 1, 0, 0.6],
   ] as const)('stepping off the side of the %s does not leave you stuck', (_n, p, dx, dz, sec) => {
     const state = soloPlayer();

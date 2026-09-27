@@ -1,7 +1,7 @@
 import './style.css';
 import type { NationId } from './config/nations';
 import { NATIONS } from './config/nations';
-import type { RoleId } from './config/roles';
+import type { RoleId, RosterSize } from './config/roles';
 import { roleName } from './config/roles';
 import { FixedStepClock } from './core/clock';
 import { EventBus } from './core/events';
@@ -41,8 +41,8 @@ initResultView();
 initDrawers(canvas);
 watchCanvasSize();
 
-function startGame(nation: NationId, role: RoleId): void {
-  const state = createGameState(nation, role);
+function startGame(nation: NationId, role: RoleId, size: RosterSize): void {
+  const state = createGameState(nation, role, undefined, size);
   const bus = new EventBus<GameEvent>();
   const cam = new CameraController();
   const entityView = new EntityView(refs.scene, state);
@@ -72,7 +72,7 @@ function startGame(nation: NationId, role: RoleId): void {
   $('btnMeeting').onclick = () => { openMeeting(state); flush(); };
 
   hud.initFor(state);
-  log.add('v7.5: 等身大の東京。W/Sで前後、A/Dで旋回、Qで振り向き。');
+  log.add('v7.6: 等身大の東京と人々。W/Sで前後、A/Dで旋回、Qで振り向き。');
   hud.banner('三国ドロケイ 開始　' + NATIONS[nation].name + 'の' + roleName(role), 2200);
   resizeRenderer(refs, canvas);
   cam.snap(Math.atan2(state.player.dirX, state.player.dirZ));

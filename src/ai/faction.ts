@@ -73,26 +73,24 @@ function assign(state: GameState, n: NationId): void {
     f.posture = 'RESCUE_KING';
     const jail = myKing.capturedBy;
     const j = NATIONS[jail].jail;
-    const kh = members.find((e) => e.role === 'keyholder');
-    if (kh) kh.ai.task = { kind: 'rescueKing', jail };
+    // Every keyholder heads for the jail (the nearest one usually gets there first).
+    for (const kh of members.filter((e) => e.role === 'keyholder')) kh.ai.task = { kind: 'rescueKing', jail };
     // Rescue party: keyholder + soldier escort + sniper overwatch. The impostor draws
     // the captor's guards away in disguise (only if someone else escorts).
     const imp = hunters.find((e) => e.role === 'impostor');
     const soldiers = hunters.filter((e) => e !== imp);
     const escorts = soldiers.length ? soldiers : hunters;
-    take(byDistance(escorts, j), 2, { kind: 'rescueEscort', jail });
+    take(byDistance(escorts, j), Math.max(2, Math.ceil(escorts.length * 0.5)), { kind: 'rescueEscort', jail });
     if (imp && soldiers.length) imp.ai.task = { kind: 'decoy', toward: jail };
-    const sn = members.find((e) => e.role === 'sniper');
-    if (sn) sn.ai.task = { kind: 'rescueEscort', jail };
+    for (const sn of members.filter((e) => e.role === 'sniper')) sn.ai.task = { kind: 'rescueEscort', jail };
     return;
   }
   if (heldKing) {
     // We hold an enemy king: defend the jail until the execution.
     f.posture = 'HOLD_KING';
     const j = NATIONS[n].jail;
-    const rest = take(byDistance(hunters, j), 2, { kind: 'guardJail' });
-    const sn = members.find((e) => e.role === 'sniper');
-    if (sn) sn.ai.task = { kind: 'guardJail' };
+    const rest = take(byDistance(hunters, j), Math.max(2, Math.ceil(hunters.length * 0.35)), { kind: 'guardJail' });
+    for (const sn of members.filter((e) => e.role === 'sniper')) sn.ai.task = { kind: 'guardJail' };
     take(rest, 9, { kind: 'hunt', nation: heldKing.nation });
     return;
   }
@@ -100,14 +98,14 @@ function assign(state: GameState, n: NationId): void {
     // Two other kingdoms are locked in a jail fight: exploit it.
     f.posture = 'OPPORTUNIST';
     const captor = otherCapture.capturedBy;
-    let rest = take(byDistance(hunters, NATIONS[captor].jail), 1, { kind: 'raidJail', jail: captor });
+    let rest = take(byDistance(hunters, NATIONS[captor].jail), Math.max(1, Math.round(hunters.length * 0.25)), { kind: 'raidJail', jail: captor });
     if (state.tower.owner !== n) rest = take(rest, 1, { kind: 'takeTower' });
     take(rest, 9, { kind: 'hunt', nation: captor });
     return;
   }
   f.posture = 'NORMAL';
   if (myKing?.alive && !myKing.jailed) {
-    const escorts = state.time - f.lastAllyCapturedAt < 15000 ? 2 : 1;
+    const escorts = Math.floor(hunters.length / 4) + (state.time - f.lastAllyCapturedAt < 15000 ? 2 : 1);
     take(byDistance(hunters, myKing), escorts, { kind: 'escortKing' });
   }
 }

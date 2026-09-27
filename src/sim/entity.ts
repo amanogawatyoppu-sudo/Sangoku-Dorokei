@@ -39,6 +39,12 @@ export interface Entity {
   prevZ: number;
   dirX: number;
   dirZ: number;
+  /** Current ground speed along the facing (units/s; negative = backing up). People speed up and slow down, not jump. */
+  speed: number;
+  /** Personal pace (0.94–1.06): nobody walks in lock-step. */
+  gait: number;
+  /** Set when the AI moved this step (otherwise it brakes). */
+  movedThisStep?: boolean;
   alive: boolean;
   jailed: boolean;
   jailedAt: number;
@@ -95,6 +101,7 @@ export function createEntity(id: number, nation: NationId, role: RoleId, isPlaye
   return {
     id, nation, role, isPlayer,
     x, y: 0, z, prevX: x, prevY: 0, prevZ: z, dirX: -x / fl, dirZ: -z / fl,
+    speed: 0, gait: 0.94 + ((id * 37) % 13) / 100,
     alive: true, jailed: false, jailedAt: 0, capturedBy: null,
     hp: maxHp(role), stunUntil: 0, fakeNation: null, fakeUntil: 0,
     stamina: STAMINA_MAX, dashing: false, cd: { capture: 0, special: 0, dodge: 0 },

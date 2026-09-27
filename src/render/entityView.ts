@@ -1,115 +1,70 @@
 import * as THREE from 'three';
-import { NATIONS } from '../config/nations';
+import { NATION_IDS, NATIONS } from '../config/nations';
+import type { NationId } from '../config/nations';
+import type { Entity } from '../sim/entity';
 import type { GameState } from '../sim/state';
 import { effNation, visibleTo } from '../sim/systems/vision';
-
-interface CharMesh {
-  group: THREE.Group;
-  /** Nation-coloured cloth: tunic, helmet crest band and back banner. */
-  cloth: THREE.MeshStandardMaterial;
-  legL: THREE.Object3D;
-  legR: THREE.Object3D;
-  armL: THREE.Object3D;
-  armR: THREE.Object3D;
-  torso: THREE.Object3D;
-  phase: number;
-  /** Per-character copies of shared materials (so one character can fade alone). */
-  own: Set<THREE.Material>;
-}
-
-const SKIN = 0xe3bf95;
-const ARMOR = 0x8a8f99;
-const LEATHER = 0x5a4130;
-const GOLD = 0xd8b25a;
-
-const shared = {
-  skin: new THREE.MeshStandardMaterial({ color: SKIN, roughness: 0.8 }),
-  armor: new THREE.MeshStandardMaterial({ color: ARMOR, roughness: 0.5, metalness: 0.15 }),
-  leather: new THREE.MeshStandardMaterial({ color: LEATHER, roughness: 0.9 }),
-  gold: new THREE.MeshStandardMaterial({ color: GOLD, roughness: 0.35, metalness: 0.7 }),
-  eye: new THREE.MeshBasicMaterial({ color: 0x151515 }),
-};
-
-function mesh(geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 0): THREE.Mesh {
-  const m = new THREE.Mesh(geo, mat);
-  m.position.set(x, y, z);
-  m.castShadow = true;
-  return m;
-}
-
-/** Limb pivoting at its top so it can swing. */
-function limb(geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, len: number): THREE.Group {
-  const pivot = new THREE.Group();
-  pivot.position.set(x, y, 0);
-  pivot.add(mesh(geo, mat, 0, -len / 2, 0));
-  return pivot;
-}
-
-/**
- * Same silhouette for every role (roles are hidden information); only the
- * kingdom colour differs. Local +Z is the facing: the face and helmet crest
- * look forward, the banner on the back marks the side you capture from.
- */
-function makeChar(color: number): CharMesh {
-  const cloth = new THREE.MeshStandardMaterial({ color, roughness: 0.75, side: THREE.DoubleSide });
-  const g = new THREE.Group();
-  const legL = limb(new THREE.CapsuleGeometry(4, 14, 4, 8), shared.leather, -5, 22, 18);
-  const legR = limb(new THREE.CapsuleGeometry(4, 14, 4, 8), shared.leather, 5, 22, 18);
-  const torso = new THREE.Group();
-  torso.position.y = 22;
-  // Tunic skirt + armoured chest.
-  torso.add(mesh(new THREE.CylinderGeometry(10, 12.5, 12, 12), cloth, 0, 4, 0));
-  torso.add(mesh(new THREE.CylinderGeometry(9.5, 10, 16, 12), cloth, 0, 17, 0)); // coat in kingdom colour
-  torso.add(mesh(new THREE.BoxGeometry(22, 4, 10), shared.armor, 0, 25, 0)); // shoulders
-  const belt = mesh(new THREE.TorusGeometry(10.2, 1.2, 6, 16), shared.gold, 0, 10, 0);
-  belt.rotation.x = Math.PI / 2;
-  torso.add(belt);
-  // Head, face and helmet.
-  torso.add(mesh(new THREE.SphereGeometry(7.5, 14, 12), shared.skin, 0, 33, 0));
-  torso.add(mesh(new THREE.BoxGeometry(1.6, 1.6, 1), shared.eye, -2.6, 34, 7));
-  torso.add(mesh(new THREE.BoxGeometry(1.6, 1.6, 1), shared.eye, 2.6, 34, 7));
-  const helmet = mesh(new THREE.SphereGeometry(8.4, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), shared.armor, 0, 34.5, -0.5);
-  torso.add(helmet);
-  torso.add(mesh(new THREE.CylinderGeometry(8.6, 8.6, 2, 14), cloth, 0, 35, -0.5)); // helmet band
-  const crest = mesh(new THREE.ConeGeometry(2.2, 9, 4), shared.gold, 0, 43, 3);
-  crest.rotation.x = 0.5;
-  torso.add(crest);
-  // Back banner (sashimono): pole + cloth behind the shoulders.
-  torso.add(mesh(new THREE.CylinderGeometry(0.8, 0.8, 34, 5), shared.leather, 0, 38, -9));
-  const flag = mesh(new THREE.PlaneGeometry(11, 17), cloth, 0, 46, -9.2);
-  torso.add(flag);
-  const armL = limb(new THREE.CapsuleGeometry(3, 12, 4, 8), shared.armor, -12.5, 24, 16);
-  const armR = limb(new THREE.CapsuleGeometry(3, 12, 4, 8), shared.armor, 12.5, 24, 16);
-  torso.add(armL, armR);
-  g.add(legL, legR, torso);
-  return { group: g, cloth, legL, legR, armL, armR, torso, phase: 0, own: new Set() };
-}
+import { STEP_SEC } from '../core/clock';
+import type { BoneName, Human } from './humanModel';
+import { BONES, buildHuman } from './humanModel';
+import { emblemTexture } from './textures';
 
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
-/** Owns one model per entity and mirrors simulation state onto them each frame. */
+const smooth = (e0: number, e1: number, x: number) => {
+  const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
+  return t * t * (3 - 2 * t);
+};
+const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+
+/** Per-character animation state (presentation only). */
+interface Anim {
+  human: Human;
+  phase: number;
+  yaw: number;
+  turnRate: number;
+  speed: number;
+  headYaw: number;
+  reach: number;
+  lastCapCd: number;
+  nation: NationId;
+}
+
+/** Target rotations (x, y, z) per bone for this frame; missing = rest. */
+type Pose = Partial<Record<BoneName, [number, number, number]>>;
+
+/**
+ * Owns one person per entity and mirrors simulation state onto them each frame:
+ * a stride-matched walk / jog / run cycle, arm swing with bent elbows, hips and
+ * shoulders counter-rotating, leaning into turns and into speed, the head
+ * turning toward whatever the character is watching, glances around when
+ * idle, and poses for being stunned, sitting in jail, unlocking, grabbing and
+ * falling.
+ */
 export class EntityView {
-  private meshes = new Map<number, CharMesh>();
+  private anims = new Map<number, Anim>();
+  private emblemMats: Record<NationId, THREE.MeshStandardMaterial>;
+  private playerEmblemMats: Record<NationId, THREE.MeshStandardMaterial>;
+  private clock = 0;
 
   constructor(scene: THREE.Scene, state: GameState) {
+    const mk = (n: NationId) => new THREE.MeshStandardMaterial({
+      map: emblemTexture(NATIONS[n].emblem, NATIONS[n].color), roughness: 0.8,
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+    });
+    this.emblemMats = Object.fromEntries(NATION_IDS.map((n) => [n, mk(n)])) as Record<NationId, THREE.MeshStandardMaterial>;
+    this.playerEmblemMats = Object.fromEntries(NATION_IDS.map((n) => [n, mk(n)])) as Record<NationId, THREE.MeshStandardMaterial>;
     for (const e of state.entities) {
-      const m = makeChar(NATIONS[e.nation].color);
-      if (e.isPlayer) {
-        // The player's model can fade: give it private material copies.
-        const copies = new Map<THREE.Material, THREE.Material>();
-        m.group.traverse((o) => {
-          const mesh = o as THREE.Mesh;
-          if (!mesh.isMesh || mesh.material === m.cloth) return;
-          const src = mesh.material as THREE.Material;
-          if (!copies.has(src)) copies.set(src, src.clone());
-          mesh.material = copies.get(src)!;
-        });
-        m.own = new Set(copies.values());
-      }
-      scene.add(m.group);
-      this.meshes.set(e.id, m);
+      const mats = e.isPlayer ? this.playerEmblemMats : this.emblemMats;
+      const human = buildHuman(e.id, NATIONS[e.nation].color, mats[e.nation]);
+      human.mesh.scale.setScalar(human.look.height);
+      scene.add(human.mesh);
+      this.anims.set(e.id, {
+        human, phase: (e.id * 1.7) % (Math.PI * 2), yaw: Math.atan2(e.dirX, e.dirZ), turnRate: 0, speed: 0,
+        headYaw: 0, reach: 0, lastCapCd: e.cd.capture, nation: e.nation,
+      });
     }
   }
 
@@ -118,43 +73,161 @@ export class EntityView {
 
   sync(state: GameState, alpha: number, dtSec = 1 / 60): void {
     const p = state.player;
+    this.clock += dtSec;
     for (const e of state.entities) {
-      const m = this.meshes.get(e.id)!;
-      if (!e.alive) { m.group.visible = false; continue; }
+      const a = this.anims.get(e.id)!;
+      const mesh = a.human.mesh;
+      if (!e.alive) { mesh.visible = false; continue; }
       const vis = e === p || visibleTo(state, e, p);
-      m.group.visible = vis;
+      mesh.visible = vis;
       if (!vis) continue;
-      const x = lerp(e.prevX, e.x, alpha), z = lerp(e.prevZ, e.z, alpha);
-      m.group.position.set(x, lerp(e.prevY, e.y, alpha), z);
-      m.group.rotation.y = Math.atan2(e.dirX, e.dirZ);
-      m.cloth.color.setHex(NATIONS[effNation(state, e, p.nation)].color);
-      const opacity = e.jailed ? 0.5 : e === p ? this.playerOpacity : 1;
-      this.setOpacity(m, opacity);
-      this.animate(m, Math.hypot(e.x - e.prevX, e.z - e.prevZ) / (1 / 60), dtSec, state.time < e.stunUntil);
+      mesh.position.set(lerp(e.prevX, e.x, alpha), lerp(e.prevY, e.y, alpha), lerp(e.prevZ, e.z, alpha));
+      const yaw = Math.atan2(e.dirX, e.dirZ);
+      a.turnRate = lerp(a.turnRate, wrap(yaw - a.yaw) / Math.max(dtSec, 1e-3), 1 - Math.exp(-dtSec * 8));
+      a.yaw = yaw;
+      mesh.rotation.y = yaw;
+      const shown = effNation(state, e, p.nation);
+      a.human.setNationColor(NATIONS[shown].color);
+      if (a.nation !== shown) {
+        a.nation = shown;
+        a.human.emblem.material = (e.isPlayer ? this.playerEmblemMats : this.emblemMats)[shown];
+      }
+      this.setOpacity(a, e.jailed ? 0.5 : e === p ? this.playerOpacity : 1, e === p);
+      this.animate(a, e, state, dtSec);
     }
   }
 
-  private setOpacity(m: CharMesh, opacity: number): void {
+  private setOpacity(a: Anim, opacity: number, isPlayer: boolean): void {
     const ghost = opacity < 0.99;
-    m.group.traverse((o) => {
-      const mat = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
-      if (!mat || (mat !== m.cloth && !m.own.has(mat))) return;
-      if (mat.transparent !== ghost) { mat.transparent = ghost; mat.needsUpdate = true; }
-      mat.opacity = opacity;
-    });
+    const mats: THREE.Material[] = [a.human.material];
+    if (isPlayer) mats.push(a.human.emblem.material as THREE.Material);
+    for (const m of mats) {
+      if (m.transparent !== ghost) { m.transparent = ghost; m.needsUpdate = true; }
+      m.opacity = opacity;
+    }
   }
 
-  /** Walk cycle driven by actual speed (units/s); stunned characters slump. */
-  private animate(m: CharMesh, speed: number, dt: number, stunned: boolean): void {
-    const moving = speed > 20;
-    m.phase += moving ? dt * (6 + speed / 60) : 0;
-    const amp = moving ? Math.min(0.55, 0.2 + speed / 900) : 0;
-    const s = Math.sin(m.phase) * amp;
-    m.legL.rotation.x = s;
-    m.legR.rotation.x = -s;
-    m.armL.rotation.x = -s * 0.8;
-    m.armR.rotation.x = s * 0.8;
-    m.torso.position.y = 22 + (moving ? Math.abs(Math.cos(m.phase)) * 1.6 : 0);
-    m.torso.rotation.x = stunned ? 0.3 : moving ? 0.05 : 0;
+  private animate(a: Anim, e: Entity, state: GameState, dt: number): void {
+    const t = this.clock + e.id * 0.37;
+    // Ground speed: the simulation's (smooth) speed, but never faster than it really moved (walls).
+    const measured = Math.hypot(e.x - e.prevX, e.z - e.prevZ) / STEP_SEC;
+    const target = Math.min(Math.abs(e.speed), measured * 1.15 + 8);
+    a.speed = lerp(a.speed, target, 1 - Math.exp(-dt * 12));
+    const spd = a.speed, back = e.speed < -1;
+    const move = smooth(6, 45, spd); // 0 standing … 1 moving
+    const run = smooth(140, 280, spd); // 0 walk … 1 run
+    // Stride: ~1.3 m walking, ~2.3 m running, ~2.9 m sprinting (one step = half a cycle).
+    const stride = Math.min(78, 34 + spd * 0.09);
+    a.phase += (back ? -1 : 1) * (spd * dt / stride) * Math.PI;
+    const ph = a.phase, s = Math.sin(ph), c = Math.cos(ph);
+
+    // Grab: the capture cooldown was just reset.
+    if (e.cd.capture > a.lastCapCd + 0.3) a.reach = 0.38;
+    a.lastCapCd = e.cd.capture;
+    a.reach = Math.max(0, a.reach - dt);
+
+    const pose: Pose = {};
+    let hipsY = 0, rootZ = 0;
+    const stunned = e.stunUntil > state.time;
+    const falling = e.y < e.prevY - 3;
+    if (e.jailed) {
+      // 体育座り: hugging the knees on the ground.
+      hipsY = -17;
+      pose.spine = [0.35, 0, 0];
+      pose.head = [0.15, Math.sin(t * 0.4) * 0.3, 0];
+      pose.thighL = [-2.0, 0, 0.14]; pose.thighR = [-2.0, 0, -0.14];
+      pose.shinL = [2.5, 0, 0]; pose.shinR = [2.5, 0, 0];
+      pose.armL = [-0.95, 0, -0.1]; pose.armR = [-0.95, 0, 0.1];
+      pose.foreL = [-0.9, 0, 0]; pose.foreR = [-0.9, 0, 0];
+    } else if (e.channeling) {
+      // Crouched, working at a lock or terminal with both hands.
+      hipsY = -8;
+      pose.spine = [0.45, 0, 0];
+      pose.head = [0.1, 0, 0];
+      pose.thighL = [-1.0, 0, 0.1]; pose.thighR = [-0.6, 0, -0.1];
+      pose.shinL = [1.7, 0, 0]; pose.shinR = [1.3, 0, 0];
+      pose.footL = [-0.6, 0, 0]; pose.footR = [-0.6, 0, 0];
+      const w = Math.sin(t * 9) * 0.12;
+      pose.armL = [-1.1 + w, 0, -0.15]; pose.armR = [-1.1 - w, 0, 0.15];
+      pose.foreL = [-0.5, 0, 0]; pose.foreR = [-0.5, 0, 0];
+    } else if (stunned) {
+      // Dazed: hunched, knees buckling, swaying.
+      hipsY = -4;
+      rootZ = Math.sin(t * 5) * 0.08;
+      pose.spine = [0.5, 0, Math.sin(t * 3) * 0.1];
+      pose.head = [0.4, Math.sin(t * 2.3) * 0.3, 0];
+      pose.thighL = [-0.45, 0, 0.1]; pose.thighR = [-0.35, 0, -0.1];
+      pose.shinL = [0.8, 0, 0]; pose.shinR = [0.7, 0, 0];
+      pose.armL = [-0.35, 0, 0.15]; pose.armR = [-0.3, 0, -0.15];
+      pose.foreL = [-0.3, 0, 0]; pose.foreR = [-0.3, 0, 0];
+    } else {
+      // Locomotion blended with a relaxed stance.
+      const A = lerp(0.42, 0.78, run) * move; // hip swing
+      const K = lerp(0.55, 1.55, run) * move; // knee lift in the swing phase
+      const Aa = lerp(0.32, 0.72, run) * move; // arm swing
+      const E = lerp(0.22, 1.35, run) * move + 0.12; // elbow bend
+      const swingL = Math.max(0, c), swingR = Math.max(0, -c);
+      const thL = -A * s, thR = A * s;
+      const knL = K * swingL ** 1.3 + 0.06 + run * 0.22 * (1 - swingL);
+      const knR = K * swingR ** 1.3 + 0.06 + run * 0.22 * (1 - swingR);
+      pose.thighL = [thL, 0, 0.02];
+      pose.thighR = [thR, 0, -0.02];
+      pose.shinL = [knL, 0, 0];
+      pose.shinR = [knR, 0, 0];
+      pose.footL = [-(thL + knL) * 0.75, 0, 0];
+      pose.footR = [-(thR + knR) * 0.75, 0, 0];
+      pose.armL = [Aa * s, 0, 0.07 + run * 0.06];
+      pose.armR = [-Aa * s, 0, -0.07 - run * 0.06];
+      pose.foreL = [-E - 0.15 * Math.max(0, -s) * move, 0, 0];
+      pose.foreR = [-E - 0.15 * Math.max(0, s) * move, 0, 0];
+      // Bob twice per cycle, lower when running; hips twist against the shoulders.
+      hipsY = move * (lerp(0.45, 1.3, run) * Math.cos(2 * ph) - run * 1.2);
+      const idle = 1 - move;
+      const lean = (back ? -0.08 : lerp(0.05, 0.24, run)) * move;
+      pose.hips = [0, 0.13 * s * move, 0.045 * s * move * (1 - run) + idle * 0.025 * Math.sin(t * 0.7)];
+      pose.spine = [lean, 0, 0];
+      pose.chest = [0.02 + idle * 0.018 * Math.sin(t * 1.9), -0.17 * s * move, 0];
+      // Lean into turns (the left is +x: turning left leans the top toward +x).
+      rootZ = Math.max(-0.22, Math.min(0.22, -a.turnRate * spd * 0.0007));
+      if (falling) {
+        pose.armL = [-2.3, 0, 0.5]; pose.armR = [-2.3, 0, -0.5];
+        pose.foreL = [-0.4, 0, 0]; pose.foreR = [-0.4, 0, 0];
+      }
+      // Head: watch the target / what caught the eye; glance around when pausing.
+      let look = 0;
+      const watch = e.isPlayer ? null : e.ai.targetId !== null && e.ai.visible.includes(e.ai.targetId) ? state.entities[e.ai.targetId] : e.ai.visible.length ? state.entities[e.ai.visible[0]] : null;
+      if (watch) look = wrap(Math.atan2(watch.x - e.x, watch.z - e.z) - a.yaw);
+      else if (!e.isPlayer && e.ai.idleUntil > state.time) look = Math.sin(t * 1.4) * 0.9;
+      else if (e.isPlayer) look = -a.turnRate * 0.12;
+      else look = Math.sin(t * 0.37) * 0.25 * idle;
+      look = Math.max(-1.15, Math.min(1.15, look));
+      a.headYaw = lerp(a.headYaw, look, 1 - Math.exp(-dt * 6));
+      pose.neck = [0, a.headYaw * 0.35, 0];
+      pose.head = [-lean * 0.7, a.headYaw * 0.65, 0];
+      pose.chest[1] += a.headYaw * 0.15;
+      if (a.reach > 0) {
+        // Grab: right arm shoots forward, the body leans in.
+        const k = Math.sin((1 - a.reach / 0.38) * Math.PI);
+        pose.armR = [lerp(pose.armR[0], -1.55, k), 0, -0.1];
+        pose.foreR = [lerp(pose.foreR[0], -0.15, k), 0, 0];
+        pose.spine = [lean + 0.2 * k, 0, 0];
+      }
+    }
+    this.apply(a, pose, hipsY, rootZ, dt);
+  }
+
+  /** Eases every bone toward its pose (quick, so the gait keeps its snap). */
+  private apply(a: Anim, pose: Pose, hipsY: number, rootZ: number, dt: number): void {
+    const k = 1 - Math.exp(-dt * 20);
+    const { bones, rest } = a.human;
+    for (const name of BONES) {
+      const r = pose[name] ?? [0, 0, 0];
+      const b = bones[name];
+      b.rotation.x = lerp(b.rotation.x, r[0], k);
+      b.rotation.y = lerp(b.rotation.y, r[1], k);
+      b.rotation.z = lerp(b.rotation.z, r[2], k);
+    }
+    bones.root.rotation.z = lerp(bones.root.rotation.z, rootZ, k);
+    bones.hips.position.y = lerp(bones.hips.position.y, rest.hips.y + hipsY, k);
   }
 }

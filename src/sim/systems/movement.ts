@@ -15,8 +15,22 @@ export function moveToward(e: Entity, tx: number, tz: number, dt: number, speed:
   if (d < 2) return;
   turnToward(e, dx, dz, AI_TURN_RATE * dt);
   const align = (e.dirX * dx + e.dirZ * dz) / d;
-  const step = Math.min(d, speed * dt * Math.max(0.15, align));
+  // Slow down into sharp turns, speed up out of them (never an instant top speed).
+  accelerate(e, speed * Math.max(0.15, align), dt);
+  const step = Math.min(d, Math.max(0, e.speed) * dt);
   moveBody(e, e.x + e.dirX * step, e.z + e.dirZ * step);
+  e.movedThisStep = true;
+}
+
+/** Acceleration and braking (units/s²): ~0.2 s to full run, ~0.15 s to a stop. */
+export const ACCEL = 1500;
+export const BRAKE = 2200;
+
+/** Eases the current speed toward `target`. */
+export function accelerate(e: Pick<Entity, 'speed'>, target: number, dt: number, accel = ACCEL, brake = BRAKE): void {
+  const speedingUp = Math.abs(target) > Math.abs(e.speed) && target * e.speed >= 0;
+  const rate = speedingUp ? accel : brake, d = target - e.speed;
+  e.speed += Math.max(-rate * dt, Math.min(rate * dt, d));
 }
 
 export function fleeFrom(e: Entity, threat: Entity, dt: number, speed: number): void {
@@ -47,6 +61,9 @@ export function turnBy(e: Pick<Entity, 'dirX' | 'dirZ'>, rad: number): void {
   e.dirZ = Math.cos(a);
 }
 
+/** Player acceleration (units/s²): full speed in ~0.12 s. */
+const PLAYER_ACCEL = 2600;
+
 /** Backward walking is slower than forward. */
 export const BACKWARD_FACTOR = 0.6;
 const FOOTSTEP_INTERVAL = 0.22;
@@ -60,6 +77,7 @@ export function updatePlayerMovement(state: GameState, dt: number): void {
   const p = state.player;
   if (p.jailed || !p.alive || p.channeling || p.stunUntil > state.time) {
     p.dashing = false;
+    p.speed = 0;
     return;
   }
   const { forward, turn } = state.input;
@@ -76,11 +94,12 @@ export function updatePlayerMovement(state: GameState, dt: number): void {
   p.dashing = dashing;
   if (dashing) p.stamina = Math.max(0, p.stamina - STAMINA_DRAIN * dt);
   else p.stamina = Math.min(STAMINA_MAX, p.stamina + STAMINA_REGEN * dt);
-  if (!moving) return;
-  const spd = (dashing ? PLAYER_DASH : PLAYER_WALK) * speedMul(state) * (f < 0 ? BACKWARD_FACTOR : 1) * Math.abs(f);
-  const sign = f < 0 ? -1 : 1;
+  const spd = moving ? (dashing ? PLAYER_DASH : PLAYER_WALK) * speedMul(state) * (f < 0 ? BACKWARD_FACTOR : 1) * Math.abs(f) : 0;
+  // The player accelerates faster than the AI (controls must feel responsive).
+  accelerate(p, f < 0 ? -spd : spd, dt, PLAYER_ACCEL, BRAKE * 1.3);
+  if (Math.abs(p.speed) < 1) { p.speed = 0; return; }
   const ox = p.x, oz = p.z;
-  moveBody(p, p.x + p.dirX * sign * spd * dt, p.z + p.dirZ * sign * spd * dt);
+  moveBody(p, p.x + p.dirX * p.speed * dt, p.z + p.dirZ * p.speed * dt);
   if (dashing) {
     p.dashDistance += Math.hypot(p.x - ox, p.z - oz);
     state.footTimer -= dt;

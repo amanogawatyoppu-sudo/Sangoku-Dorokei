@@ -1,7 +1,8 @@
 import type { NationId, Point } from '../config/nations';
 import { NATION_IDS } from '../config/nations';
 import type { RoleId } from '../config/roles';
-import { ROLES } from '../config/roles';
+import type { RosterSize } from '../config/roles';
+import { ROSTERS } from '../config/roles';
 import { FIRST_EVENT_AT, GAME_TIME } from '../config/constants';
 import type { Rng } from '../core/rng';
 import { createRng } from '../core/rng';
@@ -76,11 +77,16 @@ function perNation<T>(make: () => T): PerNation<T> {
   return { sun: make(), moon: make(), star: make() };
 }
 
-export function createGameState(playerNation: NationId, playerRole: RoleId, rng: Rng = createRng()): GameState {
+export function createGameState(playerNation: NationId, playerRole: RoleId, rng: Rng = createRng(), rosterSize: RosterSize = 6): GameState {
   const entities: Entity[] = [];
   let id = 0;
   for (const n of NATION_IDS) {
-    const roster = ROLES.map((r) => createEntity(id++, n, r, n === playerNation && r === playerRole, rng));
+    let playerPlaced = false;
+    const roster = ROSTERS[rosterSize].map((r) => {
+      const isPlayer = !playerPlaced && n === playerNation && r === playerRole;
+      if (isPlayer) playerPlaced = true;
+      return createEntity(id++, n, r, isPlayer, rng);
+    });
     entities.push(...roster);
     const nonKing = roster.filter((x) => x.role !== 'king');
     nonKing[Math.floor(rng() * nonKing.length)].decoy = true;

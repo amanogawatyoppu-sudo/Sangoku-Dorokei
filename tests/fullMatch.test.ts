@@ -4,8 +4,13 @@ import { drainEvents } from '../src/sim/state';
 import { newGame, runFrames } from './helpers';
 
 describe('full match (AI only)', () => {
-  it.each([1, 2, 3, 4, 5])('seed %i plays to a result without errors', (seed) => {
-    const state = newGame('star', 'communicator', seed);
+  it.each([
+    [1, 6], [2, 6], [3, 6], [4, 6], [5, 6], [6, 10], [7, 15],
+  ] as const)('seed %i (%i per nation) plays to a result without errors', (seed, size) => {
+    const state = newGame('star', 'communicator', seed, size);
+    expect(state.entities.length).toBe(size * 3);
+    expect(state.entities.filter((e) => e.role === 'king').length).toBe(3);
+    expect(state.entities.filter((e) => e.isPlayer).length).toBe(1);
     const counts: Record<string, number> = {};
     for (let t = 0; t < GAME_TIME + 5 && !state.over; t++) {
       runFrames(state, 1000);
@@ -18,5 +23,5 @@ describe('full match (AI only)', () => {
     for (const e of state.entities) {
       expect(Number.isFinite(e.x) && Number.isFinite(e.z)).toBe(true);
     }
-  });
+  }, 30000);
 });

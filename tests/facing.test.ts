@@ -57,7 +57,7 @@ describe('player controls (character-relative)', () => {
     const z0 = state.player.z;
     state.input = { forward: 1, turn: 0, dash: false };
     steps(state, 30);
-    expect(state.player.z - z0).toBeGreaterThan(140);
+    expect(state.player.z - z0).toBeGreaterThan(125); // 0.5 s at 300/s, minus ~0.12 s of acceleration
     expect(Math.abs(state.player.x - SPOT.x)).toBeLessThan(1e-6);
   });
 

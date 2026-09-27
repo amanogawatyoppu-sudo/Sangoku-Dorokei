@@ -250,7 +250,7 @@ export function walkLine(from: Body, tx: number, tz: number, step = 8): Body {
 }
 
 /** True if walking straight from `from` reaches (tx, ty, tz). */
-export function canWalk(from: Body, tx: number, ty: number, tz: number): boolean {
-  const end = walkLine(from, tx, tz);
+export function canWalk(from: Body, tx: number, ty: number, tz: number, step = 8): boolean {
+  const end = walkLine(from, tx, tz, step);
   return Math.hypot(end.x - tx, end.z - tz) < 3 && Math.abs(end.y - ty) < 6;
 }

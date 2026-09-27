@@ -8,7 +8,7 @@ import { elapsedSec, kingOf, speedMul } from '../sim/state';
 import { SNIPE_RANGE, useSpecial } from '../sim/systems/abilities';
 import { attemptCapture, captureCandidate } from '../sim/systems/capture';
 import { SAME_LEVEL, dist, dist3 } from '../sim/systems/collision';
-import { moveToward, turnToward } from '../sim/systems/movement';
+import { accelerate, moveToward, turnBy, turnToward } from '../sim/systems/movement';
 import { tryStartRescue } from '../sim/systems/rescue';
 import { canWalk } from '../sim/systems/world';
 import type { AiState, Sighting, Waypoint } from './memory';
@@ -66,9 +66,10 @@ function plan(state: GameState, e: Entity): void {
 function speedFor(st: AiState): number {
   switch (st) {
     case 'CHASE': case 'INTERCEPT': case 'FLEE': case 'RESCUE': return 1;
-    case 'SEARCH': case 'INVESTIGATE': case 'ESCORT': return 0.88;
-    case 'PATROL': return 0.75;
-    default: return 0.6;
+    // Searching jogs, patrols and guards walk briskly: people only sprint when it matters.
+    case 'SEARCH': case 'INVESTIGATE': case 'ESCORT': return 0.8;
+    case 'PATROL': return 0.55;
+    default: return 0.42;
   }
 }
 
@@ -83,7 +84,12 @@ function follow(state: GameState, e: Entity, dt: number, speed: number): void {
     path.i++;
     wp = path.points[path.i];
   }
-  if (!wp) { ai.path = null; ai.goal = null; ai.progressAt = now; return; }
+  if (!wp) {
+    // Arrived: on a patrol or search, stop for a moment and look around, as a person would.
+    if (ai.state === 'PATROL' || ai.state === 'SEARCH') ai.idleUntil = now + 500 + state.rng() * 1800;
+    ai.path = null; ai.goal = null; ai.progressAt = now;
+    return;
+  }
   moveToward(e, wp.x, wp.z, dt, speed);
   if (Math.hypot(e.x - ai.progressX, e.z - ai.progressZ) > 20) {
     ai.progressX = e.x;
@@ -478,7 +484,7 @@ export function aiTick(state: GameState, e: Entity, dt: number, aggro: number): 
   const now = state.time;
   if (!e.alive || e.jailed) return;
   if (e.y > 20) e.ai.highSec += dt;
-  if (e.channeling || e.stunUntil > now) return;
+  if (e.channeling || e.stunUntil > now) { e.speed = 0; return; }
   const ai = e.ai;
   if (now >= ai.perceiveAt) {
     ai.perceiveAt = now + PERCEIVE_MS + ((e.id * 37) % 60);
@@ -488,7 +494,8 @@ export function aiTick(state: GameState, e: Entity, dt: number, aggro: number): 
     ai.thinkAt = now + THINK_MS + ((e.id * 53) % 80);
     think(state, e, aggro);
   }
-  const speed = AI_SPEED * speedMul(state) * speedFor(ai.state) * (e.role === 'king' && ai.state !== 'FLEE' ? 0.75 : 1);
+  const speed = AI_SPEED * e.gait * speedMul(state) * speedFor(ai.state) * (e.role === 'king' && ai.state !== 'FLEE' ? 0.75 : 1);
+  e.movedThisStep = false;
   // Close pursuit steers straight at the live position (only while it is in view).
   const t = ai.targetId !== null ? state.entities[ai.targetId] : null;
   const glimpse = noticing(state, e);
@@ -498,7 +505,12 @@ export function aiTick(state: GameState, e: Entity, dt: number, aggro: number): 
   } else if (ai.state === 'CHASE' && t && ai.visible.includes(t.id) && dist(e, t) < 170 && Math.abs(t.y - e.y) < SAME_LEVEL) {
     moveToward(e, t.x - t.dirX * 30, t.z - t.dirZ * 30, dt, speed);
     ai.progressAt = now;
+  } else if (now < ai.idleUntil && (ai.state === 'PATROL' || ai.state === 'SEARCH') && !ai.visible.length) {
+    // Pausing: look left and right before moving on.
+    turnBy(e, Math.sin(now / 650 + e.id) * 1.1 * dt);
+    ai.progressAt = now;
   } else follow(state, e, dt, speed);
+  if (!e.movedThisStep) accelerate(e, 0, dt);
   // Standing still with something to aim at: swing round smoothly.
   if (!ai.path && ai.lookAt) turnToward(e, ai.lookAt.x - e.x, ai.lookAt.z - e.z, AI_TURN_RATE * dt);
   opportunisticCapture(state, e);

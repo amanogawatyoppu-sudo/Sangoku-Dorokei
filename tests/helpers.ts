@@ -1,7 +1,7 @@
 import { SITES } from '../src/config/map';
 import type { NationId } from '../src/config/nations';
 import { NATIONS } from '../src/config/nations';
-import type { RoleId } from '../src/config/roles';
+import type { RoleId, RosterSize } from '../src/config/roles';
 import { FixedStepClock, STEP_MS } from '../src/core/clock';
 import { createRng } from '../src/core/rng';
 import type { Entity } from '../src/sim/entity';
@@ -13,8 +13,8 @@ import { createGameState } from '../src/sim/state';
 /** Open, flat ground (皇居前広場) with no world geometry nearby. */
 export const SPOT = { x: SITES.open.x, z: SITES.open.z };
 
-export function newGame(nation: NationId = 'sun', role: RoleId = 'soldier', seed = 1): GameState {
-  return createGameState(nation, role, createRng(seed));
+export function newGame(nation: NationId = 'sun', role: RoleId = 'soldier', seed = 1, size: RosterSize = 6): GameState {
+  return createGameState(nation, role, createRng(seed), size);
 }
 
 export function find(state: GameState, nation: NationId, role: RoleId): Entity {

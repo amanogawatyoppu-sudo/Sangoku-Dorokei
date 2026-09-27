@@ -86,6 +86,8 @@ export interface AiMemory {
   maxStuckSec: number;
   /** Diagnostics: seconds spent above ground level (stairs, floors, hills). */
   highSec: number;
+  /** Pausing to look around after reaching a patrol / search point, until this time. */
+  idleUntil: number;
 }
 
 export function createAiMemory(): AiMemory {
@@ -93,6 +95,6 @@ export function createAiMemory(): AiMemory {
     state: 'PATROL', targetId: null, visible: [], seen: new Map(), alert: 0,
     goal: null, path: null, lookAt: null, thinkAt: 0, perceiveAt: 0, replanAt: 0,
     searchUntil: 0, searchCenter: null, chaseRole: 'direct', flankSide: 1, task: null,
-    progressX: 0, progressZ: 0, progressAt: 0, maxStuckSec: 0, highSec: 0,
+    progressX: 0, progressZ: 0, progressAt: 0, maxStuckSec: 0, highSec: 0, idleUntil: 0,
   };
 }
