@@ -72,7 +72,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize): void {
   $('btnMeeting').onclick = () => { openMeeting(state); flush(); };
 
   hud.initFor(state);
-  log.add('v7.7: 75秒ごとに定例会議。W/Sで前後、A/Dで旋回、Qで振り向き。');
+  log.add('v7.8: 2:30にハーフタイム会議。W/Sで前後、A/Dで旋回、Qで振り向き。');
   hud.banner('三国ドロケイ 開始　' + NATIONS[nation].name + 'の' + roleName(role), 2200);
   resizeRenderer(refs, canvas);
   cam.snap(Math.atan2(state.player.dirX, state.player.dirZ));

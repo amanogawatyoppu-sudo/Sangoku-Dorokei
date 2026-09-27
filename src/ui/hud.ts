@@ -68,7 +68,7 @@ export class Hud {
     const mm = Math.floor(left / 60), ss = Math.floor(left % 60);
     el.tbTime.textContent = mm + ':' + (ss < 10 ? '0' : '') + ss;
     const toMeet = (state.nextMeetingAt - state.time) / 1000;
-    el.tbMeet.textContent = left - toMeet > 15 ? `（定例会議まで ${Math.floor(toMeet / 60)}:${String(Math.ceil(toMeet % 60) % 60).padStart(2, '0')}）` : '';
+    el.tbMeet.textContent = Number.isFinite(toMeet) && left - toMeet > 15 ? `（ハーフタイム会議まで ${Math.floor(toMeet / 60)}:${String(Math.ceil(toMeet % 60) % 60).padStart(2, '0')}）` : '';
     el.tbMeet.classList.toggle('soon', toMeet <= 10);
     el.tbTower.textContent = state.tower.owner ? NATIONS[state.tower.owner].name + 'が占領中' : '未占領';
     const myKing = kingOf(state, p.nation)!;

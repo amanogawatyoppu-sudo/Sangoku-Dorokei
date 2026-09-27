@@ -19,7 +19,7 @@ describe('full match (AI only)', () => {
       if (state.meeting) closeMeeting(state); // the player leaves each meeting straight away
     }
     expect(state.over).toBe(true);
-    expect(counts.MEETING_OPENED ?? 0).toBeGreaterThanOrEqual(2); // scheduled meetings happened
+    expect(counts.MEETING_OPENED ?? 0).toBeGreaterThanOrEqual(state.winner === 'draw' || state.time >= 150000 ? 1 : 0); // the half-time meeting
     expect(state.winner).not.toBeNull();
     // The AI actually plays: captures and jailings happen.
     expect(counts.JAILED ?? 0).toBeGreaterThan(0);

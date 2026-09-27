@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { MEETING_AUTO_CLOSE, SCHEDULED_MEETING_CLOSE, SCHEDULED_MEETING_EVERY, SCHEDULED_MEETING_WARN } from '../src/config/constants';
+import { MEETING_AUTO_CLOSE, SCHEDULED_MEETING_AT, SCHEDULED_MEETING_CLOSE, SCHEDULED_MEETING_WARN } from '../src/config/constants';
 import { closeMeeting, openMeeting, openScheduledMeeting, voteInMeeting } from '../src/meeting/meetingSystem';
-import { find, newGame, placeAtBase, runFrames } from './helpers';
+import { find, freezeOthers, newGame, placeAtBase, runFrames } from './helpers';
 
 describe('meeting auto-close', () => {
   it('closes a meeting after 30s of real time', () => {
@@ -66,11 +66,12 @@ describe('meeting pause', () => {
   });
 });
 
-describe('scheduled meetings (定例会議)', () => {
-  it('is announced 5 s ahead, opens every 75 s of game time and pauses the match', () => {
+describe('half-time meeting (ハーフタイム会議)', () => {
+  it('is announced 5 s ahead, opens once at half time and pauses the match', () => {
     const state = newGame();
     state.nextEventAt = Infinity;
-    runFrames(state, SCHEDULED_MEETING_EVERY - SCHEDULED_MEETING_WARN + 200);
+    freezeOthers(state, []);
+    runFrames(state, SCHEDULED_MEETING_AT - SCHEDULED_MEETING_WARN + 200);
     expect(state.events.some((e) => e.type === 'MEETING_SOON')).toBe(true);
     expect(state.meeting).toBeNull();
     runFrames(state, SCHEDULED_MEETING_WARN);
@@ -80,7 +81,9 @@ describe('scheduled meetings (定例会議)', () => {
     expect(state.time).toBe(t); // everyone is frozen while it is open
     runFrames(state, SCHEDULED_MEETING_CLOSE);
     expect(state.meeting).toBeNull(); // closes by itself after 20 s
-    expect(state.nextMeetingAt).toBe(2 * SCHEDULED_MEETING_EVERY);
+    expect(state.nextMeetingAt).toBe(Infinity); // only once
+    runFrames(state, 60000);
+    expect(state.meeting).toBeNull();
   });
 
   it('reports the situation and the sightings by place, and every kingdom picks a search focus', () => {

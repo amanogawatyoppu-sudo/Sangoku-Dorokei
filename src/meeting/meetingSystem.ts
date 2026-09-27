@@ -3,7 +3,7 @@ import { NATION_IDS, NATIONS } from '../config/nations';
 import { roleName } from '../config/roles';
 import { HOTSPOTS, TOWER } from '../config/map';
 import {
-  MEETING_AUTO_CLOSE, MEETING_RANGE, SCHEDULED_MEETING_CLOSE, SCHEDULED_MEETING_EVERY, SCHEDULED_MEETING_WARN, TERMINAL_TIME,
+  MEETING_AUTO_CLOSE, MEETING_RANGE, SCHEDULED_MEETING_CLOSE, SCHEDULED_MEETING_WARN, TERMINAL_TIME,
 } from '../config/constants';
 import type { Entity } from '../sim/entity';
 import type { GameState } from '../sim/state';
@@ -16,7 +16,7 @@ export interface MeetingZone extends Point {
 }
 
 export interface MeetingState {
-  /** Emergency (called by the player at their base) or scheduled (everyone, every 75 s). */
+  /** Emergency (called by the player at their base) or scheduled (everyone, once at half time). */
   kind: 'emergency' | 'scheduled';
   /** Real-time length before it closes by itself. */
   closeAfterMs: number;
@@ -150,7 +150,7 @@ function agreedFocus(state: GameState, n: NationId): MeetingZone {
 }
 
 /**
- * Scheduled meeting (定例会議): every kingdom meets at the same moment, so the
+ * Half-time meeting (ハーフタイム会議): every kingdom meets at the same moment, so the
  * whole match pauses. The player hears a situation report (tower, prisoners,
  * kings, sightings by area), the teammates' reports, and votes where to search;
  * the AI kingdoms settle their own search focus from what they have seen.
@@ -158,7 +158,7 @@ function agreedFocus(state: GameState, n: NationId): MeetingZone {
 export function openScheduledMeeting(state: GameState): void {
   const p = state.player;
   state.commands = [];
-  const lines = [`【定例会議】経過 ${clock(elapsedSec(state))}／残り ${clock(timeLeftSec(state))}`];
+  const lines = [`【ハーフタイム会議】経過 ${clock(elapsedSec(state))}／残り ${clock(timeLeftSec(state))}`];
   lines.push('管制塔: ' + (state.tower.owner ? NATIONS[state.tower.owner].name + '国が占領中' : '未占領'));
   const jailed = NATION_IDS.map((n) => NATIONS[n].name + state.entities.filter((e) => e.nation === n && e.jailed).length + '人').join('・');
   lines.push('捕まっている人数: ' + jailed);
@@ -180,7 +180,7 @@ export function openScheduledMeeting(state: GameState): void {
   emit(state, { type: 'MEETING_OPENED', kind: 'scheduled' });
 }
 
-/** Announces and opens the scheduled meetings (called every simulation step). */
+/** Announces and opens the half-time meeting (called every simulation step). */
 export function scheduledMeetingTick(state: GameState): void {
   if (state.over || state.meeting) return;
   const until = state.nextMeetingAt - state.time;
@@ -189,7 +189,7 @@ export function scheduledMeetingTick(state: GameState): void {
     emit(state, { type: 'MEETING_SOON', inSec: Math.max(1, Math.ceil(until / 1000)) });
   }
   if (until > 0) return;
-  state.nextMeetingAt += SCHEDULED_MEETING_EVERY;
+  state.nextMeetingAt = Infinity; // once per match
   state.meetingWarned = false;
   if (timeLeftSec(state) > 15) openScheduledMeeting(state);
 }

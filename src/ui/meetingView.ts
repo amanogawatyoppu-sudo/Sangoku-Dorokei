@@ -17,7 +17,7 @@ export class MeetingView {
     const m = state.meeting;
     if (!m) return;
     this.ov.style.display = 'flex';
-    $('meetingTitle').textContent = m.kind === 'scheduled' ? '定例会議' : '緊急会議';
+    $('meetingTitle').textContent = m.kind === 'scheduled' ? 'ハーフタイム会議' : '緊急会議';
     this.log.innerHTML = '';
     this.shownLines = 0;
     this.refresh(state);

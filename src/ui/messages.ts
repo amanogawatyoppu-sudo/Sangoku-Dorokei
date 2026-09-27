@@ -64,8 +64,8 @@ export function bindMessages(bus: EventBus<GameEvent>, state: GameState, log: Lo
   });
   bus.on('MEETING_DENIED', (ev) => log.add(ev.reason === 'none_left' ? '緊急会議の残り回数がありません。' : '自国拠点(会議端末)に近づいてください。'));
   bus.on('MEETING_SOON', (ev) => {
-    log.add(`まもなく定例会議（${ev.inSec}秒後）。全員が集まり、戦況を共有する。`);
-    hud.banner(`${ev.inSec}秒後に定例会議`, 2500);
+    log.add(`まもなくハーフタイム会議（${ev.inSec}秒後）。全員が集まり、戦況を共有する。`);
+    hud.banner(`${ev.inSec}秒後にハーフタイム会議`, 2500);
   });
   bus.on('MEETING_CLOSED', (ev) => log.add('会議終了。' + (ev.focusSet ? '重点捜索対象を設定した。' : '次の情報を待とう。')));
 }

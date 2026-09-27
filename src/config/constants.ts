@@ -41,8 +41,8 @@ export const TERMINAL_TIME = 18000;
 export const MEETING_AUTO_CLOSE = 30000;
 export const MEETINGS_PER_GAME = 2;
 export const MEETING_RANGE = 90;
-/** Scheduled meetings (定例会議): every 75 s of game time, announced 5 s ahead, auto-closing after 20 s. */
-export const SCHEDULED_MEETING_EVERY = 75000;
+/** The half-time meeting (ハーフタイム会議): once, at half time, announced 5 s ahead, auto-closing after 20 s. */
+export const SCHEDULED_MEETING_AT = (GAME_TIME * 1000) / 2;
 export const SCHEDULED_MEETING_WARN = 5000;
 export const SCHEDULED_MEETING_CLOSE = 20000;
 
