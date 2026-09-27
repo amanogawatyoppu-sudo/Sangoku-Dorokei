@@ -1,6 +1,6 @@
 import { NATION_IDS, NATIONS, nationCss } from '../config/nations';
 import type { BoxPrim } from '../config/map';
-import { BOUNDS, KANDA, LOOP, PARKS, RIVER_WIDTH, ROADS, STATIONS, TOWER, WORLD } from '../config/map';
+import { BLOCKS, BOUNDS, KANDA, LOOP, PARKS, RIVER_WIDTH, STATIONS, STREET_SEGS, TOWER, WORLD, insideLoop } from '../config/map';
 import type { GameState } from '../sim/state';
 import { effNation, visibleTo } from '../sim/systems/vision';
 import { $ } from './dom';
@@ -20,7 +20,7 @@ const HIGH = 30;
 export function levelLabel(y: number): string {
   if (y < 6) return '地上';
   if (y < HIGH) return '段上';
-  return y >= 60 ? '高所（2階・見張り台）' : '高台';
+  return y >= 80 ? '高所（2階・歩道橋・高架）' : '高台';
 }
 
 export class Minimap {
@@ -53,14 +53,14 @@ export class Minimap {
       g.fillStyle = pk.kind === 'park' ? '#4f6d38' : '#8d846f';
       g.fillRect(mx(pk.x - pk.w / 2), my(pk.z - pk.d / 2), pk.w * SX, pk.d * SZ);
     }
-    g.strokeStyle = '#2f3136';
-    g.lineWidth = 3;
-    g.lineCap = g.lineJoin = 'round';
-    for (const r of ROADS) {
-      g.beginPath();
-      r.forEach(([x, z], i) => (i ? g.lineTo(mx(x), my(z)) : g.moveTo(mx(x), my(z))));
-      g.stroke();
+    // Streets (avenues darkest) and sidewalk blocks.
+    for (const st of STREET_SEGS) {
+      if (!insideLoop(st.x, st.z, 0)) continue;
+      g.fillStyle = st.kind === 'avenue' ? '#26282c' : st.kind === 'street' ? '#34363a' : '#3c3d40';
+      g.fillRect(mx(st.x - st.w / 2), my(st.z - st.d / 2), Math.max(1, st.w * SX), Math.max(1, st.d * SZ));
     }
+    g.fillStyle = '#6a665e';
+    for (const b of BLOCKS) g.fillRect(mx(b.x0), my(b.z0), (b.x1 - b.x0) * SX, (b.z1 - b.z0) * SZ);
     g.strokeStyle = '#3f7590';
     g.lineWidth = Math.max(2, RIVER_WIDTH * SX);
     g.beginPath();
@@ -71,12 +71,13 @@ export class Minimap {
     const sorted = [...WORLD].sort((a, b) => (a.kind === 'box' ? a.y1 : a.hHigh) - (b.kind === 'box' ? b.y1 : b.hHigh));
     for (const p of sorted) {
       if (p.mat === 'water') { if (p.group === 'river') continue; g.fillStyle = '#3f7590'; }
-      else if (p.mat === 'tree') continue;
+      else if (p.mat === 'tree' || p.mat === 'sidewalk' || p.mat === 'car' || p.mat === 'vending' || p.mat === 'pole') continue;
+      else if (p.mat === 'bldg') g.fillStyle = (p as BoxPrim).y1 > 700 ? '#b4b0a6' : '#948f84';
       else if (p.kind === 'ramp') g.fillStyle = '#d6a64e';
       else if (p.mat === 'earth') g.fillStyle = '#6f8a45';
-      else if ((p as BoxPrim).y0 > 20) g.fillStyle = '#d8cda8'; // upper floors, skyways, platforms
+      else if ((p as BoxPrim).y0 > 20) g.fillStyle = '#d8cda8'; // upper floors, footbridges, decks
       else if (p.mat === 'hedge') g.fillStyle = '#48633a';
-      else if (p.kind === 'box' && p.y1 > 150) g.fillStyle = '#c6c1b3'; // towers
+      else if (p.kind === 'box' && p.y1 > 700) g.fillStyle = '#c6c1b3'; // towers
       else g.fillStyle = '#8f887a';
       rect(p);
     }

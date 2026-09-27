@@ -1,5 +1,5 @@
 import type { Prim, RampPrim } from '../../config/map';
-import { BOUNDS, WORLD, insideLoop } from '../../config/map';
+import { BOUNDS, WALK_EDGE, WORLD, insideLoop } from '../../config/map';
 import { CR } from '../../config/constants';
 
 /** Highest ledge a character can walk up without stairs. */
@@ -97,7 +97,7 @@ export function supportHeight(x: number, z: number, y: number): number {
 
 /** Whether a character at (x, y, z) would intersect a wall, parapet, cliff or water. */
 export function blocked(x: number, z: number, y: number, r = CR): boolean {
-  if (!insideLoop(x, z, r + 26)) return true; // the Yamanote tracks are the edge of the world
+  if (!insideLoop(x, z, WALK_EDGE + r)) return true; // the fence along the Yamanote tracks is the edge of the world
   for (const p of near(x - r, z - r, x + r, z + r, scratch)) {
     if (Math.abs(x - p.x) >= p.w / 2 + r || Math.abs(z - p.z) >= p.d / 2 + r) continue;
     if (p.y0 >= y + BODY_H) continue; // overhead: walk underneath

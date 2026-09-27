@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { CameraController, angleDelta } from '../src/render/cameraController';
 import { solidAt } from '../src/sim/systems/world';
-import { SITES } from '../src/config/map';
+import { SITES, UPPER } from '../src/config/map';
 
 const P = SITES.open; // 皇居前広場: open ground
 
@@ -78,8 +78,8 @@ describe('rear-follow camera', () => {
       for (let i = 0; i < 10; i++) ctl.update(cam, u.x, 0, u.z, 1 / 60);
       expect(solidAt(cam.position.x, cam.position.y, cam.position.z)).toBe(false);
       // Under the second floor the boom stays below the ceiling and shorter than in the open.
-      expect(cam.position.y).toBeLessThan(58);
-      expect(cam.position.distanceTo(new THREE.Vector3(u.x, 45, u.z))).toBeLessThan(180);
+      expect(cam.position.y).toBeLessThan(UPPER - 12);
+      expect(cam.position.distanceTo(new THREE.Vector3(u.x, 45, u.z))).toBeLessThan(200);
     }
   });
 });

@@ -123,6 +123,7 @@ function exposeDebug(state: GameState, cam: CameraController): void {
     player: () => ({ x: state.player.x, y: state.player.y, z: state.player.z, dirX: state.player.dirX, dirZ: state.player.dirZ, capCd: state.player.cd.capture, jailed: state.player.jailed }),
     entities: () => state.entities.map((e) => ({ id: e.id, nation: e.nation, role: e.role, x: e.x, y: e.y, z: e.z, alive: e.alive, jailed: e.jailed, state: e.ai.state, targetId: e.ai.targetId })),
     teleport: (x: number, z: number, y?: number) => { teleport(state.player, x, z, y); },
+    face: (dx: number, dz: number) => { const l = Math.hypot(dx, dz) || 1; state.player.dirX = dx / l; state.player.dirZ = dz / l; cam.snap(Math.atan2(dx, dz)); },
     posture: () => ({ sun: state.factions.sun.posture, moon: state.factions.moon.posture, star: state.factions.star.posture }),
     cameraPos: () => ({ x: refs.camera.position.x, y: refs.camera.position.y, z: refs.camera.position.z }),
     solidAtCamera: () => solidAt(refs.camera.position.x, refs.camera.position.y, refs.camera.position.z),

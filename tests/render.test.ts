@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { CameraController, DIST_MAX, DIST_MIN, firstWallHit } from '../src/render/cameraController';
 import { BASE_FOV, MAX_PIXEL_RATIO, fovForAspect, renderPixelRatio } from '../src/render/sceneBuilder';
 import { FRONT_HALF_ANGLE } from '../src/render/indicators';
-import { SITES } from '../src/config/map';
+import { SITES, UPPER, WORLD } from '../src/config/map';
 
 describe('pixel ratio', () => {
   it('follows devicePixelRatio but is capped at 2', () => {
@@ -29,31 +29,33 @@ describe('field of view on resize', () => {
 
 describe('camera wall occlusion (3D)', () => {
   it('detects a building along a low ray', () => {
-    // 国会議事堂: its north face is 20 south of the north test point.
+    // 国会議事堂: its north face is 90 south of the north test point.
     const n = SITES.dietNorth;
     const ray = new THREE.Ray(new THREE.Vector3(n.x, 20, n.z), new THREE.Vector3(0, 0, 1));
-    expect(firstWallHit(ray, 1000)).toBeCloseTo(20, 6);
+    expect(firstWallHit(ray, 1000)).toBeCloseTo(90, 6);
     expect(firstWallHit(ray, 10)).toBe(Infinity);
   });
 
   it('detects floors from below (second storey)', () => {
     const u = SITES.walkup.underFloor;
     const ray = new THREE.Ray(new THREE.Vector3(u.x, 20, u.z), new THREE.Vector3(0, 1, 0));
-    expect(firstWallHit(ray, 200)).toBeCloseTo(58 - 20, 6);
+    expect(firstWallHit(ray, 200)).toBeCloseTo(UPPER - 12 - 20, 6);
   });
 
-  it('does not pull the camera in when it is above a low building (v6 did)', () => {
+  it('does not pull the camera in when it is above something low (v6 did)', () => {
     const ctl = new CameraController();
     const cam = new THREE.PerspectiveCamera();
-    // North of the Diet building, facing north: the camera sits back over its roof.
-    const n = SITES.dietNorth;
+    // Just past a car parked along a north–south street, facing north: the camera sits back over the car.
+    const car = WORLD.find((p) => p.mat === 'car' && p.group === 'z' && p.d > 100
+      && !WORLD.some((q) => q !== p && q.kind === 'box' && q.y1 > 60 && Math.abs(q.x - p.x) < q.w / 2 + 80 && q.z + q.d / 2 > p.z - 90 && q.z - q.d / 2 < p.z + 320))!;
+    const n = { x: car.x, z: car.z - car.d / 2 - 25 };
     ctl.snap(Math.PI);
     ctl.update(cam, n.x, 0, n.z);
     const open = new CameraController();
     const cam2 = new THREE.PerspectiveCamera();
     open.snap(Math.PI);
     open.update(cam2, SITES.open.x, 0, SITES.open.z);
-    expect(cam.position.z).toBeGreaterThan(n.z + 20); // really is over the building
+    expect(cam.position.z).toBeGreaterThan(car.z); // really is over the car
     expect(cam.position.distanceTo(new THREE.Vector3(n.x, 55, n.z))).toBeCloseTo(cam2.position.distanceTo(new THREE.Vector3(SITES.open.x, 55, SITES.open.z)), 3);
   });
 

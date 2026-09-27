@@ -11,7 +11,7 @@ import type { Waypoint } from './memory';
  * one-way drops.
  */
 
-export const NAV_SPACING = 40;
+export const NAV_SPACING = 50;
 
 export interface NavNode extends Waypoint {
   id: number;
@@ -209,7 +209,7 @@ let gBuf = new Float64Array(0), fromBuf = new Int32Array(0), visitBuf = new Uint
 let search = 0;
 
 /** A* between two nodes. Returns node ids start→goal, or null if unreachable. */
-export function findPath(startId: number, goalId: number, maxExpand = 12000): number[] | null {
+export function findPath(startId: number, goalId: number, maxExpand = 40000): number[] | null {
   const { nodes } = navGraph();
   if (gBuf.length !== nodes.length) {
     gBuf = new Float64Array(nodes.length);

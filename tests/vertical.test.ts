@@ -59,7 +59,7 @@ describe('stairs, slopes and upper floors (Tokyo)', () => {
   it('walks up the slope onto 上野の山', () => {
     const state = soloPlayer();
     teleport(state.player, SITES.hillSlopeFoot.x, SITES.hillSlopeFoot.z);
-    const ys = walk(state, 0, -1, 0.9);
+    const ys = walk(state, SITES.hillSlopeDir.x, SITES.hillSlopeDir.z, 2.0);
     expect(state.player.y).toBeCloseTo(UENO_HILL.top, 0);
     expect(maxJump(ys)).toBeLessThan(6);
   });
@@ -68,32 +68,32 @@ describe('stairs, slopes and upper floors (Tokyo)', () => {
     const state = soloPlayer();
     teleport(state.player, SITES.hillCliffFoot.x, SITES.hillCliffFoot.z);
     walk(state, 0, 1, 1.0);
-    expect(state.player.y).toBe(0);
+    expect(state.player.y).toBeLessThan(6);
     expect(state.player.z).toBeLessThan(UENO_HILL.z - UENO_HILL.d / 2 - 13);
   });
 
   it('climbs Tokyo Tower to the observation deck', () => {
     const state = soloPlayer();
     teleport(state.player, SITES.towerStairsMid.x, SITES.towerStairsMid.z, SITES.towerStairsMid.y);
-    walk(state, 0, -1, 0.6);
-    expect(state.player.y).toBeCloseTo(UPPER, 0);
+    walk(state, 0, -1, 1.0);
+    expect(state.player.y).toBeCloseTo(SITES.towerDeck.y, 0);
   });
 
   it('walks under the expressway and straight through the arcade', () => {
     const state = soloPlayer();
     teleport(state.player, SITES.underExpressway.x, SITES.underExpressway.z);
-    walk(state, 1, 0, 0.8);
-    expect(state.player.y).toBe(0);
-    expect(state.player.x).toBeGreaterThan(-60); // passed under the 44-high deck
-    teleport(state.player, SITES.arcadeSouth.x, SITES.arcadeSouth.z);
-    walk(state, 0, -1, 1.2);
-    expect(state.player.z).toBeLessThan(SITES.arcadeNorthEnd - 10); // through both doors
+    walk(state, 1, 0, 1.8);
+    expect(state.player.y).toBeLessThan(6); // stayed on the street / sidewalk
+    expect(state.player.x).toBeGreaterThan(SITES.underExpressway.passX); // passed under the deck
+    teleport(state.player, SITES.arcadeWest.x, SITES.arcadeWest.z);
+    walk(state, 1, 0, 3);
+    expect(state.player.x).toBeGreaterThan(SITES.arcadeEastEnd + 10); // through both doors
   });
 
   it('crosses the arched 聖橋 over the Kanda river but cannot wade', () => {
     const state = soloPlayer();
     teleport(state.player, SITES.bridgeSouth.x, SITES.bridgeSouth.z);
-    walk(state, 0, -1, 1.4);
+    walk(state, 0, -1, 2.4);
     expect(state.player.z).toBeLessThan(SITES.riverZ(SITES.bridgeSouth.x) - 100);
     teleport(state.player, SITES.riverBank.x, SITES.riverBank.z);
     walk(state, 0, -1, 1.0);
@@ -101,15 +101,15 @@ describe('stairs, slopes and upper floors (Tokyo)', () => {
   });
 
   it.each([
-    ['Tokyo Tower stairs', SITES.towerStairsMid, -1, 0],
-    ['愛宕山 stone stairs', SITES.atagoStairsMid, 0, 1],
-    ['上野 stone stairs', SITES.uenoStairsMid, 0, -1],
-    ['聖橋 slope', SITES.bridgeSlopeMid, 1, 0],
-  ] as const)('stepping off the side of the %s does not leave you stuck', (_n, p, dx, dz) => {
+    ['Tokyo Tower stairs', SITES.towerStairsMid, -1, 0, 0.35],
+    ['愛宕山 stone stairs', SITES.atagoStairsMid, 0, 1, 0.35],
+    ['上野 stone stairs', SITES.uenoStairsMid, 1, 0, 0.35],
+    ['聖橋 slope', SITES.bridgeSlopeMid, 1, 0, 0.6],
+  ] as const)('stepping off the side of the %s does not leave you stuck', (_n, p, dx, dz, sec) => {
     const state = soloPlayer();
     teleport(state.player, p.x, p.z, p.y);
-    walk(state, dx, dz, 0.35); // step off and land beside the stairs
-    expect(state.player.y).toBe(0);
+    walk(state, dx, dz, sec); // step off and land beside the stairs
+    expect(state.player.y).toBeLessThan(6); // on the ground (or a sidewalk)
     const a = { x: state.player.x, z: state.player.z };
     walk(state, dx, dz, 0.3); // keep going: must move freely
     expect(Math.hypot(state.player.x - a.x, state.player.z - a.z)).toBeGreaterThan(30);
@@ -118,8 +118,8 @@ describe('stairs, slopes and upper floors (Tokyo)', () => {
   it('falls off a ledge instead of floating', () => {
     const state = soloPlayer();
     teleport(state.player, SITES.hillTop.x, SITES.hillTop.z, SITES.hillTop.y);
-    walk(state, 0, -1, 1.0); // off the north cliff
-    expect(state.player.y).toBe(0);
+    walk(state, 0, -1, 1.6); // off the north cliff
+    expect(state.player.y).toBeLessThan(6);
   });
 });
 
@@ -158,7 +158,7 @@ describe('height in the rules', () => {
     teleport(state.player, SITES.dietNorth.x, SITES.dietNorth.z, 0);
     teleport(low, SITES.dietSouth.x, SITES.dietSouth.z, 0); // the Diet building is between them
     expect(hasLineOfSight(state.player, low)).toBe(false);
-    teleport(state.player, SITES.dietNorth.x, SITES.dietNorth.z, 140);
+    teleport(state.player, SITES.dietNorth.x, SITES.dietNorth.z, SITES.dietOverY);
     expect(hasLineOfSight(state.player, low)).toBe(true);
   });
 
