@@ -735,3 +735,35 @@ export function latticeTexture(): THREE.CanvasTexture {
   g.stroke();
   return repeatTex(c, 4);
 }
+
+/** Granite façade with pilasters and tall windows (国会議事堂, 迎賓館, museums): 1 tile ≈ 2 bays × 2 storeys. */
+export function stoneFacadeTexture(): THREE.CanvasTexture {
+  const [c, g] = canvas(256, 256);
+  const rnd = prng(83);
+  g.fillStyle = '#cfc8b8';
+  g.fillRect(0, 0, 256, 256);
+  for (let y = 0; y < 256; y += 16) {
+    g.fillStyle = 'rgba(0,0,0,.08)';
+    g.fillRect(0, y, 256, 1);
+    for (let x = (y / 16) % 2 ? 0 : 24; x < 256; x += 48) g.fillRect(x, y, 1, 16);
+  }
+  speckle(g, 256, 256, 3000, rnd, 0.08);
+  for (const x of [0, 128]) {
+    g.fillStyle = '#e0dacb'; // pilaster
+    g.fillRect(x, 0, 18, 256);
+    g.fillStyle = 'rgba(0,0,0,.12)';
+    g.fillRect(x + 18, 0, 3, 256);
+    for (const y of [22, 150]) {
+      g.fillStyle = '#b9b2a2';
+      g.fillRect(x + 42, y - 6, 60, 98);
+      pane(g, x + 48, y, 48, 86, rnd, 0.15);
+      g.fillStyle = 'rgba(200,200,200,.8)';
+      g.fillRect(x + 71, y, 2, 86);
+      g.fillStyle = '#ddd6c6';
+      g.fillRect(x + 38, y + 88, 68, 8);
+    }
+  }
+  g.fillStyle = '#d8d2c2';
+  g.fillRect(0, 120, 256, 10);
+  return repeatTex(c);
+}

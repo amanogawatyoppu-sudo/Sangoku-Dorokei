@@ -47,7 +47,7 @@ describe('camera wall occlusion (3D)', () => {
     const cam = new THREE.PerspectiveCamera();
     // Just past a car parked along a north–south street, facing north: the camera sits back over the car.
     const car = WORLD.find((p) => p.mat === 'car' && p.group === 'z' && p.d > 100
-      && !WORLD.some((q) => q !== p && q.kind === 'box' && q.y1 > 60 && Math.abs(q.x - p.x) < q.w / 2 + 80 && q.z + q.d / 2 > p.z - 90 && q.z - q.d / 2 < p.z + 320))!;
+      && !WORLD.some((q) => q !== p && q.kind === 'box' && q.w > 20 && q.d > 20 && q.y1 > 60 && Math.abs(q.x - p.x) < q.w / 2 + 80 && q.z + q.d / 2 > p.z - 90 && q.z - q.d / 2 < p.z + 320))!;
     const n = { x: car.x, z: car.z - car.d / 2 - 25 };
     ctl.snap(Math.PI);
     ctl.update(cam, n.x, 0, n.z);

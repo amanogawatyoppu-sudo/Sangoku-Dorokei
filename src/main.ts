@@ -72,7 +72,7 @@ function startGame(nation: NationId, role: RoleId): void {
   $('btnMeeting').onclick = () => { openMeeting(state); flush(); };
 
   hud.initFor(state);
-  log.add('v7.4: 舞台は山手線の内側の東京。W/Sで前後、A/Dで旋回、Qで振り向き。');
+  log.add('v7.5: 等身大の東京。W/Sで前後、A/Dで旋回、Qで振り向き。');
   hud.banner('三国ドロケイ 開始　' + NATIONS[nation].name + 'の' + roleName(role), 2200);
   resizeRenderer(refs, canvas);
   cam.snap(Math.atan2(state.player.dirX, state.player.dirZ));
@@ -133,6 +133,7 @@ function exposeDebug(state: GameState, cam: CameraController): void {
     meeting: () => !!state.meeting,
     commands: () => state.commands.length,
     renderer: () => ({ pixelRatio: refs.renderer.getPixelRatio(), width: refs.renderer.domElement.width, height: refs.renderer.domElement.height }),
+    renderInfo: () => ({ calls: refs.renderer.info.render.calls, triangles: refs.renderer.info.render.triangles, geometries: refs.renderer.info.memory.geometries, textures: refs.renderer.info.memory.textures }),
   };
 }
 

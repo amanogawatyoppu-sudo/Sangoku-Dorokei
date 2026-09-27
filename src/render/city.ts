@@ -466,16 +466,33 @@ function buildFurniture(scene: THREE.Scene): void {
     add(instanced(new THREE.BoxGeometry(54, 48, 20), [side, side, side, side, front, side], ms));
   });
   // Cars: body in the car's colour, a glassy cabin and dark wheels.
-  const body = new THREE.BoxGeometry(46, 18, 116).translate(0, 15, 0);
-  const cabin = new THREE.BoxGeometry(40, 15, 60).translate(0, 31, -6);
+  const body = mergeBoxes([[46, 18, 116, 0, 15, 0], [40, 15, 60, 0, 31, -6]]);
+  const glassBand = mergeBoxes([[41, 9, 50, 0, 32, -6], [38, 9, 1, 0, 32, 24.2], [38, 9, 1, 0, 32, -36.2]]);
+  const lights = mergeBoxes([[10, 5, 1, -15, 19, 58.2], [10, 5, 1, 15, 19, 58.2]]);
+  const tail = mergeBoxes([[10, 5, 1, -15, 19, -58.2], [10, 5, 1, 15, 19, -58.2]]);
   const wheels = mergeWheels();
-  const carMat = std(0xffffff, { roughness: 0.35, metalness: 0.35 });
-  add(instanced(body, carMat, cars, carCol));
-  add(instanced(cabin, std(0x28323c, { roughness: 0.15, metalness: 0.4 }), cars));
+  add(instanced(body, std(0xffffff, { roughness: 0.3, metalness: 0.35 }), cars, carCol));
+  add(instanced(glassBand, std(0x2c3945, { roughness: 0.1, metalness: 0.5 }), cars, undefined, false));
+  add(instanced(lights, std(0xf4f2e8, { emissive: 0xfff6d8, emissiveIntensity: 0.4 }), cars, undefined, false));
+  add(instanced(tail, std(0xb0201c, { emissive: 0x801010, emissiveIntensity: 0.4 }), cars, undefined, false));
   add(instanced(wheels, std(0x151515), cars, undefined, false));
   add(instanced(new THREE.CylinderGeometry(5, 8, 1, 7).translate(0, 0.5, 0), std(0x4b3a2a), trunks));
   const crown = new THREE.IcosahedronGeometry(1, 1);
   add(instanced(crown, std(0xffffff, { flatShading: true, roughness: 1 }), crowns, crownCol));
+}
+
+/** Several boxes [w, h, d, x, y, z] as one geometry. */
+function mergeBoxes(list: [number, number, number, number, number, number][]): THREE.BufferGeometry {
+  const pos: number[] = [], nrm: number[] = [];
+  for (const [w, h, d, x, y, z] of list) {
+    const g = new THREE.BoxGeometry(w, h, d).translate(x, y, z).toNonIndexed();
+    pos.push(...(g.attributes.position.array as Float32Array));
+    nrm.push(...(g.attributes.normal.array as Float32Array));
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+  return g;
 }
 
 function mergeWheels(): THREE.BufferGeometry {

@@ -448,7 +448,7 @@ const riverZAt = (x: number) => {
       const x = a.x + ((b.x - a.x) * k) / n, z = a.z + ((b.z - a.z) * k) / n;
       if (!insideLoop(x, z, 0)) continue;
       water(x, z, RIVER_WIDTH, RIVER_WIDTH, 'river');
-      keepOut.push({ x0: x - 150, z0: z - 150, x1: x + 150, z1: z + 150 });
+      keepOut.push({ x0: x - 135, z0: z - 135, x1: x + 135, z1: z + 135 });
     }
   }
   for (const bx of BRIDGE_X) {
@@ -546,21 +546,23 @@ export function prng(seed: number): () => number {
 
 export type District = 'commercial' | 'business' | 'residential' | 'mixed';
 const DISTRICTS: { p: Point; r: number; kind: District }[] = [
-  { p: geo(35.6930, 139.7030), r: 900, kind: 'commercial' }, // 新宿・歌舞伎町
-  { p: geo(35.6600, 139.7040), r: 700, kind: 'commercial' }, // 渋谷
-  { p: geo(35.7290, 139.7140), r: 800, kind: 'commercial' }, // 池袋
-  { p: geo(35.6990, 139.7705), r: 520, kind: 'commercial' }, // 秋葉原
-  { p: geo(35.7085, 139.7735), r: 450, kind: 'commercial' }, // 上野・御徒町
-  { p: geo(35.6665, 139.7560), r: 450, kind: 'commercial' }, // 新橋
-  { p: geo(35.7010, 139.7580), r: 420, kind: 'commercial' }, // 神保町・水道橋
-  { p: geo(35.6850, 139.7640), r: 700, kind: 'business' }, // 丸の内・大手町
-  { p: geo(35.6700, 139.7480), r: 520, kind: 'business' }, // 霞が関・虎ノ門
-  { p: geo(35.6630, 139.7320), r: 650, kind: 'business' }, // 六本木
-  { p: geo(35.6300, 139.7400), r: 450, kind: 'business' }, // 品川
-  { p: geo(35.7200, 139.7500), r: 1000, kind: 'residential' }, // 文京
-  { p: geo(35.7180, 139.7120), r: 750, kind: 'residential' }, // 目白・雑司が谷
-  { p: geo(35.6420, 139.7250), r: 800, kind: 'residential' }, // 白金・高輪
-  { p: geo(35.6870, 139.7250), r: 500, kind: 'residential' }, // 四谷・信濃町
+  { p: geo(35.6915, 139.7060), r: 1500, kind: 'commercial' }, // 新宿三丁目・歌舞伎町
+  { p: geo(35.6600, 139.7075), r: 1100, kind: 'commercial' }, // 渋谷
+  { p: geo(35.7285, 139.7170), r: 1300, kind: 'commercial' }, // 池袋
+  { p: geo(35.6995, 139.7690), r: 900, kind: 'commercial' }, // 秋葉原
+  { p: geo(35.7080, 139.7715), r: 900, kind: 'commercial' }, // 上野・御徒町
+  { p: geo(35.6670, 139.7545), r: 800, kind: 'commercial' }, // 新橋
+  { p: geo(35.7010, 139.7580), r: 700, kind: 'commercial' }, // 神保町・水道橋
+  { p: geo(35.7095, 139.7050), r: 700, kind: 'commercial' }, // 高田馬場
+  { p: geo(35.6850, 139.7630), r: 1000, kind: 'business' }, // 丸の内・大手町
+  { p: geo(35.6700, 139.7480), r: 800, kind: 'business' }, // 霞が関・虎ノ門
+  { p: geo(35.6625, 139.7320), r: 900, kind: 'business' }, // 六本木
+  { p: geo(35.6320, 139.7380), r: 800, kind: 'business' }, // 品川・高輪ゲートウェイ
+  { p: geo(35.6450, 139.7160), r: 600, kind: 'business' }, // 恵比寿
+  { p: geo(35.7200, 139.7500), r: 1100, kind: 'residential' }, // 文京
+  { p: geo(35.7180, 139.7200), r: 800, kind: 'residential' }, // 目白・雑司が谷
+  { p: geo(35.6450, 139.7280), r: 900, kind: 'residential' }, // 白金・高輪
+  { p: geo(35.6870, 139.7250), r: 600, kind: 'residential' }, // 四谷・信濃町
 ];
 function districtAt(x: number, z: number, rnd: () => number): District {
   let best: District | null = null, bd = Infinity;
@@ -727,8 +729,8 @@ const furnitureOut: Rect[] = [];
     apartment: { front: [240, 380], floors: [4, 9], gap: 12, depth: 360 },
     mixed: { front: [150, 260], floors: [4, 9], gap: 0, depth: 360 },
     shop: { front: [170, 280], floors: [2, 3], gap: 0, depth: 300 },
-    office: { front: [420, 800], floors: [8, 16], gap: 30, depth: 700 },
-    tower: { front: [500, 800], floors: [20, 34], gap: 40, depth: 700 },
+    office: { front: [260, 520], floors: [7, 14], gap: 20, depth: 700 },
+    tower: { front: [360, 600], floors: [20, 34], gap: 30, depth: 700 },
     parking: { front: [230, 360], floors: [0, 0], gap: 10, depth: 400 },
   };
   const MIX: Record<District, [BuildingType | 'parking', number][]> = {
@@ -769,7 +771,7 @@ const furnitureOut: Rect[] = [];
       const corners = [[b.x0, b.z0], [b.x1, b.z0], [b.x0, b.z1], [b.x1, b.z1]];
       const inside = corners.every(([x, z]) => insideLoop(x, z, TRACK_MARGIN + 20));
       const outside = corners.every(([x, z]) => loopSignedDist(x, z) < -TRACK_MARGIN - 60);
-      if (!inside && !outside && corners.every(([x, z]) => !insideLoop(x, z, TRACK_MARGIN + 20))) continue; // along the tracks
+      if (!inside && !outside && corners.every(([x, z]) => !insideLoop(x, z, WALK_EDGE + 10))) continue; // along the tracks
       const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
       const district = districtAt(cx, cz, rnd);
       const clean = inside && !reserved(b);
@@ -781,17 +783,16 @@ const furnitureOut: Rect[] = [];
       const L = { x0: b.x0 + SIDEWALK[sides.w], x1: b.x1 - SIDEWALK[sides.e], z0: b.z0 + SIDEWALK[sides.n], z1: b.z1 - SIDEWALK[sides.s] };
       const lotOk = (r: Rect) => outside
         ? !reserved(r)
-          : !reserved(r) && [[r.x0, r.z0], [r.x1, r.z0], [r.x0, r.z1], [r.x1, r.z1]].every(([x, z]) => insideLoop(x, z, TRACK_MARGIN + 20));
+          : !reserved(r) && [[r.x0, r.z0], [r.x1, r.z0], [r.x0, r.z1], [r.x1, r.z1]].every(([x, z]) => insideLoop(x, z, WALK_EDGE + 10));
       const W = L.x1 - L.x0, D = L.z1 - L.z0;
-      if (district === 'business' && !outside) {
+      if (district === 'business' && !outside && lotOk({ x0: L.x0 + 40, x1: L.x1 - 40, z0: L.z0 + 40, z1: L.z1 - 40 })) {
         // One or two big office buildings set back behind a small plaza.
         const n = W > 900 ? 2 : 1, g = 40;
         for (let k = 0; k < n; k++) {
           const x0 = L.x0 + (W / n) * k + g, x1 = L.x0 + (W / n) * (k + 1) - g;
           const r = { x0, x1, z0: L.z0 + g, z1: L.z1 - g };
-          if (!lotOk(r)) continue;
           const type = rnd() < 0.2 ? 'tower' : 'office';
-          addBuilding((x0 + x1) / 2, (r.z0 + r.z1) / 2, x1 - x0, r.z1 - r.z0, type, district, sides.s === 'street' ? 's' : 'n', false, false);
+          addBuilding((x0 + x1) / 2, (r.z0 + r.z1) / 2, x1 - x0, r.z1 - r.z0, type, district, sides.s !== 'alley' ? 's' : 'n', false, sides.s !== 'alley');
         }
         continue;
       }
