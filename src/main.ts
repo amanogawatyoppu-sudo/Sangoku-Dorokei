@@ -18,6 +18,8 @@ import { advanceFrame } from './sim/game';
 import type { GameState } from './sim/state';
 import { createGameState, drainEvents, queueCommand } from './sim/state';
 import { teleport } from './sim/entity';
+import { sendToJail } from './sim/systems/jail';
+import { solidAt } from './sim/systems/world';
 import { $ } from './ui/dom';
 import { initDrawers } from './ui/drawers';
 import { Hud } from './ui/hud';
@@ -95,6 +97,7 @@ function render(state: GameState, entityView: EntityView, indicators: Indicators
   const px = lerp(p.prevX, p.x, alpha), py = lerp(p.prevY, p.y, alpha), pz = lerp(p.prevZ, p.z, alpha);
   cam.follow(Math.atan2(p.dirX, p.dirZ), dtSec);
   cam.update(refs.camera, px, py, pz, dtSec);
+  entityView.playerOpacity = cam.boomLength < 70 ? 0.3 : 1;
   followSun(refs, px, py, pz);
   refs.renderer.render(refs.scene, refs.camera);
   hud.update(state);
@@ -119,6 +122,9 @@ function exposeDebug(state: GameState, cam: CameraController): void {
     entities: () => state.entities.map((e) => ({ id: e.id, nation: e.nation, role: e.role, x: e.x, y: e.y, z: e.z, alive: e.alive, jailed: e.jailed, state: e.ai.state, targetId: e.ai.targetId })),
     teleport: (x: number, z: number, y?: number) => { teleport(state.player, x, z, y); },
     posture: () => ({ sun: state.factions.sun.posture, moon: state.factions.moon.posture, star: state.factions.star.posture }),
+    cameraPos: () => ({ x: refs.camera.position.x, y: refs.camera.position.y, z: refs.camera.position.z }),
+    solidAtCamera: () => solidAt(refs.camera.position.x, refs.camera.position.y, refs.camera.position.z),
+    captureKing: (nation: NationId, by: NationId) => { const k = state.entities.find((e) => e.nation === nation && e.role === 'king')!; sendToJail(state, k, by, null); },
     camera: () => ({ yaw: cam.yaw, pitch: cam.pitch, distance: cam.distance }),
     time: () => state.time,
     meeting: () => !!state.meeting,

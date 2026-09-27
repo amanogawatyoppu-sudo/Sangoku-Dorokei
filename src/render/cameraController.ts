@@ -26,6 +26,7 @@ const SOLIDS = WORLD.filter((p) => p.mat !== 'water').map((p) => {
 });
 
 const tmpRay = new THREE.Ray();
+const UP = new THREE.Vector3(0, 1, 0);
 const tmpHit = new THREE.Vector3();
 
 /** Distance along `ray` to the first solid (wall, floor, hill, stairs), or Infinity. */
@@ -60,6 +61,9 @@ export class CameraController {
   private eyeY: number | null = null;
   private highTilt = 0;
   private effPitch: number | null = null;
+  private indoor = 0;
+  /** Current camera distance after collisions (the renderer fades the player when it is tiny). */
+  boomLength = Infinity;
 
   /** Vertical drag tilts the view. Horizontal drag is ignored on purpose (no free look). */
   applyLook(_dx: number, dy: number): void {
@@ -90,11 +94,16 @@ export class CameraController {
     // Look down a little more from high ground.
     this.highTilt += ((this.eyeY > 30 ? 0.12 : 0) - this.highTilt) * k;
     const wanted = Math.min(PITCH_MAX, this.pitch + this.highTilt);
-    const target = new THREE.Vector3(px, this.eyeY + LOOK_HEIGHT, pz);
+    // Under a low ceiling, look from just below it (and level) instead of from inside it.
+    tmpRay.set(new THREE.Vector3(px, this.eyeY + 30, pz), UP);
+    const ceiling = 30 + firstWallHit(tmpRay, 200);
+    const lookH = Math.min(LOOK_HEIGHT, ceiling - 12);
+    this.indoor += ((ceiling < 120 ? 1 : 0) - this.indoor) * k;
+    const target = new THREE.Vector3(px, this.eyeY + lookH, pz);
     // Under a low ceiling (ground floor of a hall, under a skyway) a steep boom hits
     // the floor above: try flatter angles and keep the one with the most room.
     let best = { pitch: wanted, room: -1, ideal: 0 };
-    for (const pitch of [wanted, wanted * 0.5, 0.04]) {
+    for (const pitch of this.indoor > 0.5 ? [0] : [wanted, wanted * 0.5, 0]) {
       const { dir, ideal } = this.boomDir(pitch);
       tmpRay.set(target, dir);
       const room = Math.min(ideal, firstWallHit(tmpRay, ideal + WALL_MARGIN) - WALL_MARGIN);
@@ -111,6 +120,7 @@ export class CameraController {
     if (this.boom < 0 || allowed < this.boom) this.boom = allowed; // pull in at once
     else this.boom += (allowed - this.boom) * Math.min(1, dtSec * RECOVER_RATE); // ease back out
     camera.position.copy(target).addScaledVector(dir, Math.max(0, this.boom));
+    this.boomLength = this.boom;
     camera.lookAt(target.x + Math.sin(this.yaw) * 20, target.y, target.z + Math.cos(this.yaw) * 20);
   }
 

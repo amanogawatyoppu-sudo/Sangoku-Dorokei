@@ -13,6 +13,8 @@ interface CharMesh {
   armR: THREE.Object3D;
   torso: THREE.Object3D;
   phase: number;
+  /** Per-character copies of shared materials (so one character can fade alone). */
+  own: Set<THREE.Material>;
 }
 
 const SKIN = 0xe3bf95;
@@ -80,7 +82,7 @@ function makeChar(color: number): CharMesh {
   const armR = limb(new THREE.CapsuleGeometry(3, 12, 4, 8), shared.armor, 12.5, 24, 16);
   torso.add(armL, armR);
   g.add(legL, legR, torso);
-  return { group: g, cloth, legL, legR, armL, armR, torso, phase: 0 };
+  return { group: g, cloth, legL, legR, armL, armR, torso, phase: 0, own: new Set() };
 }
 
 export function lerp(a: number, b: number, t: number): number {
@@ -94,10 +96,25 @@ export class EntityView {
   constructor(scene: THREE.Scene, state: GameState) {
     for (const e of state.entities) {
       const m = makeChar(NATIONS[e.nation].color);
+      if (e.isPlayer) {
+        // The player's model can fade: give it private material copies.
+        const copies = new Map<THREE.Material, THREE.Material>();
+        m.group.traverse((o) => {
+          const mesh = o as THREE.Mesh;
+          if (!mesh.isMesh || mesh.material === m.cloth) return;
+          const src = mesh.material as THREE.Material;
+          if (!copies.has(src)) copies.set(src, src.clone());
+          mesh.material = copies.get(src)!;
+        });
+        m.own = new Set(copies.values());
+      }
       scene.add(m.group);
       this.meshes.set(e.id, m);
     }
   }
+
+  /** Fade the player's model when the camera is squeezed right behind it (indoors, against walls). */
+  playerOpacity = 1;
 
   sync(state: GameState, alpha: number, dtSec = 1 / 60): void {
     const p = state.player;
@@ -111,14 +128,20 @@ export class EntityView {
       m.group.position.set(x, lerp(e.prevY, e.y, alpha), z);
       m.group.rotation.y = Math.atan2(e.dirX, e.dirZ);
       m.cloth.color.setHex(NATIONS[effNation(state, e, p.nation)].color);
-      const ghost = e.jailed;
-      if (m.cloth.transparent !== ghost) {
-        m.cloth.transparent = ghost;
-        m.cloth.needsUpdate = true;
-      }
-      m.cloth.opacity = ghost ? 0.5 : 1;
+      const opacity = e.jailed ? 0.5 : e === p ? this.playerOpacity : 1;
+      this.setOpacity(m, opacity);
       this.animate(m, Math.hypot(e.x - e.prevX, e.z - e.prevZ) / (1 / 60), dtSec, state.time < e.stunUntil);
     }
+  }
+
+  private setOpacity(m: CharMesh, opacity: number): void {
+    const ghost = opacity < 0.99;
+    m.group.traverse((o) => {
+      const mat = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+      if (!mat || (mat !== m.cloth && !m.own.has(mat))) return;
+      if (mat.transparent !== ghost) { mat.transparent = ghost; mat.needsUpdate = true; }
+      mat.opacity = opacity;
+    });
   }
 
   /** Walk cycle driven by actual speed (units/s); stunned characters slump. */
