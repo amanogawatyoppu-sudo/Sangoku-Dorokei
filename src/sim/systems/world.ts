@@ -54,6 +54,11 @@ function inside(p: Prim, x: number, z: number): boolean {
   return Math.abs(x - p.x) < p.w / 2 && Math.abs(z - p.z) < p.d / 2;
 }
 
+/** Standing support includes the rim, so floors that meet edge to edge have no seam to fall through. */
+function underfoot(p: Prim, x: number, z: number): boolean {
+  return Math.abs(x - p.x) <= p.w / 2 + 0.5 && Math.abs(z - p.z) <= p.d / 2 + 0.5;
+}
+
 /** Top surface height of a primitive at (x, z). */
 export function topAt(p: Prim, x: number, z: number): number {
   return p.kind === 'box' ? p.y1 : rampHeight(p, x, z);
@@ -78,7 +83,7 @@ function topOverCircle(p: Prim, x: number, z: number, r: number): number {
 export function supportHeight(x: number, z: number, y: number): number {
   let best = 0;
   for (const p of near(x, z, x, z, scratch)) {
-    if (p.noFloor || !inside(p, x, z)) continue;
+    if (p.noFloor || !underfoot(p, x, z)) continue;
     const t = topAt(p, x, z);
     if (t <= y + STEP_UP && t > best) best = t;
   }

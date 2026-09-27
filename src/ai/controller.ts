@@ -297,6 +297,8 @@ function hunterThink(state: GameState, e: Entity, aggro: number): void {
     case 'escortKing': {
       const king = kingOf(state, e.nation);
       if (king && engage(state, e, 230, king)) return;
+      // Still on the way back to a distant king: deal with enemies met en route.
+      if (king && dist(e, king) > 400 && engage(state, e, 260, e)) return;
       if (king) setGoal(state, e, { x: king.x - king.dirX * 40 + (e.id % 2 ? 30 : -30), y: king.y, z: king.z - king.dirZ * 40 }, 'ESCORT');
       return;
     }

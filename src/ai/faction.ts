@@ -75,10 +75,13 @@ function assign(state: GameState, n: NationId): void {
     const j = NATIONS[jail].jail;
     const kh = members.find((e) => e.role === 'keyholder');
     if (kh) kh.ai.task = { kind: 'rescueKing', jail };
-    let rest = take(byDistance(hunters, j), 2, { kind: 'rescueEscort', jail });
-    const imp = rest.find((e) => e.role === 'impostor');
-    if (imp) { imp.ai.task = { kind: 'decoy', toward: jail }; rest = rest.filter((e) => e !== imp); }
-    take(rest, 9, { kind: 'hunt', nation: jail });
+    // Rescue party: keyholder + soldier escort + sniper overwatch. The impostor draws
+    // the captor's guards away in disguise (only if someone else escorts).
+    const imp = hunters.find((e) => e.role === 'impostor');
+    const soldiers = hunters.filter((e) => e !== imp);
+    const escorts = soldiers.length ? soldiers : hunters;
+    take(byDistance(escorts, j), 2, { kind: 'rescueEscort', jail });
+    if (imp && soldiers.length) imp.ai.task = { kind: 'decoy', toward: jail };
     const sn = members.find((e) => e.role === 'sniper');
     if (sn) sn.ai.task = { kind: 'rescueEscort', jail };
     return;
