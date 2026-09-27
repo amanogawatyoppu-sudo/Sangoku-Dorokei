@@ -1,12 +1,13 @@
 import type { NationId } from '../../config/nations';
 import { NATIONS } from '../../config/nations';
-import { JAIL_GUARD_TIME, JAIL_TIME, KING_JAIL_EXTRA, KING_RESCUE_ALERT_TIME, KING_REVEAL_TIME } from '../../config/constants';
+import { JAIL_GUARD_TIME, JAIL_REVEAL_TIME, JAIL_TIME, KING_JAIL_EXTRA, KING_RESCUE_ALERT_TIME, KING_REVEAL_TIME } from '../../config/constants';
 import type { Entity } from '../entity';
 import { maxHp, teleport } from '../entity';
 import type { GameState } from '../state';
 import { elapsedSec, emit } from '../state';
 import { dist } from './collision';
 import { checkWin } from './winCondition';
+import { noteAllyCaptured } from '../../ai/faction';
 
 export function jailDuration(e: Entity): number {
   return JAIL_TIME + (e.role === 'king' ? KING_JAIL_EXTRA : 0);
@@ -19,13 +20,16 @@ export function sendToJail(state: GameState, e: Entity, capNation: NationId, att
   e.capturedBy = capNation;
   e.hp = maxHp(e.role);
   const j = NATIONS[capNation].jail;
-  teleport(e, j.x + (state.rng() * 40 - 20), j.z + (state.rng() * 10 - 5));
+  teleport(e, j.x + (state.rng() * 40 - 20), j.z + (state.rng() * 10 - 5), 0);
   emit(state, { type: 'JAILED', entityId: e.id, capNation });
+  noteAllyCaptured(state, e.nation);
+  state.factions[capNation].nextTickAt = now;
   if (e.role === 'king') {
     if (attacker) attacker.kingCaptures++;
     emit(state, { type: 'KING_CAPTURED', nation: e.nation });
     e.revealUntil = now + KING_REVEAL_TIME;
     state.rescueUntil[e.nation] = now + KING_RESCUE_ALERT_TIME;
+    state.jailReveal[capNation] = now + JAIL_REVEAL_TIME;
     let guard: Entity | null = null, gd = 999999;
     for (const g of state.entities) {
       if (g.nation === capNation && g.role === 'soldier' && g.alive && !g.jailed) {

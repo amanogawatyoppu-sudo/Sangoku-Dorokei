@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { NATIONS } from '../config/nations';
 import type { GameState } from '../sim/state';
 import { effNation, visibleTo } from '../sim/systems/vision';
-import { heightAt } from './terrain';
 
 interface CharMesh {
   group: THREE.Group;
@@ -109,7 +108,7 @@ export class EntityView {
       m.group.visible = vis;
       if (!vis) continue;
       const x = lerp(e.prevX, e.x, alpha), z = lerp(e.prevZ, e.z, alpha);
-      m.group.position.set(x, heightAt(x, z), z);
+      m.group.position.set(x, lerp(e.prevY, e.y, alpha), z);
       m.group.rotation.y = Math.atan2(e.dirX, e.dirZ);
       m.cloth.color.setHex(NATIONS[effNation(state, e, p.nation)].color);
       const ghost = e.jailed;

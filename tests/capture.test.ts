@@ -6,10 +6,8 @@ import type { Entity } from '../src/sim/entity';
 import { teleport } from '../src/sim/entity';
 import type { GameState } from '../src/sim/state';
 import { attemptCapture, captureTier } from '../src/sim/systems/capture';
-import { find, newGame } from './helpers';
+import { SPOT, find, newGame } from './helpers';
 
-/** Open ground south of the tower with no obstacles nearby. */
-const SPOT = { x: 0, z: 380 };
 
 function face(e: Entity, dirX: number, dirZ: number) {
   e.dirX = dirX;

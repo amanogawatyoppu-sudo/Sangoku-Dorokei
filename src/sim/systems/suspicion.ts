@@ -3,7 +3,7 @@ import { EVIDENCE_INTERVAL } from '../../config/constants';
 import type { Entity } from '../entity';
 import type { GameState } from '../state';
 import { emit } from '../state';
-import { dist } from './collision';
+import { dist, dist3, sameLevel } from './collision';
 
 /** 1–5 star rating shown in the suspect list and meetings. */
 export function suspStars(susp: number): number {
@@ -21,9 +21,9 @@ export function pushEvidence(state: GameState, e: Entity, text: string): void {
 
 export function updateSuspicion(state: GameState, e: Entity, dt: number): void {
   let escort = 0;
-  for (const o of state.entities) if (o !== e && o.nation === e.nation && o.alive && !o.jailed && dist(o, e) < 70) escort++;
+  for (const o of state.entities) if (o !== e && o.nation === e.nation && o.alive && !o.jailed && dist(o, e) < 70 && sameLevel(o, e)) escort++;
   let fleeing = false;
-  const foe = state.entities.find((t) => t.nation !== e.nation && t.alive && !t.jailed && dist(t, e) < 300);
+  const foe = state.entities.find((t) => t.nation !== e.nation && t.alive && !t.jailed && dist3(t, e) < 300);
   if (foe) {
     const dx = e.x - foe.x, dz = e.z - foe.z, d = Math.hypot(dx, dz) || 1;
     if ((dx / d) * e.dirX + (dz / d) * e.dirZ > 0.4) fleeing = true;

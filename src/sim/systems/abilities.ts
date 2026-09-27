@@ -1,12 +1,12 @@
 import { NATION_IDS } from '../../config/nations';
-import { TOWER } from '../../config/map';
 import { DISGUISE_TIME, RADAR_TIME, STUN_TIME } from '../../config/constants';
 import { SPECIAL_CD } from '../../config/roles';
 import type { Entity } from '../entity';
 import type { GameState } from '../state';
 import { emit } from '../state';
 import { canAct } from './capture';
-import { dist, lineClear } from './collision';
+import { nearTowerBase } from './towerZone';
+import { hasLineOfSight } from './vision';
 import { tryStartRescue } from './rescue';
 
 export const SNIPE_RANGE = 280;
@@ -33,15 +33,15 @@ export function useSpecial(state: GameState, e: Entity): void {
     let best: Entity | null = null, bd = SNIPE_RANGE;
     for (const t of state.entities) {
       if (t.nation === e.nation || !t.alive || t.jailed) continue;
-      const vx = t.x - e.x, vz = t.z - e.z, d = Math.hypot(vx, vz) || 1, dot = (vx / d) * e.dirX + (vz / d) * e.dirZ;
-      if (d < bd && dot > 0.5 && lineClear(e.x, e.z, t.x, t.z)) { best = t; bd = d; }
+      const vx = t.x - e.x, vz = t.z - e.z, d = Math.hypot(vx, vz, t.y - e.y) || 1, dot = (vx / d) * e.dirX + (vz / d) * e.dirZ;
+      if (d < bd && dot > 0.5 && hasLineOfSight(e, t)) { best = t; bd = d; }
     }
     if (best) {
       best.stunUntil = now + STUN_TIME;
       emit(state, { type: 'ABILITY', entityId: e.id, result: 'sniper_stun', targetId: best.id });
     } else emit(state, { type: 'ABILITY', entityId: e.id, result: 'sniper_miss' });
   } else if (e.role === 'communicator') {
-    if (dist(e, TOWER) > TOWER.r + 16) {
+    if (!nearTowerBase(e, 16)) {
       emit(state, { type: 'ABILITY', entityId: e.id, result: 'radar_outside_tower' });
       return;
     }

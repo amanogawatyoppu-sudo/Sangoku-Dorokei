@@ -1,29 +1,30 @@
 export interface InputHandlers {
   onCapture: () => void;
   onSpecial: () => void;
-  /** Turn the character in place toward the camera's forward direction (Q / 振向). */
+  /** Quick half-turn to check behind (Q / 振向). */
   onFace: () => void;
   /** Actions are ignored while this returns true (meeting open, game over). */
   isBlocked: () => boolean;
 }
 
+/** Character-relative intent: the camera always sits behind the character. */
 export interface MoveAxes {
-  /** +1 = away from the camera (W). */
+  /** +1 = walk forward (W / stick up), -1 = back away (S / stick down). */
   forward: number;
-  /** +1 = screen-right (D). */
-  right: number;
+  /** +1 = turn right (D / stick right), -1 = turn left (A / stick left). */
+  turn: number;
 }
 
 const JOY_MAX = 40;
 
-/** Camera-relative movement axes from held keys plus the virtual joystick. */
+/** Movement intent from held keys plus the virtual joystick. */
 export function axesFrom(keys: Readonly<Record<string, boolean>>, joy: { x: number; y: number }): MoveAxes {
-  let forward = 0 - joy.y, right = joy.x;
+  let forward = 0 - joy.y, turn = joy.x;
   if (keys['w'] || keys['arrowup']) forward += 1;
   if (keys['s'] || keys['arrowdown']) forward -= 1;
-  if (keys['d'] || keys['arrowright']) right += 1;
-  if (keys['a'] || keys['arrowleft']) right -= 1;
-  return { forward, right };
+  if (keys['d'] || keys['arrowright']) turn += 1;
+  if (keys['a'] || keys['arrowleft']) turn -= 1;
+  return { forward: Math.max(-1, Math.min(1, forward)), turn: Math.max(-1, Math.min(1, turn)) };
 }
 
 /** Joystick knob offset for a pointer at (dx, dy) from the base centre, clamped to the ring. */

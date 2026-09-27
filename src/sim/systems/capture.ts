@@ -1,4 +1,4 @@
-import { CAP_RANGE } from '../../config/constants';
+import { CAP_HEIGHT, CAP_RANGE } from '../../config/constants';
 import { CAPTURE_CD, KING_DODGE_CD } from '../../config/roles';
 import type { Entity } from '../entity';
 import type { GameState } from '../state';
@@ -27,6 +27,8 @@ export function captureCandidate(state: GameState, attacker: Entity): Entity | n
   let best: Entity | null = null, bd = CAP_RANGE;
   for (const t of state.entities) {
     if (t.nation === attacker.nation || !t.alive || t.jailed) continue;
+    // Same floor only: someone directly above or below cannot be grabbed.
+    if (Math.abs(t.y - attacker.y) > CAP_HEIGHT) continue;
     const d = dist(t, attacker);
     if (d < bd && captureTier(t, attacker) !== 'front') { best = t; bd = d; }
   }

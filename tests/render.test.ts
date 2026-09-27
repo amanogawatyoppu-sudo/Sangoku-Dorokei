@@ -28,24 +28,29 @@ describe('field of view on resize', () => {
 
 describe('camera wall occlusion (3D)', () => {
   it('detects a wall along a low ray', () => {
-    // Obstacle at x=0,z=220 (120x120, h=45): shoot a ray at y=20 from the south.
-    const ray = new THREE.Ray(new THREE.Vector3(0, 20, 400), new THREE.Vector3(0, 0, -1));
-    expect(firstWallHit(ray, 1000)).toBeCloseTo(400 - 280, 6);
+    // Stone wall at x=-230 (40 wide, 55 high) west of the tower: shoot east at y=20.
+    const ray = new THREE.Ray(new THREE.Vector3(-400, 20, -190), new THREE.Vector3(1, 0, 0));
+    expect(firstWallHit(ray, 1000)).toBeCloseTo(400 - 250, 6);
     expect(firstWallHit(ray, 100)).toBe(Infinity);
+  });
+
+  it('detects floors from below (second storey)', () => {
+    const ray = new THREE.Ray(new THREE.Vector3(-400, 20, -560), new THREE.Vector3(0, 1, 0));
+    expect(firstWallHit(ray, 200)).toBeCloseTo(58 - 20, 6);
   });
 
   it('does not pull the camera in when it is above a low wall (v6 did)', () => {
     const ctl = new CameraController();
     const cam = new THREE.PerspectiveCamera();
-    // Player just south of the 45-high block at z=160..280; camera looks north, so it sits over the block.
-    ctl.yaw = 0;
-    const px = 0, pz = 300;
-    ctl.update(cam, px, pz);
-    const boom = cam.position.distanceTo(new THREE.Vector3(px, 60, pz));
-    const idealY = 110 + Math.sin(ctl.pitch) * ctl.distance * 0.8;
-    const ideal = Math.hypot(Math.cos(ctl.pitch) * ctl.distance, idealY - 60);
-    expect(cam.position.z).toBeLessThan(280); // really is over the block
-    expect(boom).toBeCloseTo(ideal, 6);
+    // Player east of the 55-high wall at x=-230; facing east, so the camera sits back over the wall.
+    ctl.snap(Math.PI / 2);
+    ctl.update(cam, -120, 0, -190);
+    const open = new CameraController();
+    const cam2 = new THREE.PerspectiveCamera();
+    open.snap(Math.PI / 2);
+    open.update(cam2, -700, 0, 420); // open field for reference
+    expect(cam.position.x).toBeLessThan(-230); // really is over / behind the wall
+    expect(cam.position.distanceTo(new THREE.Vector3(-120, 55, -190))).toBeCloseTo(cam2.position.distanceTo(new THREE.Vector3(-700, 55, 420)), 3);
   });
 
   it('zoom stays within limits', () => {

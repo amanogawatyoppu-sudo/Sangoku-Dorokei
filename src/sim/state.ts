@@ -6,6 +6,8 @@ import { FIRST_EVENT_AT, GAME_TIME } from '../config/constants';
 import type { Rng } from '../core/rng';
 import { createRng } from '../core/rng';
 import type { MeetingState } from '../meeting/meetingSystem';
+import type { Faction } from '../ai/faction';
+import { createFaction } from '../ai/faction';
 import type { Entity } from './entity';
 import { createEntity } from './entity';
 import type { GameEvent } from './events';
@@ -23,10 +25,12 @@ export interface TeamFocus extends Point {
   t: number;
 }
 
-/** Movement intent for the player, already converted to world space by the input layer. */
+/** Character-relative movement intent for the player. */
 export interface PlayerInput {
-  mx: number;
-  mz: number;
+  /** +1 = forward along the facing (W), -1 = back away (S). */
+  forward: number;
+  /** +1 = turn right (D), -1 = turn left (A). */
+  turn: number;
   dash: boolean;
 }
 
@@ -47,8 +51,12 @@ export interface GameState {
   radarAll: number;
   rescueUntil: PerNation<number>;
   terminalActive: PerNation<number>;
+  /** Until when each nation's jail area is exposed to everyone (after a king capture). */
+  jailReveal: PerNation<number>;
   teamFocus: PerNation<TeamFocus | null>;
   natStats: PerNation<NationStats>;
+  /** Each kingdom's independent commander (shared intel, beliefs, posture). */
+  factions: PerNation<Faction>;
   speedBoostUntil: number;
   nextEventAt: number;
   /** Seconds until the next dash footstep sound. */
@@ -88,8 +96,10 @@ export function createGameState(playerNation: NationId, playerRole: RoleId, rng:
     radarAll: 0,
     rescueUntil: perNation(() => 0),
     terminalActive: perNation(() => 0),
+    jailReveal: perNation(() => 0),
     teamFocus: perNation<TeamFocus | null>(() => null),
     natStats: perNation(() => ({ cap: 0, res: 0, tower: 0, hit: 0 })),
+    factions: perNation(createFaction),
     speedBoostUntil: 0,
     nextEventAt: FIRST_EVENT_AT,
     footTimer: 0,
@@ -97,7 +107,7 @@ export function createGameState(playerNation: NationId, playerRole: RoleId, rng:
     winner: null,
     over: false,
     meeting: null,
-    input: { mx: 0, mz: 0, dash: false },
+    input: { forward: 0, turn: 0, dash: false },
     commands: [],
     events: [],
   };

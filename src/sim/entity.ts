@@ -4,6 +4,9 @@ import type { KingPersona, Persona, RoleId } from '../config/roles';
 import { KING_PERSONAS, PERSONAS } from '../config/roles';
 import { MEETINGS_PER_GAME, STAMINA_MAX } from '../config/constants';
 import type { Rng } from '../core/rng';
+import type { AiMemory } from '../ai/memory';
+import { createAiMemory } from '../ai/memory';
+import { groundAt } from './systems/world';
 
 export interface Evidence {
   t: number;
@@ -27,9 +30,12 @@ export interface Entity {
   role: RoleId;
   isPlayer: boolean;
   x: number;
+  /** Height of the feet above the ground plane (stairs, floors, hills, bridges). */
+  y: number;
   z: number;
   /** Position at the start of the current step, for render interpolation. */
   prevX: number;
+  prevY: number;
   prevZ: number;
   dirX: number;
   dirZ: number;
@@ -69,6 +75,8 @@ export interface Entity {
   eliminatedAt: number | null;
   meetingsLeft: number;
   enemiesSeen: Set<number>;
+  /** AI perception, memory and plans (unused for the player). */
+  ai: AiMemory;
 }
 
 export function maxHp(role: RoleId): number {
@@ -82,9 +90,11 @@ export function createEntity(id: number, nation: NationId, role: RoleId, isPlaye
   const intercept = rng() < 0.5;
   const kingPersona = role === 'king' ? KING_PERSONAS[Math.floor(rng() * 4)] : null;
   const persona: Persona = role === 'impostor' ? 'trickster' : PERSONAS[Math.floor(rng() * 3)];
+  // Face the middle of the map (the camera sits behind the facing).
+  const fl = Math.hypot(x, z) || 1;
   return {
     id, nation, role, isPlayer,
-    x, z, prevX: x, prevZ: z, dirX: 0, dirZ: 1,
+    x, y: 0, z, prevX: x, prevY: 0, prevZ: z, dirX: -x / fl, dirZ: -z / fl,
     alive: true, jailed: false, jailedAt: 0, capturedBy: null,
     hp: maxHp(role), stunUntil: 0, fakeNation: null, fakeUntil: 0,
     stamina: STAMINA_MAX, dashing: false, cd: { capture: 0, special: 0, dodge: 0 },
@@ -96,11 +106,14 @@ export function createEntity(id: number, nation: NationId, role: RoleId, isPlaye
     capturesMade: 0, rescuesMade: 0, kingHits: 0, kingCaptures: 0, kingRescues: 0,
     towerTime: 0, dashDistance: 0, eliminatedAt: null,
     meetingsLeft: MEETINGS_PER_GAME, enemiesSeen: new Set(),
+    ai: createAiMemory(),
   };
 }
 
 /** Moves an entity without render interpolation (teleport). */
-export function teleport(e: Entity, x: number, z: number): void {
+export function teleport(e: Entity, x: number, z: number, y?: number): void {
   e.x = e.prevX = x;
   e.z = e.prevZ = z;
+  e.y = e.prevY = y ?? groundAt(x, z);
+  e.ai.path = null;
 }

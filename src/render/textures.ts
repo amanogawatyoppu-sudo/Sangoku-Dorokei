@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { NATION_IDS, NATIONS } from '../config/nations';
-import { BOUNDS, GROUND, ROADS, TOWER } from '../config/map';
+import { BOUNDS, GROUND, PLAZA, RIVER, ROADS, TOWER } from '../config/map';
 
 /** Small deterministic PRNG so the generated art is identical every load. */
 function prng(seed: number): () => number {
@@ -25,7 +25,7 @@ function hexCss(c: number, a = 1): string {
 }
 
 /** Ground extent (world units) covered by the painted ground texture. */
-export const GROUND_EXTENT = { w: GROUND.w + 1000, d: GROUND.d + 1000 };
+export const GROUND_EXTENT = GROUND;
 
 /**
  * Paints the battlefield: grass, forest floor outside the play area,
@@ -33,7 +33,7 @@ export const GROUND_EXTENT = { w: GROUND.w + 1000, d: GROUND.d + 1000 };
  * and stone plazas at the tower and bases.
  */
 export function groundTexture(): THREE.CanvasTexture {
-  const PX = 0.75; // pixels per world unit
+  const PX = 0.7; // pixels per world unit
   const W = Math.round(GROUND_EXTENT.w * PX), H = Math.round(GROUND_EXTENT.d * PX);
   const [c, g] = canvas(W, H);
   const rnd = prng(7);
@@ -54,7 +54,7 @@ export function groundTexture(): THREE.CanvasTexture {
   // Kingdom territories.
   for (const n of NATION_IDS) {
     const b = NATIONS[n].base;
-    const grd = g.createRadialGradient(X(b.x), Z(b.z), 0, X(b.x), Z(b.z), 420 * PX);
+    const grd = g.createRadialGradient(X(b.x), Z(b.z), 0, X(b.x), Z(b.z), 620 * PX);
     grd.addColorStop(0, hexCss(NATIONS[n].color, 0.22));
     grd.addColorStop(1, hexCss(NATIONS[n].color, 0));
     g.fillStyle = grd;
@@ -99,6 +99,18 @@ export function groundTexture(): THREE.CanvasTexture {
       g.stroke();
     }
   };
+  // Town paving and the river bed (the water plane sits above it).
+  g.fillStyle = '#857d6c';
+  g.fillRect(X(-640), Z(-790), 1280 * PX, 400 * PX);
+  g.strokeStyle = 'rgba(40,36,30,.25)';
+  g.lineWidth = 1;
+  for (let x = -640; x <= 640; x += 32) { g.beginPath(); g.moveTo(X(x), Z(-790)); g.lineTo(X(x), Z(-390)); g.stroke(); }
+  for (let z = -790; z <= -390; z += 32) { g.beginPath(); g.moveTo(X(-640), Z(z)); g.lineTo(X(640), Z(z)); g.stroke(); }
+  g.fillStyle = '#4a5a3a';
+  g.fillRect(X(RIVER.minX - 30), Z(RIVER.z - RIVER.d / 2 - 14), (RIVER.maxX - RIVER.minX + 60) * PX, (RIVER.d + 28) * PX);
+  g.fillStyle = '#2c4250';
+  g.fillRect(X(RIVER.minX), Z(RIVER.z - RIVER.d / 2), (RIVER.maxX - RIVER.minX) * PX, RIVER.d * PX);
+  plaza(PLAZA.x, PLAZA.z, PLAZA.r);
   plaza(TOWER.x, TOWER.z, 130);
   for (const n of NATION_IDS) plaza(NATIONS[n].base.x, NATIONS[n].base.z, 100);
   // Packed earth yards under each jail.

@@ -1,16 +1,17 @@
-import { aggroRange, aiTick } from '../ai/controller';
+import { aggroFor, aiTick } from '../ai/controller';
+import { factionTick } from '../ai/faction';
 import type { GameState } from './state';
-import { elapsedSec, timeLeftSec } from './state';
+import { timeLeftSec } from './state';
 import { activate, tickCooldowns } from './systems/abilities';
 import { attemptCapture } from './systems/capture';
-import { updatePlayerMovement } from './systems/movement';
+import { updateJailTimers } from './systems/jail';
+import { separate, settleAll, updatePlayerMovement } from './systems/movement';
 import { eventTick } from './systems/randomEvents';
 import { updateRescue } from './systems/rescue';
 import { updateSuspicion } from './systems/suspicion';
 import { towerTick } from './systems/tower';
 import { updateEnemiesSeen } from './systems/vision';
 import { forceEndByTime } from './systems/winCondition';
-import { updateJailTimers } from './systems/jail';
 
 function runPlayerCommands(state: GameState): void {
   const cmds = state.commands;
@@ -23,18 +24,21 @@ function runPlayerCommands(state: GameState): void {
 }
 
 /**
- * Advances the whole simulation by one fixed step. This is the v6 `loop()` body
- * minus rendering/UI, in the same system order.
+ * Advances the whole simulation by one fixed step: player, kingdom commanders,
+ * AI, then terrain settling and the v6 rule systems in their original order.
  */
 export function stepSimulation(state: GameState, dt: number): void {
   if (state.over) return;
-  for (const e of state.entities) { e.prevX = e.x; e.prevZ = e.z; }
+  for (const e of state.entities) { e.prevX = e.x; e.prevY = e.y; e.prevZ = e.z; }
   state.time += dt * 1000;
   if (timeLeftSec(state) <= 0) forceEndByTime(state);
   runPlayerCommands(state);
   updatePlayerMovement(state, dt);
-  const aggro = aggroRange(elapsedSec(state));
+  factionTick(state);
+  const aggro = aggroFor(state);
   for (const e of state.entities) if (!e.isPlayer) aiTick(state, e, dt, aggro);
+  separate(state);
+  settleAll(state, dt);
   for (const e of state.entities) { updateRescue(state, e, dt); updateSuspicion(state, e, dt); }
   tickCooldowns(state, dt);
   updateJailTimers(state);
@@ -42,4 +46,3 @@ export function stepSimulation(state: GameState, dt: number): void {
   towerTick(state, dt);
   eventTick(state);
 }
-

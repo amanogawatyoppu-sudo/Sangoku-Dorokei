@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>三国ドロケイ v7.2 3D</title>
+<title>三国ドロケイ v7.3 3D</title>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -36,7 +36,7 @@
         <div id="mbtns"><div id="mStamWrap"><div id="mStam"></div></div><button id="mFace">振向</button><button id="mSpec">特殊</button><button id="mDash">ダッシュ</button><button id="mCap">捕獲</button></div>
       </div>
       <div id="setup">
-        <h1>三国ドロケイ<span class="seal ver">v7.2</span></h1>
+        <h1>三国ドロケイ<span class="seal ver">v7.3</span></h1>
         <p class="tagline">太陽・月・星 ― 広大な戦場で、正体を隠した敵国の王を探し出せ。</p>
         <div class="step-label">所属国</div><div class="pickrow" id="pickNation"></div>
         <div class="step-label">役職</div><div class="pickrow" id="pickRole"></div>
@@ -45,7 +45,7 @@
           <button class="pickbtn" id="btnRandom">ランダム(国+役職をおまかせ)</button>
           <button class="go" id="btnStart">ゲーム開始</button>
         </div>
-        <p class="controls-note">移動:WASD　視点:ドラッグ/スワイプ(ホイールで距離)　ダッシュ:Shift　捕獲:Space　特殊:E　振り向き:Q</p>
+        <p class="controls-note">前進/後退:W・S　旋回:A・D　カメラの上下:ドラッグ/スワイプ（距離:ホイール）　ダッシュ:Shift　捕獲:Space　特殊:E　振り向き:Q<br>カメラは常にキャラクターの背後。背中は見えないので、気配と足音に注意。</p>
       </div>
       <div id="overlay">
         <h1 id="ovTitle">勝敗</h1><p id="ovDesc"></p>
@@ -61,7 +61,7 @@
       </div>
     </div>
     <div id="side">
-      <canvas id="mini" width="352" height="352"></canvas>
+      <canvas id="mini" width="352" height="220"></canvas>
       <div><span class="panel-label">スタミナ</span><div class="barwrap"><div class="bar" id="stamBar" style="width:100%"></div></div></div>
       <div><b>王候補（推理）</b><div id="suspects"><div style="opacity:.5">まだ手がかりなし</div></div></div>
       <div id="abilities">
@@ -69,7 +69,7 @@
         <button id="btnSpecial"><span class="fill" id="fillSpec"></span>特殊(E)</button>
         <div id="specialDesc" style="font-size:10px;opacity:.7;line-height:1.4"></div>
       </div>
-      <div id="hint">移動:WASD 視点:ドラッグ ダッシュ:Shift<br>振り向き(カメラの向きへ):Q<br>会議は自国拠点付近で開ける(1試合2回)<br>ダッシュ中は足音が大きく見つかりやすい</div>
+      <div id="hint">前進/後退:W・S　旋回:A・D<br>振り向き(180°):Q　ダッシュ:Shift<br>階段・坂で2階や高台へ上れる<br>会議は自国拠点付近で開ける(1試合2回)<br>ダッシュ中は足音が大きく見つかりやすい</div>
     </div>
   </div>
 </div>

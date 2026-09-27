@@ -41,7 +41,7 @@ canvas#game3d{width:100%;height:100%;display:block;touch-action:none}
 #vignette.on{box-shadow:inset 0 0 140px 40px rgba(200,40,30,.55)}
 #side{width:196px;background:var(--panel);border-left:1px solid var(--line);padding:10px;flex-shrink:0;display:flex;flex-direction:column;gap:10px;overflow-y:auto;z-index:5;font-size:12px}
 #side > div > b,.panel-label{display:block;font-size:10.5px;letter-spacing:2px;color:var(--accent);font-weight:700;margin-bottom:4px}
-canvas#mini{width:176px;height:176px;background:#1c2417;border:1px solid var(--line);border-radius:4px;align-self:center}
+canvas#mini{width:176px;height:110px;background:#1c2417;border:1px solid var(--line);border-radius:4px;align-self:center}
 .barwrap{width:100%;height:8px;background:#2a2822;border-radius:4px;overflow:hidden;margin:4px 0 2px;border:1px solid var(--line-soft)}
 .bar{height:100%;background:linear-gradient(90deg,#4fae66,#8fe0a0);transition:background .15s}
 .bar.dashing{background:linear-gradient(90deg,#d9822b,#ffc36a)}
