@@ -1,0 +1,35 @@
+export type NationId = 'sun' | 'moon' | 'star';
+
+export interface Point {
+  x: number;
+  z: number;
+}
+
+export interface JailArea extends Point {
+  w: number;
+  d: number;
+}
+
+export interface Nation {
+  name: string;
+  color: number;
+  base: Point;
+  jail: JailArea;
+}
+
+/** Iteration order matches v6 (`for (n in NATIONS)`). */
+export const NATION_IDS: readonly NationId[] = ['sun', 'moon', 'star'];
+
+export const NATIONS: Record<NationId, Nation> = {
+  sun: { name: '太陽', color: 0xff9048, base: { x: -720, z: 420 }, jail: { x: -760, z: 520, w: 220, d: 70 } },
+  moon: { name: '月', color: 0x57a8ff, base: { x: 720, z: 420 }, jail: { x: 760, z: 520, w: 220, d: 70 } },
+  star: { name: '星', color: 0xf5e05a, base: { x: 0, z: -460 }, jail: { x: 0, z: -540, w: 220, d: 70 } },
+};
+
+export function nationName(n: NationId): string {
+  return NATIONS[n].name;
+}
+
+export function nationCss(n: NationId): string {
+  return '#' + NATIONS[n].color.toString(16).padStart(6, '0');
+}

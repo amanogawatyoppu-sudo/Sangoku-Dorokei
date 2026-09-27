@@ -4,9 +4,67 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>三国ドロケイ v7.0 3D</title>
+<link rel="icon" href="data:,">
 </head>
 <body>
-<div id="app"></div>
+<div id="app">
+  <div id="topbar">
+    <div>所属:<b id="tbNation">-</b>/役職:<b id="tbRole">-</b></div>
+    <div>自国王:<b id="tbKing">-</b>／牢屋:<b id="tbJailed">0</b>人</div>
+    <div>管制塔:<b id="tbTower">未占領</b></div>
+    <div>残り時間:<b id="tbTime">--:--</b></div>
+    <button id="btnMeeting">緊急会議(残<span id="mtLeft">2</span>)</button>
+  </div>
+  <div id="hintBox">状況: <span id="hintText">-</span></div>
+  <div id="main">
+    <div id="log"></div>
+    <div id="centerCol">
+      <canvas id="game3d"></canvas>
+      <div id="vignette"></div>
+      <div id="banner"></div>
+      <div id="progText"></div>
+      <div id="mctrl">
+        <div id="joyBase"><div id="joyStick"></div></div>
+        <div id="mbtns"><button id="mCap">捕獲</button><button id="mSpec">特殊</button><button id="mDash">ダッシュ</button></div>
+      </div>
+      <div id="setup">
+        <h1>三国ドロケイ v7.0 (3D)</h1>
+        <p style="opacity:.8;font-size:12px">太陽・月・星 ― 広大な戦場で敵国の王を探し出せ。</p>
+        <div>所属国を選択</div><div class="pickrow" id="pickNation"></div>
+        <div>役職を選択</div><div class="pickrow" id="pickRole"></div>
+        <div id="roleDesc">役職を選ぶと詳細が表示されます。</div>
+        <div class="pickrow">
+          <button class="pickbtn" id="btnRandom">ランダム(国+役職をおまかせ)</button>
+          <button class="go" id="btnStart">ゲーム開始</button>
+        </div>
+        <p style="font-size:10px;opacity:.6">移動:WASD　視点:ドラッグ/スワイプ　ダッシュ:Shift　捕獲:Space　特殊:E</p>
+      </div>
+      <div id="overlay">
+        <h1 id="ovTitle">勝敗</h1><p id="ovDesc"></p>
+        <p id="ovStats" style="font-size:11.5px;opacity:.9;white-space:pre-line"></p>
+        <button id="btnRetry">もう一度プレイ</button>
+      </div>
+      <div id="meetingOverlay">
+        <h1>緊急会議</h1>
+        <div id="meetingLog"></div>
+        <div id="meetingChoices"></div>
+        <div id="meetingVote"></div>
+        <button class="go" id="btnMeetingClose" style="display:none">会議を終える</button>
+      </div>
+    </div>
+    <div id="side">
+      <canvas id="mini" width="150" height="150"></canvas>
+      <div>スタミナ<div class="barwrap"><div class="bar" id="stamBar" style="width:100%"></div></div></div>
+      <div><b style="font-size:11px;opacity:.8">王候補(推理)</b><div id="suspects"><div style="opacity:.5">まだ手がかりなし</div></div></div>
+      <div id="abilities">
+        <button id="btnCapture"><span class="fill" id="fillCap"></span>捕獲(Space)</button>
+        <button id="btnSpecial"><span class="fill" id="fillSpec"></span>特殊(E)</button>
+        <div id="specialDesc" style="font-size:10px;opacity:.7;line-height:1.4"></div>
+      </div>
+      <div id="hint">移動:WASD 視点:ドラッグ ダッシュ:Shift<br>会議は自国拠点付近で開ける(1試合2回)<br>ダッシュ中は足音が大きく見つかりやすい</div>
+    </div>
+  </div>
+</div>
 <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

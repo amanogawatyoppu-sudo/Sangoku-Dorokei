@@ -1,0 +1,43 @@
+/* v6 styles, ported unchanged. */
+  :root{--bg:#0e1420;--panel:#161f2e;--line:#2a3648;--text:#e8edf5;--accent:#6cf}
+  *{box-sizing:border-box}
+  body{margin:0;background:#000;color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;overflow:hidden;user-select:none}
+  #app{display:flex;flex-direction:column;height:100vh}
+  #topbar{display:flex;justify-content:space-between;align-items:center;background:var(--panel);padding:6px 12px;border-bottom:1px solid var(--line);font-size:12px;flex-wrap:wrap;gap:6px;z-index:5}
+  #topbar b{color:var(--accent)}
+  #topbar button{background:#c0473f;color:#fff;border:none;border-radius:5px;padding:5px 10px;font-size:11px;cursor:pointer}
+  #topbar button:disabled{opacity:.4}
+  #hintBox{background:#1c2536;padding:4px 12px;font-size:12px;text-align:center;border-bottom:1px solid var(--line);z-index:5}
+  #main{display:flex;flex:1;overflow:hidden;position:relative}
+  #log{width:170px;background:var(--panel);border-right:1px solid var(--line);padding:8px;font-size:10.5px;overflow-y:auto;flex-shrink:0;z-index:5}
+  #log div{margin-bottom:4px;opacity:.9;line-height:1.3}
+  #centerCol{flex:1;position:relative;background:#000}
+  canvas#game3d{width:100%;height:100%;display:block}
+  #vignette{position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 0 0 rgba(255,0,0,0);transition:box-shadow .15s}
+  #vignette.on{box-shadow:inset 0 0 140px 40px rgba(255,40,40,.55)}
+  #side{width:190px;background:var(--panel);border-left:1px solid var(--line);padding:8px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;overflow-y:auto;z-index:5}
+  canvas#mini{background:#0a0f18;border:1px solid var(--line);border-radius:4px}
+  .barwrap{width:100%;height:8px;background:#26314a;border-radius:4px;overflow:hidden;margin:2px 0 6px}
+  .bar{height:100%;background:#5ad06a}
+  #suspects div{font-size:10.5px;margin-bottom:5px;opacity:.9;line-height:1.4}
+  #abilities button{width:100%;padding:8px;margin-bottom:4px;background:#22314a;color:var(--text);border:1px solid var(--line);border-radius:6px;cursor:pointer;font-size:12px;position:relative;overflow:hidden}
+  #abilities button .fill{position:absolute;left:0;top:0;bottom:0;background:rgba(108,204,255,.25);width:0%}
+  #hint{font-size:10px;opacity:.65;line-height:1.5}
+  #overlay,#setup,#meetingOverlay{position:absolute;inset:0;background:rgba(5,8,14,.96);display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;z-index:10;padding:16px;text-align:center;overflow-y:auto}
+  #overlay h1{font-size:24px}
+  #overlay button,#setup button.go{padding:10px 22px;font-size:14px;background:var(--accent);color:#03202c;border:none;border-radius:6px;cursor:pointer;font-weight:bold}
+  #setup{display:flex}
+  .pickrow{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+  .pickbtn{padding:8px 14px;border-radius:6px;border:2px solid var(--line);background:#1c2536;color:var(--text);cursor:pointer;font-size:13px}
+  .pickbtn.sel{border-color:var(--accent);background:#233248}
+  #roleDesc{max-width:460px;font-size:11.5px;opacity:.9;min-height:70px;text-align:left;line-height:1.6}
+  #banner{position:absolute;top:12%;left:50%;transform:translate(-50%,0);font-size:26px;font-weight:bold;letter-spacing:2px;text-shadow:0 0 12px #000;opacity:0;pointer-events:none;transition:opacity .35s;text-align:center;z-index:6}
+  #progText{position:absolute;top:22%;left:50%;transform:translate(-50%,0);font-size:15px;color:#6cf;text-shadow:0 0 8px #000;opacity:0;z-index:6}
+  #mctrl{position:absolute;bottom:10px;left:0;right:0;display:flex;justify-content:space-between;padding:0 14px;pointer-events:none;z-index:6}
+  #joyBase{width:96px;height:96px;border-radius:50%;background:rgba(255,255,255,.08);position:relative;pointer-events:auto;touch-action:none}
+  #joyStick{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.35);position:absolute;left:26px;top:26px}
+  #mbtns{display:flex;gap:8px;align-items:flex-end;pointer-events:auto}
+  #mbtns button{width:56px;height:56px;border-radius:50%;background:rgba(108,204,255,.3);border:2px solid var(--accent);color:#fff;font-size:12px}
+  #meetingLog{max-width:520px;max-height:180px;overflow-y:auto;font-size:12px;text-align:left;line-height:1.6;background:#0e1620;padding:8px;border-radius:6px}
+  #meetingChoices,#meetingVote{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:520px}
+  #meetingChoices button,#meetingVote button{padding:6px 10px;font-size:11.5px;background:#1c2536;border:1px solid var(--line);color:var(--text);border-radius:5px;cursor:pointer}

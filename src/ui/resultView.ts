@@ -1,0 +1,38 @@
+import { NATIONS } from '../config/nations';
+import type { Entity } from '../sim/entity';
+import type { GameState } from '../sim/state';
+import { elapsedSec } from '../sim/state';
+import { MEETINGS_PER_GAME } from '../config/constants';
+import { $ } from './dom';
+
+function roleComment(p: Entity): string {
+  if (p.role === 'king') return p.alive ? '最後まで正体を隠し切った策士' : '見破られてしまったようだ';
+  if (p.role === 'soldier') return p.capturesMade >= 3 ? '前線突破型の武闘派' : '手堅く連携するサポート型';
+  if (p.role === 'sniper') return p.capturesMade >= 2 ? '狙撃の名手' : '支援に徹した堅実プレイ';
+  if (p.role === 'communicator') return p.towerTime >= 25 ? '情報戦を制した要' : '塔の確保に苦労した様子';
+  if (p.role === 'keyholder') return p.rescuesMade >= 2 ? '救出のスペシャリスト' : '慎重な立ち回りだった';
+  return '潜入と攪乱で戦況をかき乱した詐欺師';
+}
+
+export function initResultView(): void {
+  $('btnRetry').onclick = () => location.reload();
+}
+
+export function showResult(state: GameState): void {
+  const p = state.player, winner = state.winner;
+  $('overlay').style.display = 'flex';
+  if (winner === 'draw' || !winner) {
+    $('ovTitle').textContent = '引き分け';
+    $('ovDesc').textContent = '全ての王が処刑された。';
+  } else {
+    $('ovTitle').textContent = NATIONS[winner].name + '国の勝利！';
+    $('ovDesc').textContent = winner === p.nation ? 'あなたの国が勝利しました！' : 'あなたの国は敗北しました。';
+  }
+  const survive = p.eliminatedAt != null ? p.eliminatedAt : elapsedSec(state);
+  $('ovStats').textContent =
+    '捕獲数:' + p.capturesMade + '　救出数:' + p.rescuesMade + '　王への攻撃:' + p.kingHits +
+    '\n王の捕獲貢献:' + p.kingCaptures + '　王の救出貢献:' + p.kingRescues +
+    '\n管制塔滞在:' + Math.round(p.towerTime) + '秒　敵発見数:' + p.enemiesSeen.size +
+    '\nダッシュ距離:' + Math.round(p.dashDistance) + '　生存時間:' + Math.round(survive) + '秒　会議参加:' + (MEETINGS_PER_GAME - p.meetingsLeft) + '回' +
+    '\n評価: ' + roleComment(p);
+}
