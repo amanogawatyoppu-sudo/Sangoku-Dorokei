@@ -1,18 +1,18 @@
-import { NATIONS, nationCss } from '../config/nations';
+import { NATIONS, NATION_IDS, nationCss } from '../config/nations';
 import { roleName } from '../config/roles';
 import { nameOf } from '../config/names';
-import { CAP_RANGE } from '../config/constants';
+import { CAP_RANGE, GAME_TIME } from '../config/constants';
 import { CAPTURE_CD } from '../config/roles';
 import { beep } from '../audio/sfx';
 import { jailedAlly } from '../ai/controller';
-import { compass } from '../meeting/meetingSystem';
 import type { GameState } from '../sim/state';
 import { kingOf, timeLeftSec } from '../sim/state';
 import type { CaptureTier } from '../sim/systems/capture';
 import { captureCandidate, captureTier, superHand } from '../sim/systems/capture';
 import { jailDuration } from '../sim/systems/jail';
 import { dist } from '../sim/systems/collision';
-import { suspStars } from '../sim/systems/suspicion';
+import { canRescue, rescueTargetNear } from '../sim/systems/rescue';
+import { canLightKings } from '../sim/systems/tower';
 import { sniperTarget } from '../sim/systems/abilities';
 import { visibleTo } from '../sim/systems/vision';
 import { SECTORS, held, sectorOf } from '../sim/war';
@@ -22,7 +22,7 @@ import { $ } from './dom';
 /** v6 UI cooldown scale for the special button fill (keyholder uses 1 in v6). */
 const SPECIAL_FILL_SCALE = { king: 15, soldier: 18, sniper: 8, keyholder: 1, communicator: 10, ranger: 16 } as const;
 const SPECIAL_DESC = {
-  king: '回避を強化（捕獲はスーパーハンド：正面からでも確実）',
+  king: '回避を強化（捕獲はスーパーハンド：正面からでも確実）。牢屋の仲間のそばでZ＝救出',
   soldier: '耐久を全回復',
   sniper: '照準（前方±30°・射程20m・高所から+25%）の敵を狙撃→3秒スタン。赤い線が出たら命中',
   keyholder: '牢屋の味方の近くでZ(王は詠唱長め・進捗表示あり)',
@@ -45,7 +45,8 @@ export class Hud {
     tbNation: $('tbNation'), tbRole: $('tbRole'), tbKing: $('tbKing'), tbJailed: $('tbJailed'),
     tbTower: $('tbTower'), tbTime: $('tbTime'), tbMeet: $('tbMeet'), btnMeeting: $('btnMeeting') as HTMLButtonElement, mtLeft: $('mtLeft'),
     fillCap: $('fillCap'), fillSpec: $('fillSpec'), btnSpecial: $('btnSpecial') as HTMLButtonElement, specialDesc: $('specialDesc'),
-    stamBar: $('stamBar'), hintText: $('hintText'), suspects: $('suspects'), vignette: $('vignette'),
+    stamBar: $('stamBar'), hintText: $('hintText'), roster: $('roster'), casualties: $('casualties'), vignette: $('vignette'),
+    rescueBadge: $('rescueBadge'), toasts: $('toasts'), btnBeacon: $('btnBeacon') as HTMLButtonElement,
     banner: $('banner'), progText: $('progText'),
     btnCapture: $('btnCapture'), mCap: $('mCap'), mSpec: $('mSpec') as HTMLButtonElement, mFace: $('mFace') as HTMLButtonElement,
     mDash: $('mDash'), mStam: $('mStam'), statusBadge: $('statusBadge'),
@@ -163,7 +164,9 @@ export class Hud {
     el.stamBar.style.width = p.stamina + '%';
     this.updateControlFeedback(state);
     el.hintText.textContent = this.computeHint(state);
-    this.updateSuspects(state);
+    this.updateRoster(state);
+    this.updateRescue(state);
+    this.updateBeacon(state);
     if (p.channeling) {
       el.progText.style.opacity = '1';
       el.progText.textContent = '救出詠唱 [' + Math.round((p.channeling.prog / p.channeling.need) * 100) + '%]';
@@ -213,27 +216,87 @@ export class Hud {
     }
   }
 
-  private updateSuspects(state: GameState): void {
-    const p = state.player;
-    const susp = state.entities
-      .filter((e) => e.nation !== p.nation && e.alive && !e.jailed && visibleTo(state, e, p) && e.susp > 15)
-      .sort((a, b) => b.susp - a.susp)
-      .slice(0, 3);
-    const box = this.el.suspects;
-    if (!susp.length) {
-      box.innerHTML = '<div style="opacity:.5">まだ手がかりなし</div>';
-      return;
+  private rosterKey = '';
+
+  /** How many of each nation are free, in a jail, executed (dots: filled = free). */
+  private updateRoster(state: GameState): void {
+    const rows = NATION_IDS.map((n) => {
+      const all = state.entities.filter((e) => e.nation === n);
+      const free = all.filter((e) => e.alive && !e.jailed).length, jailed = all.filter((e) => e.alive && e.jailed).length;
+      return { n, free, jailed, dead: all.length - free - jailed };
+    });
+    const key = rows.map((r) => `${r.free}.${r.jailed}.${r.dead}`).join('|');
+    if (key === this.rosterKey) return;
+    this.rosterKey = key;
+    this.el.roster.replaceChildren(...rows.map((r) => {
+      const d = document.createElement('div');
+      d.className = 'rs-row' + (r.n === state.player.nation ? ' mine' : '') + (r.free === 0 ? ' out' : '');
+      d.style.setProperty('--nc', nationCss(r.n));
+      const name = document.createElement('span');
+      name.className = 'rs-name';
+      name.textContent = NATIONS[r.n].emblem + NATIONS[r.n].name;
+      const dots = document.createElement('span');
+      dots.className = 'rs-dots';
+      dots.innerHTML = '<i class="f"></i>'.repeat(r.free) + '<i class="j"></i>'.repeat(r.jailed) + '<i class="d"></i>'.repeat(r.dead);
+      const num = document.createElement('span');
+      num.className = 'rs-num';
+      num.textContent = `${r.free}人` + (r.jailed ? `・牢${r.jailed}` : '') + (r.dead ? `・処刑${r.dead}` : '');
+      d.append(name, dots, num);
+      return d;
+    }));
+  }
+
+  /** A line in the side panel's capture / rescue / execution list (newest first, 8 kept). */
+  addCasualty(text: string, kind: 'cap' | 'exec' | 'rescue', mine: boolean): void {
+    const box = this.el.casualties;
+    box.querySelector('.cz-none')?.remove();
+    const d = document.createElement('div');
+    d.className = `cz ${kind}` + (mine ? ' mine' : '');
+    d.textContent = text.replace(/^【[^】]*】/, '');
+    box.prepend(d);
+    while (box.children.length > 8) box.lastElementChild!.remove();
+  }
+
+  /** A short notice on the play screen for news about your own nation (fades after a few seconds). */
+  toast(text: string, kind: 'cap' | 'exec' | 'rescue'): void {
+    const d = document.createElement('div');
+    d.className = `toast ${kind}`;
+    d.textContent = (kind === 'cap' ? '⛓ ' : kind === 'exec' ? '✖ ' : '🔑 ') + text;
+    this.el.toasts.prepend(d);
+    while (this.el.toasts.children.length > 3) this.el.toasts.lastElementChild!.remove();
+    setTimeout(() => d.classList.add('out'), 4200);
+    setTimeout(() => d.remove(), 4800);
+  }
+
+  /** Always on screen when you can open jails (king, last one standing, keyholder); lights up next to a jailed ally. */
+  private updateRescue(state: GameState): void {
+    const p = state.player, b = this.el.rescueBadge;
+    const can = p.alive && !p.jailed && canRescue(state, p);
+    if (!can) { b.hidden = true; return; }
+    const target = rescueTargetNear(state, p);
+    const why = p.role === 'keyholder' ? '鍵使い' : p.role === 'king' ? '王の特権' : '最後の一人';
+    b.hidden = false;
+    b.className = target ? 'ready' : '';
+    b.textContent = target ? `🔑 Zで${nameOf(target.id)}を救出！` : `🔑 救出能力あり（${why}）— 牢屋の仲間のそばでZ`;
+    if (p.role !== 'keyholder') {
+      const label = target ? '救出' : '特殊';
+      if (this.el.mSpec.textContent !== label) this.el.mSpec.textContent = label;
     }
-    box.replaceChildren(
-      ...susp.map((e) => {
-        const s = suspStars(e.susp);
-        const stars = '★'.repeat(s) + '☆'.repeat(5 - s);
-        const ev = e.evidence[0] ? '「' + e.evidence[0].text + '」' : '根拠はまだ薄い';
-        const d = document.createElement('div');
-        d.append(NATIONS[e.nation].name + '・' + compass(e.x - p.x, e.z - p.z) + ' ' + stars, document.createElement('br'), ev);
-        return d;
-      }),
-    );
+  }
+
+  /** The tower's "light the kings" button: shown to the holder; usable in the last third. */
+  private updateBeacon(state: GameState): void {
+    const p = state.player, btn = this.el.btnBeacon;
+    const holder = state.tower.owner === p.nation && !state.over && state.entities.some((e) => e.nation === p.nation && e.alive && !e.jailed);
+    btn.hidden = !holder;
+    if (!holder) return;
+    const lit = state.kingBeacon[p.nation] > state.time;
+    const until = timeLeftSec(state) - GAME_TIME / 3;
+    btn.disabled = !canLightKings(state, p.nation);
+    btn.classList.toggle('lit', lit);
+    btn.textContent = lit ? `照射中 ${Math.ceil((state.kingBeacon[p.nation] - state.time) / 1000)}s`
+      : until > 0 ? `王を照らす（あと${Math.floor(until / 60)}:${String(Math.floor(until % 60)).padStart(2, '0')}）`
+        : state.time < state.beaconReadyAt[p.nation] ? `王を照らす（${Math.ceil((state.beaconReadyAt[p.nation] - state.time) / 1000)}s）` : '王を照らす(B)';
   }
 
   private computeHint(state: GameState): string {

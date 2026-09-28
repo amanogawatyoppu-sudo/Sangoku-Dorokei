@@ -12,7 +12,7 @@ import { separate, settleAll, updatePlayerMovement } from './systems/movement';
 import { eventTick } from './systems/randomEvents';
 import { updateRescue } from './systems/rescue';
 import { updateSuspicion } from './systems/suspicion';
-import { towerTick } from './systems/tower';
+import { lightKings, towerTick } from './systems/tower';
 import { updateEnemiesSeen } from './systems/vision';
 import { forceEndByTime } from './systems/winCondition';
 import { scheduledMeetingTick } from '../meeting/meetingSystem';
@@ -33,6 +33,7 @@ function runPlayerCommands(state: GameState): void {
       emit(state, { type: 'SQUAD_ORDER', leaderId: p.id, order: c.order });
     } else if (c.type === 'capture') attemptCapture(state, p);
     else if (c.type === 'special') activate(state, p);
+    else if (c.type === 'beacon') lightKings(state, p.nation);
     else if (p.isPlayer) state.playerFaceTarget = { x: c.x, z: c.z };
   }
 }

@@ -1,12 +1,12 @@
 import { NATIONS } from '../config/nations';
 import { roleName } from '../config/roles';
+import { nameOf } from '../config/names';
 import type { EventBus } from '../core/events';
 import type { GameEvent } from '../sim/events';
 import type { GameState } from '../sim/state';
 import { entityById } from '../sim/state';
 import type { NationId } from '../config/nations';
 import { CENTRAL, SECTORS } from '../sim/war';
-import { visibleTo } from '../sim/systems/vision';
 import type { Hud } from './hud';
 import type { LogPanel } from './log';
 
@@ -18,9 +18,21 @@ export function bindMessages(bus: EventBus<GameEvent>, state: GameState, log: Lo
   bus.on('CAPTURE_FAILED', (ev) => log.add(ev.reason === 'side' ? '側面からの捕獲は不安定だった…' : 'わずかに逃れられた！'));
   bus.on('KING_DODGED', (ev) => log.add(N(ev.nation) + 'の王が回避した！'));
   bus.on('SOLDIER_ENDURED', (ev) => log.add(N(ev.nation) + 'の兵士が耐えた(残り' + ev.hp + ')'));
+  /** "月：自由4・牢2・処刑1" for a nation. */
+  const tally = (n: NationId) => {
+    const all = state.entities.filter((o) => o.nation === n);
+    const free = all.filter((o) => o.alive && !o.jailed).length, jailed = all.filter((o) => o.alive && o.jailed).length;
+    return `${N(n)}：動けるのは${free}人（牢${jailed}・処刑${all.length - free - jailed}）`;
+  };
+  const who = (id: number) => { const e = ent(id); return `${nameOf(e.id)}（${roleName(e.role)}）`; };
+  const mineN = (n: NationId) => n === state.player.nation;
   bus.on('JAILED', (ev) => {
     const e = ent(ev.entityId);
-    log.add(N(ev.capNation) + 'が' + N(e.nation) + 'の' + roleName(e.role) + 'を捕獲！');
+    const text = `【捕縛】${N(e.nation)}の${who(e.id)}が${N(ev.capNation)}国に捕まった！ ${tally(e.nation)}`;
+    log.add(text);
+    hud.addCasualty(text, 'cap', mineN(e.nation));
+    if (e.isPlayer) hud.banner(`${N(ev.capNation)}国に捕まった！ 牢屋で救出を待て`, 2200);
+    else if (mineN(e.nation) && e.role !== 'king') hud.toast(`${nameOf(e.id)}（${roleName(e.role)}）が${N(ev.capNation)}国に捕まった！`, 'cap');
   });
   bus.on('NATION_FALLEN', (ev) => {
     log.add(`${N(ev.nation)}国の王が処刑され、${N(ev.nation)}国は敗北。国の全員が処刑された。`);
@@ -29,14 +41,42 @@ export function bindMessages(bus: EventBus<GameEvent>, state: GameState, log: Lo
   bus.on('KING_CAPTURED', (ev) => hud.banner(N(ev.nation) + '国王、捕縛！', 2600));
   bus.on('ELIMINATED', (ev) => {
     const e = ent(ev.entityId);
-    log.add(N(e.nation) + 'の' + roleName(e.role) + 'は処刑された…');
+    const text = `【処刑】${N(e.nation)}の${who(e.id)}が処刑された… ${tally(e.nation)}`;
+    log.add(text);
+    hud.addCasualty(text, 'exec', mineN(e.nation));
+    if (mineN(e.nation) && !e.isPlayer) hud.toast(`${nameOf(e.id)}（${roleName(e.role)}）が処刑された…`, 'exec');
   });
-  bus.on('RESCUE_NO_TARGET', () => log.add('鍵使い：近くに救出対象がいません。'));
+  bus.on('RESCUE_NO_TARGET', (ev) => { if (ent(ev.rescuerId).isPlayer) log.add('救出：近くの牢屋に仲間がいません（牢屋の仲間のすぐそばでZ）。'); });
+  bus.on('LAST_STAND', (ev) => {
+    const e = ent(ev.entityId);
+    const text = `【救出】${N(e.nation)}で動けるのは${who(e.id)}だけになった。${e.role === 'keyholder' || e.role === 'king' ? '' : '救出能力を得た！'}`;
+    log.add(text);
+    hud.addCasualty(text, 'rescue', mineN(e.nation));
+    if (e.isPlayer) hud.banner('最後の一人！ 救出能力を得た — 牢屋の仲間のそばでZ', 3200);
+    else if (mineN(e.nation)) hud.toast(`${nameOf(e.id)}が最後の一人。救出能力を得た`, 'rescue');
+  });
   bus.on('RESCUE_STARTED', (ev) => { if (ent(ev.targetId).role === 'king') hud.banner('王救出作戦開始', 1500); });
   bus.on('RESCUE_FAILED', () => hud.banner('救出失敗！', 1400));
   bus.on('RESCUED', (ev) => {
     const t = ent(ev.targetId);
-    log.add(N(t.nation) + 'の' + roleName(t.role) + 'が救出された！');
+    const text = `【救出】${N(t.nation)}の${who(ev.rescuerId)}が${who(t.id)}を救出！ ${tally(t.nation)}`;
+    log.add(text);
+    hud.addCasualty(text, 'rescue', mineN(t.nation));
+    if (mineN(t.nation) && !t.isPlayer) hud.toast(`${nameOf(ev.rescuerId)}が${nameOf(t.id)}を救出！`, 'rescue');
+    if (t.isPlayer) hud.banner(`${nameOf(ev.rescuerId)}に救出された！`, 2000);
+  });
+  bus.on('BEACON_PHASE', () => {
+    log.add('【管制塔】残り時間が3分の1を切った。管制塔を持つ国は敵国の王の位置を照らせる（B / 上部の「王を照らす」）');
+    hud.banner(state.tower.owner === state.player.nation ? '管制塔：王を照らせるようになった！（B）' : '終盤戦 — 管制塔を取れば敵の王を照らせる', 2600);
+  });
+  bus.on('KING_BEACON', (ev) => {
+    if (mineN(ev.nation)) {
+      hud.banner(`管制塔：敵国の王を照らした（${Math.round(ev.untilMs / 1000)}秒）`, 2400);
+      log.add(`【管制塔】敵国の王の位置が${Math.round(ev.untilMs / 1000)}秒間、光の柱で見える！`);
+    } else {
+      log.add(`【管制塔】${N(ev.nation)}国が管制塔から王の位置を照らした！ ${N(state.player.nation)}国王の居場所がばれている`);
+      if (state.entities.some((k) => k.role === 'king' && k.nation === state.player.nation && k.alive && !k.jailed)) hud.toast(`${N(ev.nation)}国に自国の王の位置を照らされた！`, 'cap');
+    }
   });
   bus.on('KING_RESCUED', (ev) => hud.banner(N(ev.nation) + '国王、救出成功！', 2400));
   bus.on('ABILITY', (ev) => {
@@ -64,12 +104,6 @@ export function bindMessages(bus: EventBus<GameEvent>, state: GameState, log: Lo
     if (ev.kind === 'speed') log.add('【イベント】全員の移動速度が上昇！');
     else if (ev.kind === 'jailbreak') log.add('【イベント】牢屋が緊急開放された！(' + ev.count + '人)');
     else log.add('【イベント】敵位置情報が流出！全員の位置が一時的に見える');
-  });
-  bus.on('EVIDENCE', (ev) => {
-    const e = ent(ev.entityId);
-    if (e.nation !== state.player.nation && visibleTo(state, e, state.player)) {
-      log.add('【推理】' + N(e.nation) + '方面の何者かが「' + ev.text + '」');
-    }
   });
   bus.on('MEETING_DENIED', (ev) => log.add(ev.reason === 'none_left' ? '緊急会議の残り回数がありません。' : '自国拠点(会議端末)に近づいてください。'));
   bus.on('MEETING_SOON', (ev) => {

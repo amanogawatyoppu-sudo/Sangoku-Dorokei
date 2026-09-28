@@ -36,6 +36,9 @@ export const KING_RESCUE_ALERT_TIME = 40000;
 export const JAIL_REVEAL_TIME = 45000;
 export const JAIL_GUARD_TIME = 30000;
 export const RADAR_TIME = 7000;
+/** Tower: in the last third of the match its holder can light up the enemy kings for a while. */
+export const KING_BEACON_TIME = 12000;
+export const KING_BEACON_CD = 40000;
 export const DISGUISE_TIME = 8000;
 /** Ranger's 疾走 (sprint): how long, how much faster, and how much quicker stamina comes back. */
 export const SPRINT_TIME = 4500;

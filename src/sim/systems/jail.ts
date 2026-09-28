@@ -22,6 +22,9 @@ export function sendToJail(state: GameState, e: Entity, capNation: NationId, att
   const j = NATIONS[capNation].jail;
   teleport(e, j.x + (state.rng() * 40 - 20), j.z + (state.rng() * 10 - 5), 0);
   emit(state, { type: 'JAILED', entityId: e.id, capNation });
+  // The last one still free can open jails from now on (whatever their role).
+  const free = state.entities.filter((o) => o.nation === e.nation && o.alive && !o.jailed);
+  if (free.length === 1) emit(state, { type: 'LAST_STAND', entityId: free[0].id });
   noteAllyCaptured(state, e.nation);
   state.factions[capNation].nextTickAt = now;
   if (e.role === 'king') {

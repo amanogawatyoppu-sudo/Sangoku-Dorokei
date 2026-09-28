@@ -19,6 +19,10 @@ export class LogPanel {
         if (t.startsWith('【戦況】')) d.className = 'war';
         else if (t.startsWith('【作戦】') || t.startsWith('【通信】')) d.className = 'plan';
         else if (t.startsWith('【外交】')) d.className = 'diplo';
+        else if (t.startsWith('【捕縛】')) d.className = 'cap';
+        else if (t.startsWith('【処刑】')) d.className = 'exec';
+        else if (t.startsWith('【救出】')) d.className = 'rescue';
+        else if (t.startsWith('【管制塔】')) d.className = 'tower';
         return d;
       }),
     );

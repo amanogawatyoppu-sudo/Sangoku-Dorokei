@@ -5,6 +5,7 @@ import type { GameState } from '../sim/state';
 import { dist3 } from '../sim/systems/collision';
 import { hasLineOfSight, inRevealedJail, nearTower, scopeRange } from '../sim/systems/vision';
 import { atWar } from '../sim/war';
+import { kingLit } from '../sim/systems/tower';
 import type { Sighting } from './memory';
 
 /**
@@ -36,6 +37,7 @@ export function canPerceive(state: GameState, observer: Entity, target: Entity):
   if (!target.alive || target.jailed || looksFriendly(state, observer, target)) return false;
   const now = state.time;
   if (target.revealUntil > now || state.radarAll > now || state.radar[observer.nation] > now) return true;
+  if (kingLit(state, target, observer.nation)) return true;
   if (nearTower(target) || inRevealedJail(state, target)) return true;
   if (state.terminalActive[target.nation] > now && Math.hypot(target.x - NATIONS[target.nation].base.x, target.z - NATIONS[target.nation].base.z) < 90) return true;
   const d = dist3(observer, target);

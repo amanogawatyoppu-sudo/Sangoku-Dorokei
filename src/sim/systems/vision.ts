@@ -6,6 +6,7 @@ import type { Entity } from '../entity';
 import type { GameState } from '../state';
 import { dist, dist3 } from './collision';
 import { CHEST_H, EYE_H, lineOfSight } from './world';
+import { kingLit } from './tower';
 
 /** Nation `e` appears to belong to when seen by `viewerNation` (impostor disguise). */
 export function effNation(state: GameState, e: Entity, viewerNation: NationId): NationId {
@@ -18,6 +19,7 @@ export function visibleTo(state: GameState, e: Entity, viewer: Entity): boolean 
   if (e.revealUntil > now) return true;
   if (state.radarAll > now) return true;
   if (state.radar[viewer.nation] > now) return true;
+  if (kingLit(state, e, viewer.nation)) return true;
   if (nearTower(e)) return true;
   if (inRevealedJail(state, e)) return true;
   if (state.terminalActive[e.nation] > now && dist(e, NATIONS[e.nation].base) < 90) return true;

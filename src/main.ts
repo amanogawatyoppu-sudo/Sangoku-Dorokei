@@ -120,8 +120,10 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
       const next = order === 'next' ? cycle[(cycle.indexOf(state.squadOrder) + 1) % 3] : order;
       queueCommand(state, { type: 'squad', order: next });
     },
+    onBeacon: () => { if (state.tower.owner === state.player.nation) queueCommand(state, { type: 'beacon' }); },
   });
   $('btnMeeting').onclick = () => { openMeeting(state); flush(); };
+  $('btnBeacon').onclick = () => queueCommand(state, { type: 'beacon' });
   // Ceasefire (一時停戦): offers to us wait for an answer; our own offer goes to the weaker of the other two.
   const truceBox = $('truceBox');
   bus.on('TRUCE_PROPOSED', (ev) => {
@@ -145,7 +147,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
   if (online) {
     log.add(`オンライン対戦：部屋 ${online.lobby.code}・${online.info.seats.length}人。同じ国は味方、ほかの国は敵。`);
     if (host) log.add('あなたがホストです。このタブを閉じると試合が終わります。');
-  } else log.add('v7.18: 味方の頭上に名前と役職。東京は9つの戦区。画面の紋章マーカーが戦略拠点（輪が制圧ゲージ）、街の幟の色がその戦区の支配国。拠点に立ち続けると制圧。ミニマップに勢力と前線。↑↓で前後、←→で旋回、Shiftで加速、Spaceで捕獲、Zで特殊、Qで振り向き。分隊はX 付いてこい・C 周りを警戒・V ここを守れ。');
+  } else log.add('v7.19: 王と「最後の一人」も救出できる（牢屋の仲間のそばでZ）。終盤は管制塔で敵の王を照らせる（B）。味方の頭上に名前と役職。東京は9つの戦区。画面の紋章マーカーが戦略拠点（輪が制圧ゲージ）、街の幟の色がその戦区の支配国。拠点に立ち続けると制圧。ミニマップに勢力と前線。↑↓で前後、←→で旋回、Shiftで加速、Spaceで捕獲、Zで特殊、Qで振り向き。分隊はX 付いてこい・C 周りを警戒・V ここを守れ。');
   hud.banner('三国ドロケイ 開始　' + NATIONS[me.nation].name + 'の' + roleName(me.role), 2200);
   const tags = new NameTags($('nametags'), state, names);
   resizeRenderer(refs, canvas);
@@ -319,6 +321,9 @@ function exposeDebug(state: GameState, cam: CameraController): void {
     proposeTruceTo: (to: NationId) => proposeTruce(state, state.player.nation, to),
     offerTruceFrom: (from: NationId) => proposeTruce(state, from, state.player.nation),
     ghost: () => ({ x: refs.camera.position.x, y: refs.camera.position.y, z: refs.camera.position.z }),
+    jailAllies: (by: NationId, keep = 0) => { const mine = state.entities.filter((e) => e.nation === state.player.nation && !e.isPlayer && e.alive && !e.jailed); for (const e of mine.slice(0, mine.length - keep)) sendToJail(state, e, by, null); },
+    setTime: (ms: number) => { state.time = ms; },
+    giveTower: (n: NationId) => { state.tower.owner = n; },
     captureKing: (nation: NationId, by: NationId) => { const k = state.entities.find((e) => e.nation === nation && e.role === 'king')!; sendToJail(state, k, by, null); },
     camera: () => ({ yaw: cam.yaw, pitch: cam.pitch, distance: cam.distance }),
     time: () => state.time,

@@ -213,6 +213,7 @@ export class HostLink {
           last = c[0];
           const cmd: Command | null = c[1] === 'capture' ? { type: 'capture', by: id }
             : c[1] === 'special' ? { type: 'special', by: id }
+            : c[1] === 'beacon' ? { type: 'beacon', by: id }
               : c[1] === 'squad' && (c[2] === 'follow' || c[2] === 'spread' || c[2] === 'hold') ? { type: 'squad', order: c[2], by: id } : null;
           if (cmd) queueCommand(state, cmd);
         }
@@ -292,7 +293,7 @@ export class ClientLink {
     return nowMs - this.hostSeenAt > 5000;
   }
 
-  command(kind: 'capture' | 'special' | 'squad', order?: string): void {
+  command(kind: 'capture' | 'special' | 'squad' | 'beacon', order?: string): void {
     this.cmds.push(order ? [++this.seq, kind, order] : [++this.seq, kind]);
     if (this.cmds.length > 8) this.cmds.shift();
   }

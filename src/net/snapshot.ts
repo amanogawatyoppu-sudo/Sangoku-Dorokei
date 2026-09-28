@@ -109,7 +109,7 @@ function packEntities(state: GameState): string[] {
 /**
  * Globals: [tower owner, radar ×3, radar (all), terminal ×3, jail reveal ×3, rescue alert ×3,
  * speed boost until, next meeting at, meetings held, winner (-1 none, 3 draw), over,
- * team focus ×3 (x, z, t; t -1 = none), nation stats ×3 (cap, res, tower, hit)].
+ * team focus ×3 (x, z, t; t -1 = none), nation stats ×3 (cap, res, tower, hit), king beacon ×3 (until, ready at)].
  */
 function packGlobals(state: GameState): number[] {
   const g: number[] = [nIdx(state.tower.owner)];
@@ -128,6 +128,7 @@ function packGlobals(state: GameState): number[] {
     const s = state.natStats[n];
     g.push(s.cap, s.res, Math.round(s.tower * 10), s.hit);
   }
+  for (const n of NATION_IDS) g.push(fin(state.kingBeacon[n]), fin(state.beaconReadyAt[n]));
   return g;
 }
 
@@ -254,6 +255,7 @@ export class Mirror {
       const s = state.natStats[n];
       s.cap = next(); s.res = next(); s.tower = next() / 10; s.hit = next();
     }
+    for (const n of NATION_IDS) { state.kingBeacon[n] = Math.max(0, next()); state.beaconReadyAt[n] = Math.max(0, next()); }
   }
 
   private applyEntities(state: GameState, buf: Uint8Array, nowMs: number): boolean {

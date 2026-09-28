@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>三国ドロケイ v7.18 3D</title>
+<title>三国ドロケイ v7.19 3D</title>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,6 +17,7 @@
     <div class="tb-clock"><b id="tbTime">--:--</b><span id="tbMeet" class="tb-meet"></span></div>
     <div id="tbWar" title="各国の支配戦区（管制塔・停戦）"><span class="wchip" data-n="sun"></span><span class="wchip" data-n="moon"></span><span class="wchip" data-n="star"></span><span id="tbTruce" hidden>停戦中</span></div>
     <div id="tbActions">
+      <button id="btnBeacon" hidden title="管制塔を持つ国は、残り時間が3分の1を切ると敵国の王の位置を光の柱で照らせる（B）">王を照らす</button>
       <button id="btnTruce" title="いちばん強い国に対抗するため、もう一国に短い停戦を持ちかける">停戦(残<span id="trLeft">2</span>)</button>
       <button id="btnMeeting">緊急会議(残<span id="mtLeft">2</span>)</button>
       <button id="btnInfo" class="drawer-btn" aria-controls="side" aria-expanded="false">情報</button>
@@ -34,6 +35,8 @@
       <div id="banner"></div>
       <div id="progText"></div>
       <div id="statusBadge" hidden></div>
+      <div id="rescueBadge" hidden></div>
+      <div id="toasts" aria-live="polite"></div>
       <div id="truceBox" hidden><div id="truceText"></div><div class="truce-btns"><button id="truceYes">承諾</button><button id="truceNo">拒否</button></div></div>
       <div id="mctrl">
         <div id="joyBase"><div id="joyStick"></div></div>
@@ -42,7 +45,7 @@
       <div id="setup">
         <canvas id="setupMap" aria-hidden="true"></canvas>
         <div class="setup-inner">
-        <div class="logo"><h1><span class="logo-a">三国</span><span class="logo-b">ドロケイ</span></h1><span class="seal ver">v7.18</span></div>
+        <div class="logo"><h1><span class="logo-a">三国</span><span class="logo-b">ドロケイ</span></h1><span class="seal ver">v7.19</span></div>
         <div class="logo-sub">TOKYO THREE KINGDOMS</div>
         <p class="tagline">東京を駆け、奪い、捕らえろ。<br><span>太陽・月・星 ― 前線の向こうに隠れた敵国の王を探し出せ。</span></p>
         <div class="setup-panel">
@@ -69,7 +72,7 @@
           <p id="netNote"></p>
         </div>
         </div>
-        <p class="controls-note">前進/後退:↑・↓　旋回:←・→　加速:Shift　捕獲:Space　特殊:Z　振り向き:Q<br>分隊:X 付いてこい　C 周りを警戒しろ　V ここを守れ　カメラの上下:ドラッグ/スワイプ（距離:ホイール）<br>カメラは常にキャラクターの背後。背中は見えないので、気配と足音に注意。</p>
+        <p class="controls-note">前進/後退:↑・↓　旋回:←・→　加速:Shift　捕獲:Space　特殊:Z　振り向き:Q<br>分隊:X 付いてこい　C 周りを警戒しろ　V ここを守れ　管制塔で王を照らす:B　カメラの上下:ドラッグ/スワイプ（距離:ホイール）<br>カメラは常にキャラクターの背後。背中は見えないので、気配と足音に注意。</p>
         </div>
       </div>
       <div id="overlay">
@@ -88,7 +91,8 @@
     <div id="side">
       <canvas id="mini" width="352" height="220"></canvas>
       <div><span class="panel-label">スタミナ</span><div class="barwrap"><div class="bar" id="stamBar" style="width:100%"></div></div></div>
-      <div><b>王候補（推理）</b><div id="suspects"><div style="opacity:.5">まだ手がかりなし</div></div></div>
+      <div><b>各国の残り</b><div id="roster"></div></div>
+      <div><b>捕縛・救出・処刑</b><div id="casualties"><div class="cz-none">まだ誰も捕まっていない</div></div></div>
       <div id="squadBox"><b>分隊</b><div id="squadList"></div>
         <div class="squad-orders"><button data-order="follow" title="付いてこい（後ろに付いて来る）">付いてこい<small>X</small></button><button data-order="spread" title="周りを警戒しろ（あなたを囲んで外側を見張る）">警戒<small>C</small></button><button data-order="hold" title="ここを守れ">守れ<small>V</small></button></div>
       </div>

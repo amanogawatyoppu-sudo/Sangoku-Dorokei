@@ -7,7 +7,7 @@ import { canAct } from './capture';
 import { nearTowerBase } from './towerZone';
 import { effNation, hasLineOfSight } from './vision';
 import { atWar } from '../war';
-import { tryStartRescue } from './rescue';
+import { canRescue, rescueTargetNear, tryStartRescue } from './rescue';
 
 /** Sniper range (≈20 m), ×1.25 when shooting down from 60+ above the target (rooftops, footbridges, hills). */
 export const SNIPE_RANGE = 520;
@@ -35,9 +35,13 @@ export function sniperTarget(state: GameState, e: Entity): Entity | null {
   return best;
 }
 
-/** The Z / 特殊 action: keyholders rescue, everyone else uses their role's special. */
+/**
+ * The Z / 特殊 action: keyholders rescue. The king (always) and the last of a nation
+ * still free rescue too when a jailed ally is within reach; otherwise their special.
+ */
 export function activate(state: GameState, e: Entity): void {
   if (e.role === 'keyholder') tryStartRescue(state, e);
+  else if (canRescue(state, e) && rescueTargetNear(state, e)) tryStartRescue(state, e);
   else useSpecial(state, e);
 }
 

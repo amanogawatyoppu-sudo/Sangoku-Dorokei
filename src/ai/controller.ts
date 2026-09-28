@@ -10,7 +10,7 @@ import { SNIPE_RANGE, useSpecial } from '../sim/systems/abilities';
 import { attemptCapture, captureCandidate } from '../sim/systems/capture';
 import { SAME_LEVEL, dist, dist3 } from '../sim/systems/collision';
 import { accelerate, moveToward, turnBy, turnToward } from '../sim/systems/movement';
-import { tryStartRescue } from '../sim/systems/rescue';
+import { lastStanding, tryStartRescue } from '../sim/systems/rescue';
 import { blocked, canWalk } from '../sim/systems/world';
 import type { AiState, Sighting, Waypoint } from './memory';
 import { chokePoints, navGraph, planPath, randomNodeNear } from './nav';
@@ -557,6 +557,13 @@ function kingThink(state: GameState, e: Entity): void {
     if (persona !== 'aggressive' || dist(e, threat) < 70) { flee(state, e, threat); return; }
   }
   if (e.ai.state === 'FLEE' && e.ai.goal) return;
+  // Kings can open a lock too: free a jailed ally when the jail is close and nobody is around.
+  const pal = jailedAlly(state, e);
+  if (pal && !threat && dist(e, pal) < 320) {
+    if (dist3(e, pal) < 42) { stop(e, 'RESCUE'); if (!e.channeling) tryStartRescueQuiet(state, e); }
+    else setGoal(state, e, { x: pal.x + (e.x < pal.x ? -28 : 28), y: pal.y, z: pal.z }, 'RESCUE');
+    return;
+  }
   if (e.ai.goal && e.ai.state !== 'FLEE') return;
   // Kings keep to their own rear territory (not only the base), moving about; bolder ones
   // go as far as their own front sectors, never beyond.
@@ -696,6 +703,8 @@ function think(state: GameState, e: Entity, aggro: number): void {
     const nx = ai.path.points[ai.path.i + 1];
     if (Math.abs(nx.y - e.y) < 6 && canWalk(e, nx.x, nx.y, nx.z)) ai.path.i++;
   }
+  // The last of a nation still free goes to open the jails, whatever its role.
+  if (e.role !== 'keyholder' && lastStanding(state, e) && jailedAlly(state, e)) { keyholderThink(state, e); return; }
   const leader = leaderOf(state, e);
   if (leader && squadThink(state, e, leader, aggro)) return;
   switch (e.role) {

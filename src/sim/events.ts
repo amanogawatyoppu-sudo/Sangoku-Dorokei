@@ -30,6 +30,12 @@ export type GameEvent =
   | { type: 'ELIMINATED'; entityId: number }
   | { type: 'RESCUE_STARTED'; rescuerId: number; targetId: number }
   | { type: 'RESCUE_NO_TARGET'; rescuerId: number }
+  /** Only one of the nation is still free: they can open jails now (whatever their role). */
+  | { type: 'LAST_STAND'; entityId: number }
+  /** The tower's holder lit up the enemy kings (last third of the match). */
+  | { type: 'KING_BEACON'; nation: NationId; untilMs: number }
+  /** The last third of the match began: the tower can light the kings from now on. */
+  | { type: 'BEACON_PHASE' }
   | { type: 'RESCUE_FAILED'; rescuerId: number; targetId: number }
   | { type: 'RESCUED'; rescuerId: number; targetId: number }
   | { type: 'KING_RESCUED'; nation: NationId }

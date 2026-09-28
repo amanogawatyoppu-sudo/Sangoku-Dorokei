@@ -5,6 +5,7 @@ import type { GameState } from '../sim/state';
 import type { NationId } from '../config/nations';
 import { SECTORS, sectorAt, sectorOf, sectorPoint } from '../sim/war';
 import { effNation, visibleTo } from '../sim/systems/vision';
+import { kingLit } from '../sim/systems/tower';
 import { $ } from './dom';
 
 /** Canvas pixels (2x the CSS size). The Yamanote loop is tall, so the map is portrait. */
@@ -273,6 +274,18 @@ export class Minimap {
         g.beginPath();
         g.arc(mx(e.x), my(e.z), 7, 0, Math.PI * 2);
         g.stroke();
+      }
+      if (kingLit(state, e, p.nation)) {
+        // Lit from the tower: a pulsing gold crown ring.
+        g.strokeStyle = '#ffd24a';
+        g.lineWidth = 2.5;
+        g.beginPath();
+        g.arc(mx(e.x), my(e.z), 9 + 2 * Math.sin(state.time / 120), 0, Math.PI * 2);
+        g.stroke();
+        g.fillStyle = '#ffd24a';
+        g.font = '700 11px sans-serif';
+        g.textAlign = 'center';
+        g.fillText('♛', mx(e.x), my(e.z) - 11);
       }
       if (e.y > HIGH) {
         // Up high: white ring, so stacked floors don't read as the same spot.

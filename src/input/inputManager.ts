@@ -5,6 +5,8 @@ export interface InputHandlers {
   onFace: () => void;
   /** Squad orders: X follow me, C watch around me, V hold here; the touch button cycles them. */
   onSquad: (order: 'follow' | 'spread' | 'hold' | 'next') => void;
+  /** B: light the enemy kings from the tower. */
+  onBeacon?: () => void;
   /** Actions are ignored while this returns true (meeting open, game over). */
   isBlocked: () => boolean;
 }
@@ -57,6 +59,7 @@ export class InputManager {
       if (e.key === ' ') { e.preventDefault(); handlers.onCapture(); }
       if (k === 'z' && !e.repeat) handlers.onSpecial();
       if (k === 'q' && !e.repeat) handlers.onFace();
+      if (k === 'b' && !e.repeat) handlers.onBeacon?.();
       if (!e.repeat && (k === 'x' || k === 'c' || k === 'v')) handlers.onSquad(k === 'x' ? 'follow' : k === 'c' ? 'spread' : 'hold');
       if (k.startsWith('arrow')) e.preventDefault(); // don't scroll the page
     });

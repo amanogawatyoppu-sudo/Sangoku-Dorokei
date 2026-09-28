@@ -44,6 +44,8 @@ export type Command = (
   | { type: 'squad'; order: SquadOrder }
   | { type: 'capture' }
   | { type: 'special' }
+  /** Light up the enemy kings from the tower (its holder, last third of the match). */
+  | { type: 'beacon' }
   /** Turn the player in place toward a world-space direction (振り向き). */
   | { type: 'face'; x: number; z: number }
 ) & {
@@ -85,6 +87,10 @@ export interface GameState {
   tower: { owner: NationId | null; channel: PerNation<number> };
   radar: PerNation<number>;
   radarAll: number;
+  /** Until when each nation sees the enemy kings lit up (tower, last third of the match). */
+  kingBeacon: PerNation<number>;
+  /** When each nation may light the kings again. */
+  beaconReadyAt: PerNation<number>;
   rescueUntil: PerNation<number>;
   terminalActive: PerNation<number>;
   /** Until when each nation's jail area is exposed to everyone (after a king capture). */
@@ -185,6 +191,8 @@ export function createGameState(
     tower: { owner: null, channel: perNation(() => 0) },
     radar: perNation(() => 0),
     radarAll: 0,
+    kingBeacon: perNation(() => 0),
+    beaconReadyAt: perNation(() => 0),
     rescueUntil: perNation(() => 0),
     terminalActive: perNation(() => 0),
     jailReveal: perNation(() => 0),

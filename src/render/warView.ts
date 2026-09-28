@@ -5,6 +5,8 @@ import { NATION_IDS } from '../config/nations';
 import { BOUNDS, BUILDINGS, GROUND_FLOOR, LIGHTS, insideLoop } from '../config/map';
 import { POINT_R, SECTORS, sectorAt, sectorPoint } from '../sim/war';
 import { radialGlowTexture } from './textures';
+import { kingLit } from '../sim/systems/tower';
+import type { NationId } from '../config/nations';
 
 /** A vertical fade: bright at the bottom, gone at the top (pillars and curtains of light). */
 function fadeTexture(): THREE.CanvasTexture {
@@ -68,6 +70,8 @@ export class WarView {
   /** Banners on street lights and shopfronts in the colour of the sector's holder: territory is visible from the street. */
   private banners: THREE.InstancedMesh | null = null;
   private bannerSector: number[] = [];
+  /** Gold pillars over the enemy kings while the tower lights them (for the viewer's nation). */
+  private kingBeams: THREE.Mesh[] = [];
 
   constructor(scene: THREE.Scene) {
     const fade = fadeTexture(), glow = radialGlowTexture();
@@ -84,6 +88,16 @@ export class WarView {
     }));
     this.front.frustumCulled = false;
     scene.add(this.front);
+    const kbGeo = new THREE.CylinderGeometry(16, 26, 1400, 16, 1, true).translate(0, 700, 0);
+    for (let i = 0; i < 2; i++) {
+      const m = new THREE.Mesh(kbGeo, new THREE.MeshBasicMaterial({
+        map: fade, color: 0xffd24a, transparent: true, opacity: 0.8, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false,
+      }));
+      m.renderOrder = 5;
+      m.visible = false;
+      scene.add(m);
+      this.kingBeams.push(m);
+    }
     {
       // Hung off every street light (pavement side, facing along the street) and flat on the
       // front wall of every building by the door: one instanced mesh, recoloured when sectors change.
@@ -188,8 +202,16 @@ export class WarView {
     }
   }
 
-  sync(state: GameState): void {
+  sync(state: GameState, viewer: NationId = state.player.nation): void {
     const t = state.time / 1000;
+    const lit = state.entities.filter((k) => kingLit(state, k, viewer));
+    this.kingBeams.forEach((m, i) => {
+      const k = lit[i];
+      m.visible = !!k;
+      if (!k) return;
+      m.position.set(k.x, k.y, k.z);
+      (m.material as THREE.MeshBasicMaterial).opacity = 0.55 + 0.3 * Math.sin(t * 6);
+    });
     this.syncFront(state);
     this.front.material.opacity = 0.45 + 0.15 * Math.sin(t * 2);
     this.points.forEach((v, i) => {
