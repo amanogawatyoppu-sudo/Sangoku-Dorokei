@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { NATIONS } from '../config/nations';
 import type { GameState } from '../sim/state';
 import { NATION_IDS } from '../config/nations';
-import { BOUNDS, insideLoop } from '../config/map';
+import { BOUNDS, BUILDINGS, GROUND_FLOOR, LIGHTS, insideLoop } from '../config/map';
 import { POINT_R, SECTORS, sectorAt, sectorPoint } from '../sim/war';
 import { radialGlowTexture } from './textures';
 
@@ -22,6 +22,25 @@ function fadeTexture(): THREE.CanvasTexture {
 }
 
 const NEUTRAL = 0x9a9488;
+
+/** 幟 (nobori) banner: white cloth with a darker hem and a band for the crest (tinted per instance). */
+function noboriTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 32;
+  c.height = 128;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#fff';
+  g.fillRect(0, 0, 32, 128);
+  g.fillStyle = 'rgba(0,0,0,.35)';
+  g.fillRect(0, 0, 32, 6);
+  g.fillRect(0, 122, 32, 6);
+  g.fillRect(28, 0, 4, 128);
+  g.fillStyle = 'rgba(255,255,255,.9)';
+  g.beginPath(); g.arc(14, 30, 9, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(0,0,0,.25)';
+  for (let y = 50; y < 116; y += 12) g.fillRect(10, y, 8, 6);
+  return new THREE.CanvasTexture(c);
+}
 
 interface PointView {
   beam: THREE.MeshBasicMaterial;
@@ -46,6 +65,9 @@ export class WarView {
   private points: PointView[] = [];
   private front: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
   private frontKey = '';
+  /** Banners on street lights and shopfronts in the colour of the sector's holder: territory is visible from the street. */
+  private banners: THREE.InstancedMesh | null = null;
+  private bannerSector: number[] = [];
 
   constructor(scene: THREE.Scene) {
     const fade = fadeTexture(), glow = radialGlowTexture();
@@ -62,6 +84,39 @@ export class WarView {
     }));
     this.front.frustumCulled = false;
     scene.add(this.front);
+    {
+      // Hung off every street light (pavement side, facing along the street) and flat on the
+      // front wall of every building by the door: one instanced mesh, recoloured when sectors change.
+      const geo = new THREE.PlaneGeometry(22, 72).translate(11, 0, 0);
+      const mat = new THREE.MeshStandardMaterial({ map: noboriTexture(), side: THREE.DoubleSide, roughness: 0.9, emissive: 0x2a2a2a });
+      const up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
+      const spots: THREE.Matrix4[] = [];
+      for (const l of LIGHTS) {
+        if (!insideLoop(l.x, l.z, 0)) continue;
+        spots.push(new THREE.Matrix4().compose(new THREE.Vector3(l.x - Math.cos(l.ang) * 5, 150, l.z - Math.sin(l.ang) * 5), new THREE.Quaternion().setFromAxisAngle(up, -l.ang + Math.PI), one));
+      }
+      const OUT: Record<string, [number, number]> = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] };
+      for (const b of BUILDINGS) {
+        if (b.outside || b.h < GROUND_FLOOR + 100) continue;
+        const [nx, nz] = OUT[b.front];
+        const half = b.front === 'n' || b.front === 's' ? b.w / 2 : b.d / 2;
+        // Near the left corner as seen from the street, just above the shop fronts.
+        const tx = nz, tz = -nx;
+        const cx = b.x + nx * (b.front === 'e' || b.front === 'w' ? b.w / 2 + 1.5 : 0) + tx * (half - 36);
+        const cz = b.z + nz * (b.front === 'n' || b.front === 's' ? b.d / 2 + 1.5 : 0) + tz * (half - 36);
+        spots.push(new THREE.Matrix4().compose(new THREE.Vector3(cx, GROUND_FLOOR + 50, cz), new THREE.Quaternion().setFromAxisAngle(up, Math.atan2(nx, nz)), one));
+      }
+      this.banners = new THREE.InstancedMesh(geo, mat, spots.length);
+      const p = new THREE.Vector3();
+      spots.forEach((m, i) => {
+        this.banners!.setMatrixAt(i, m);
+        this.banners!.setColorAt(i, new THREE.Color(NEUTRAL));
+        p.setFromMatrixPosition(m);
+        this.bannerSector.push(sectorAt(p.x, p.z));
+      });
+      this.banners.castShadow = false;
+      scene.add(this.banners);
+    }
     const poleGeo = new THREE.CylinderGeometry(2.2, 2.8, 200, 8).translate(0, 100, 0);
     const poleMat = new THREE.MeshStandardMaterial({ color: 0x3b3b3e, metalness: 0.6, roughness: 0.4 });
     const bannerGeo = new THREE.PlaneGeometry(100, 60).translate(50, 0, 0);
@@ -122,6 +177,14 @@ export class WarView {
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     this.front.geometry.dispose();
     this.front.geometry = geo;
+    if (this.banners) {
+      const c = new THREE.Color();
+      this.bannerSector.forEach((id, i) => {
+        const o = state.war.sectors[id].owner;
+        this.banners!.setColorAt(i, c.setHex(o ? NATIONS[o].color : NEUTRAL));
+      });
+      this.banners.instanceColor!.needsUpdate = true;
+    }
   }
 
   sync(state: GameState): void {

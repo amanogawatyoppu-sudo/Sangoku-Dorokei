@@ -318,3 +318,30 @@ details#hint[open] summary::before{content:'▾ ';}
   #hintBox{background:none}
 }
 @media (prefers-reduced-motion:reduce){.tb-stat.alert,#log div:first-child{animation:none}}
+
+/* ===== v7.15 objective markers over the strategic points ===== */
+#objMarkers{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2}
+.objm{--oc:#8d877b;--cc:#fff;--pg:0;--ang:0rad;position:absolute;left:0;top:0;margin:-15px 0 0 -15px;transform-origin:15px 15px;display:flex;align-items:center;gap:6px;
+  opacity:.8;transition:opacity .3s;will-change:transform;filter:drop-shadow(0 1px 3px rgba(0,0,0,.8))}
+.objm-icon{position:relative;width:30px;height:30px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:15px;font-weight:800;color:#fff;
+  background:radial-gradient(circle at 50% 38%,color-mix(in srgb,var(--oc) 80%,#fff),color-mix(in srgb,var(--oc) 60%,#000) 70%);
+  box-shadow:0 0 0 2px rgba(10,10,14,.85),0 0 12px color-mix(in srgb,var(--oc) 60%,transparent);text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.objm-icon::before{content:'';position:absolute;inset:-5px;border-radius:50%;
+  background:conic-gradient(var(--cc) calc(var(--pg) * 360deg),rgba(255,255,255,.12) 0);
+  -webkit-mask:radial-gradient(circle,transparent 17px,#000 17.5px);mask:radial-gradient(circle,transparent 17px,#000 17.5px)}
+.objm.mine .objm-icon{box-shadow:0 0 0 2px #fff4d6,0 0 14px color-mix(in srgb,var(--oc) 70%,transparent)}
+.objm-label{display:none;flex-direction:column;line-height:1.1;color:#f5ecd8;white-space:nowrap}
+.objm-name{font-size:12px;font-weight:700;letter-spacing:1px}
+.objm-dist{font-size:10px;color:#cfc4ad;font-variant-numeric:tabular-nums}
+.objm.full{opacity:1}
+.objm.full .objm-label{display:flex}
+.objm-tag{display:none;font-size:10px;font-weight:800;letter-spacing:1px;color:#fff;background:#c8452f;padding:1px 5px;border-radius:2px;animation:objBlink .8s steps(2) infinite}
+.objm.contested .objm-tag{display:inline-block}
+.objm.contested .objm-icon{animation:objPulse .9s ease-in-out infinite}
+.objm.off .objm-label{display:none}
+.objm.off::after{content:'';position:absolute;left:15px;top:9px;width:0;height:0;border:6px solid transparent;border-left:9px solid color-mix(in srgb,var(--oc) 80%,#fff);
+  transform:rotate(var(--ang)) translate(20px,-6px);transform-origin:0 6px}
+@keyframes objBlink{50%{opacity:.35}}
+@keyframes objPulse{50%{box-shadow:0 0 0 2px #c8452f,0 0 18px #ff6a4a}}
+@media (max-width:760px),(max-height:520px){.objm-name{font-size:10.5px}.objm.full:not(.contested):not(.mine) .objm-dist{display:none}}
+@media (prefers-reduced-motion:reduce){.objm-tag,.objm.contested .objm-icon{animation:none}}

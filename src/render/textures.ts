@@ -493,7 +493,7 @@ function asphalt(g: CanvasRenderingContext2D, w: number, h: number, rnd: () => n
   for (let i = 0; i < Math.max(1, (w * h) / 60000); i++) {
     const p = { x: 20 + rnd() * (w - 40), y: 20 + rnd() * (h - 40), rx: 10 + rnd() * 26, ry: 6 + rnd() * 14, a: rnd() * Math.PI };
     puddles.push(p);
-    g.fillStyle = 'rgba(14,16,22,.45)';
+    g.fillStyle = 'rgba(14,16,22,.3)';
     blob(g, p, 1);
     g.fillStyle = 'rgba(70,64,70,.25)';
     blob(g, p, 0.55);
