@@ -22,8 +22,14 @@ const HEIGHT_RATE = 10;
 /** Ramps are cut into this many steps for camera collision. */
 const RAMP_SLICES = 6;
 
-/** Every solid in the world as 3D boxes (ramps as a staircase of boxes, each as high as its upper edge). */
-const SOLIDS = WORLD.filter((p) => p.mat !== 'water').flatMap((p) => {
+/**
+ * Every solid the camera must not pass through, as 3D boxes (ramps as a staircase of
+ * boxes). Small street furniture (trees, poles, cars, vending machines, bollards…)
+ * is left out: it would only yank the camera in and out as you walk past it; the
+ * player's silhouette shows through anything that hides them instead.
+ */
+const SMALL = new Set(['tree', 'pole', 'car', 'vending', 'water']);
+const SOLIDS = WORLD.filter((p) => !SMALL.has(p.mat) && !(p.kind === 'box' && p.w * p.d < 2500 && p.y1 < 260)).flatMap((p) => {
   if (p.kind === 'box') {
     return [new THREE.Box3(new THREE.Vector3(p.x - p.w / 2, p.y0, p.z - p.d / 2), new THREE.Vector3(p.x + p.w / 2, p.y1, p.z + p.d / 2))];
   }

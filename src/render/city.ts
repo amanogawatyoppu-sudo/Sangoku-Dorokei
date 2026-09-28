@@ -370,6 +370,26 @@ export function buildCity(scene: THREE.Scene): void {
   buildFurniture(scene);
 }
 
+/**
+ * Trees close to the camera dissolve in a fine dot pattern (screen-door dither) so
+ * a crown between the camera and the player never blocks the view. In the shader:
+ * no extra objects, no sorting.
+ */
+export function nearFade<T extends THREE.Material>(m: T, near = 70, far = 210): T {
+  m.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+      {
+        float camD = length(vViewPosition);
+        float keep = clamp((camD - ${near.toFixed(1)}) / ${(far - near).toFixed(1)}, 0.0, 1.0);
+        vec2 cell = mod(floor(gl_FragCoord.xy), 4.0);
+        float th = (mod(cell.x * 2.0 + cell.y * 3.0, 4.0) + mod(cell.y, 2.0) * 0.5 + 0.25) / 4.5;
+        if (keep < th) discard;
+      }`);
+  };
+  m.customProgramCacheKey = () => 'near-fade';
+  return m;
+}
+
 /** Poles and wires, street lights, signals, vending machines, parked cars and trees. */
 function buildFurniture(scene: THREE.Scene): void {
   const add = (m: THREE.Object3D | null) => m && scene.add(m);
@@ -497,9 +517,9 @@ function buildFurniture(scene: THREE.Scene): void {
   add(instanced(lights, std(0xf4f2e8, { emissive: 0xfff6d8, emissiveIntensity: 0.4 }), cars, undefined, false));
   add(instanced(tail, std(0xb0201c, { emissive: 0x801010, emissiveIntensity: 0.4 }), cars, undefined, false));
   add(instanced(wheels, std(0x151515), cars, undefined, false));
-  add(instanced(new THREE.CylinderGeometry(5, 8, 1, 7).translate(0, 0.5, 0), std(0x4b3a2a), trunks));
+  add(instanced(new THREE.CylinderGeometry(5, 8, 1, 7).translate(0, 0.5, 0), nearFade(std(0x4b3a2a)), trunks));
   const crown = new THREE.IcosahedronGeometry(1, 1);
-  add(instanced(crown, std(0xffffff, { flatShading: true, roughness: 1 }), crowns, crownCol));
+  add(instanced(crown, nearFade(std(0xffffff, { flatShading: true, roughness: 1 })), crowns, crownCol));
 }
 
 /** Several boxes [w, h, d, x, y, z] as one geometry. */

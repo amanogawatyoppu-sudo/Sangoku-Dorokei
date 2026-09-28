@@ -54,6 +54,20 @@ type Pose = Partial<Record<BoneName, [number, number, number]>>;
  * idle, and poses for being stunned, sitting in jail, unlocking, grabbing and
  * falling.
  */
+/**
+ * Seen through walls: a second draw of the player's own skinned mesh (same geometry
+ * and skeleton) that only paints where something is in front of it, in the nation's
+ * colour, so you never lose yourself behind a building or a tree.
+ */
+function addXray(mesh: THREE.SkinnedMesh, color: number): void {
+  const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.42, depthWrite: false, depthFunc: THREE.GreaterDepth, fog: false });
+  const x = new THREE.SkinnedMesh(mesh.geometry, mat);
+  x.bind(mesh.skeleton, mesh.bindMatrix);
+  x.frustumCulled = false;
+  x.renderOrder = 10;
+  mesh.add(x);
+}
+
 export class EntityView {
   private anims = new Map<number, Anim>();
   private emblemMats: Record<NationId, THREE.MeshStandardMaterial>;
@@ -70,6 +84,7 @@ export class EntityView {
     for (const e of state.entities) {
       const mats = e.isPlayer ? this.playerEmblemMats : this.emblemMats;
       const human = buildHuman(e.id, NATIONS[e.nation].color, mats[e.nation], { gun: e.role === 'sniper' });
+      if (e.isPlayer) addXray(human.mesh, NATIONS[e.nation].color);
       human.mesh.scale.setScalar(human.look.height);
       scene.add(human.mesh);
       this.anims.set(e.id, {
