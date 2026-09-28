@@ -108,6 +108,8 @@ export function blocked(x: number, z: number, y: number, r = CR): boolean {
 
 /** Down in the water (river, moat, pond): below its surface inside its outline. */
 export function inWater(x: number, z: number, y: number): boolean {
+  // Standing on a bridge deck (or any floor) over the water is dry, even if the deck is low.
+  if (supportHeight(x, z, y) > 0) return false;
   for (const p of near(x, z, x, z, scratch)) {
     if (p.mat === 'water' && p.kind === 'box' && y < p.y1 && Math.abs(x - p.x) < p.w / 2 && Math.abs(z - p.z) < p.d / 2) return true;
   }

@@ -100,10 +100,11 @@ export class WarView {
         if (b.outside || b.h < GROUND_FLOOR + 100) continue;
         const [nx, nz] = OUT[b.front];
         const half = b.front === 'n' || b.front === 's' ? b.w / 2 : b.d / 2;
-        // Near the left corner as seen from the street, just above the shop fronts.
+        // Halfway between the middle and a corner, just above the shop fronts (the projecting
+        // signs stand near the corners, so the two never meet).
         const tx = nz, tz = -nx;
-        const cx = b.x + nx * (b.front === 'e' || b.front === 'w' ? b.w / 2 + 1.5 : 0) + tx * (half - 36);
-        const cz = b.z + nz * (b.front === 'n' || b.front === 's' ? b.d / 2 + 1.5 : 0) + tz * (half - 36);
+        const cx = b.x + nx * (b.front === 'e' || b.front === 'w' ? b.w / 2 + 1.5 : 0) + tx * (half * 0.5 - 11);
+        const cz = b.z + nz * (b.front === 'n' || b.front === 's' ? b.d / 2 + 1.5 : 0) + tz * (half * 0.5 - 11);
         spots.push(new THREE.Matrix4().compose(new THREE.Vector3(cx, GROUND_FLOOR + 50, cz), new THREE.Quaternion().setFromAxisAngle(up, Math.atan2(nx, nz)), one));
       }
       this.banners = new THREE.InstancedMesh(geo, mat, spots.length);

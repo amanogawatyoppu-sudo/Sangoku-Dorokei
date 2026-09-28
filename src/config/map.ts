@@ -295,8 +295,8 @@ function walkUp(id: string, cx: number, cz: number, mat: Material = 'concrete') 
 const TOKYO_ST = { x: STATIONS[0].x - 180, z: STATIONS[0].z - 60, w: 150, d: 900, h: 260 };
 box(TOKYO_ST.x, TOKYO_ST.z, TOKYO_ST.w, TOKYO_ST.d, TOKYO_ST.h, 'brick', { group: 'tokyoStation' });
 reserve(TOKYO_ST.x, TOKYO_ST.z, TOKYO_ST.w, TOKYO_ST.d, 40);
-/** 丸の内 / 大手町 office towers (about 200 m). */
-for (const [x, z, h] of [[k8(1600), k8(-1100), 200], [k8(1880), k8(-1300), 180], [k8(1620), k8(-1450), 160]] as const) {
+/** 丸の内 / 大手町 office towers (about 200 m). The northern one stands clear of 聖橋's south ramp. */
+for (const [x, z, h] of [[k8(1600), k8(-1100), 200], [k8(1880), k8(-1300), 180], [k8(1480), k8(-1450), 160]] as const) {
   box(x, z, 330, 330, realHeight(h), 'glass', { group: 'tower' });
   reserve(x, z, 330, 330, 20);
 }
@@ -388,7 +388,7 @@ const GYOEN = { ...geo(35.6852, 139.7101), z: geo(35.6852, 139.7101).z + k8(82),
   reserve(GYOEN.x, GYOEN.z, GYOEN.w, GYOEN.d, 20);
 }
 /** 渋谷ヒカリエ, 恵比寿ガーデンプレイス and 池袋サンシャイン60. */
-for (const [x, z, h, sz] of [[k8(-2300), k8(1850), 183, 300], [geo(35.6425, 139.7137).x, geo(35.6425, 139.7137).z, 167, 300], [k8(-1523), k8(-4100), 240, 360]] as const) {
+for (const [x, z, h, sz] of [[k8(-2300), k8(1850), 183, 300], [geo(35.6425, 139.7137).x, geo(35.6425, 139.7137).z, 167, 300], [k8(-1523), k8(-4160), 240, 360]] as const) {
   box(x, z, sz, sz, realHeight(h), 'glass', { group: 'tower' });
   reserve(x, z, sz + 80, sz + 80, 20);
 }
@@ -433,6 +433,10 @@ export const RIVER_WIDTH = 150;
 /** Bridges: 高田橋, 早稲田, 江戸川橋, 飯田橋, 水道橋, 聖橋 (arched), 万世橋. */
 const BRIDGE_X = [-1330, -760, -300, 180, 560, 1000, 1290].map(sc);
 const HIJIRI = BRIDGE_X[5];
+/** Centres of the bridges actually built over the Kanda (inside the loop), for tests and tools. */
+export const BRIDGES: Point[] = [];
+/** Points on the south and north banks straight across the river from each other at x (just off a bridge's ends). */
+export const riverBanks = (x: number): [number, number] => [riverZAt(x) + 250, riverZAt(x) - 250];
 const riverZAt = (x: number) => {
   for (let i = 0; i < KANDA.length - 1; i++) {
     const a = KANDA[i], b = KANDA[i + 1];
@@ -455,6 +459,7 @@ const riverZAt = (x: number) => {
     const z = riverZAt(bx);
     if (!insideLoop(bx, z - 260, 60) || !insideLoop(bx, z + 260, 60)) continue;
     reserve(bx, z, 260, 520, 60); // clear approaches on both banks
+    BRIDGES.push({ x: bx, z });
     if (bx === HIJIRI) {
       // 聖橋: arched stone bridge.
       ramp(bx, z - 200, 240, 200, 'z', 1, 0, 60, 'slope', 'stone', 'bridge');
@@ -894,8 +899,11 @@ const furnitureOut: Rect[] = [];
     CROSSWALKS.push({ x: ix.x, z: ix.z + ix.d / 2 + g + depth / 2, w: ix.w, d: depth, axis: 'x' });
     CROSSWALKS.push({ x: ix.x - ix.w / 2 - g - depth / 2, z: ix.z, w: depth, d: ix.d, axis: 'z' });
     CROSSWALKS.push({ x: ix.x + ix.w / 2 + g + depth / 2, z: ix.z, w: depth, d: ix.d, axis: 'z' });
-    SIGNALS.push({ x: ix.x - ix.w / 2 - 30, z: ix.z - ix.d / 2 - 30, ang: 0 });
-    SIGNALS.push({ x: ix.x + ix.w / 2 + 30, z: ix.z + ix.d / 2 + 30, ang: Math.PI });
+    // (Not where a footbridge's stairs come down.)
+    for (const [x, z, ang] of [[ix.x - ix.w / 2 - 30, ix.z - ix.d / 2 - 30, 0], [ix.x + ix.w / 2 + 30, ix.z + ix.d / 2 + 30, Math.PI]] as const) {
+      const r = { x0: x - 8, x1: x + 8, z0: z - 8, z1: z + 8 };
+      if (!furnitureOut.some((k) => overlaps(k, r))) SIGNALS.push({ x, z, ang });
+    }
   }
 }
 

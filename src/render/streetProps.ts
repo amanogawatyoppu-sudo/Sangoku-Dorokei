@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { BoxPrim } from '../config/map';
-import { BUILDINGS, CURB, WORLD } from '../config/map';
+import { BLOCKS, BUILDINGS, CURB, LIGHTS, SIGNALS, WORLD } from '../config/map';
 
 /**
  * Street clutter against the shopfronts: parked bicycles, konbini bins, planters,
@@ -106,32 +106,48 @@ function prng(seed: number): () => number {
   return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
 }
 
-export function buildStreetProps(scene: THREE.Scene): void {
-  const lists = { bike: [] as THREE.Matrix4[], bins: [] as THREE.Matrix4[], planter: [] as THREE.Matrix4[], aframe: [] as THREE.Matrix4[], util: [] as THREE.Matrix4[] };
-  const cols = { bike: [] as THREE.Color[], aframe: [] as THREE.Color[] };
-  const vend = WORLD.filter((p) => p.mat === 'vending') as BoxPrim[];
-  const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
-  const BIKE = [0xd8d8d8, 0x2a2c30, 0x8c1f22, 0x2e4f8a, 0xc9b98f, 0x3e6b44, 0xe0e0e0];
-  const BOARD = [0xf4efe4, 0x2f2f33, 0xc8452f, 0x3a5a3a, 0x7a5a3a];
+export type PropKind = 'bike' | 'bins' | 'planter' | 'aframe' | 'util';
+/** A placed prop: centre, yaw, and its footprint (axis-aligned, since façades are). */
+export interface PropSpot { kind: PropKind; x: number; z: number; yaw: number; x0: number; x1: number; z0: number; z1: number; color?: number }
+
+const BIKE = [0xd8d8d8, 0x2a2c30, 0x8c1f22, 0x2e4f8a, 0xc9b98f, 0x3e6b44, 0xe0e0e0];
+const BOARD = [0xf4efe4, 0x2f2f33, 0xc8452f, 0x3a5a3a, 0x7a5a3a];
+
+let spots: PropSpot[] | null = null;
+/**
+ * Where the props go. A prop is placed only if its whole footprint lies on a pavement
+ * block and touches nothing else: no other building, stairs, pole, tree, car, vending
+ * machine, water, street light or signal.
+ */
+export function streetPropSpots(): PropSpot[] {
+  if (spots) return spots;
+  spots = [];
+  const solids = WORLD.filter((p) => p.mat !== 'sidewalk' && !(p.kind === 'box' && p.y1 <= CURB + 1 && p.mat !== 'water'));
+  const posts = [...LIGHTS, ...SIGNALS];
+  const clear = (r: { x0: number; x1: number; z0: number; z1: number }, self: BoxPrim | undefined) =>
+    BLOCKS.some((b) => r.x0 >= b.x0 && r.x1 <= b.x1 && r.z0 >= b.z0 && r.z1 <= b.z1)
+    && !solids.some((p) => p !== self && r.x0 < p.x + p.w / 2 && r.x1 > p.x - p.w / 2 && r.z0 < p.z + p.d / 2 && r.z1 > p.z - p.d / 2)
+    && !posts.some((l) => l.x > r.x0 - 8 && l.x < r.x1 + 8 && l.z > r.z0 - 8 && l.z < r.z1 + 8)
+    && !spots!.some((o) => r.x0 < o.x1 + 3 && r.x1 > o.x0 - 3 && r.z0 < o.z1 + 3 && r.z1 > o.z0 - 3);
   for (const b of BUILDINGS) {
     if (b.outside || b.h < 60) continue;
+    // The building's own collision box (props stand against it, so it does not count as an obstacle).
+    const self = WORLD.find((p) => p.mat === 'bldg' && p.x === b.x && p.z === b.z) as BoxPrim | undefined;
     const rnd = prng(b.seed * 7 + 3);
     const [nx, nz] = OUT[b.front];
-    const len = b.front === 'n' || b.front === 's' ? b.w : b.d;
+    const alongX = b.front === 'n' || b.front === 's';
+    const len = alongX ? b.w : b.d;
     const tx = -nz, tz = nx; // along the façade
-    const fx = b.x + nx * (b.front === 'e' || b.front === 'w' ? b.w / 2 : 0), fz = b.z + nz * (b.front === 'n' || b.front === 's' ? b.d / 2 : 0);
+    const fx = b.x + nx * (alongX ? 0 : b.w / 2), fz = b.z + nz * (alongX ? b.d / 2 : 0);
     const faceYaw = Math.atan2(nx, nz); // local +z points away from the wall
-    const used: [number, number][] = [];
-    const free = (s: number, half: number) => {
-      const px = fx + tx * s, pz = fz + tz * s;
-      if (vend.some((v) => Math.hypot(v.x - px, v.z - pz) < 45 + half)) return false;
-      return used.every(([u, h]) => Math.abs(u - s) > half + h + 4);
-    };
-    const put = (list: THREE.Matrix4[], s: number, depth: number, yaw: number, half: number): boolean => {
-      if (Math.abs(s) > len / 2 - half - 12 || !free(s, half)) return false;
-      used.push([s, half]);
+    const put = (kind: PropKind, s: number, depth: number, yaw: number, half: number, color?: number): boolean => {
+      if (Math.abs(s) > len / 2 - half - 12) return false;
       const off = depth / 2 + 2;
-      list.push(new THREE.Matrix4().compose(new THREE.Vector3(fx + tx * s + nx * off, CURB, fz + tz * s + nz * off), q.clone().setFromAxisAngle(up, yaw), one));
+      const x = fx + tx * s + nx * off, z = fz + tz * s + nz * off;
+      const hx = alongX ? half : depth / 2, hz = alongX ? depth / 2 : half;
+      const r = { x0: x - hx, x1: x + hx, z0: z - hz, z1: z + hz };
+      if (!clear(r, self)) return false;
+      spots!.push({ kind, x, z, yaw, ...r, color });
       return true;
     };
     const commercial = b.type === 'shop' || b.type === 'mixed';
@@ -140,42 +156,41 @@ export function buildStreetProps(scene: THREE.Scene): void {
       // A row of parked bikes nose to the wall, a bin set and a shop board.
       if (r < 0.55) {
         const n = 2 + Math.floor(rnd() * 4), s0 = (rnd() - 0.5) * (len - 120);
-        for (let k = 0; k < n; k++) {
-          const s = s0 + k * 16;
-          if (put(lists.bike, s, 34, faceYaw + (rnd() - 0.5) * 0.25, 4)) cols.bike.push(new THREE.Color(BIKE[Math.floor(rnd() * BIKE.length)]));
-        }
+        for (let k = 0; k < n; k++) put('bike', s0 + k * 16, 34, faceYaw + (rnd() - 0.5) * 0.25, 4, BIKE[Math.floor(rnd() * BIKE.length)]);
       }
-      if (rnd() < 0.35) put(lists.bins, (rnd() - 0.5) * (len - 80), 17, faceYaw, 27);
-      if (rnd() < 0.5) {
-        const s = (rnd() - 0.5) * (len - 60);
-        // Stands out on the pavement a little, facing the street.
-        if (put(lists.aframe, s, 30, faceYaw + (rnd() - 0.5) * 0.4, 10)) cols.aframe.push(new THREE.Color(BOARD[Math.floor(rnd() * BOARD.length)]));
-      }
+      if (rnd() < 0.35) put('bins', (rnd() - 0.5) * (len - 80), 17, faceYaw, 27);
+      if (rnd() < 0.5) put('aframe', (rnd() - 0.5) * (len - 60), 30, faceYaw + (rnd() - 0.5) * 0.4, 10, BOARD[Math.floor(rnd() * BOARD.length)]);
     } else if (b.type === 'office' || b.type === 'tower') {
-      if (r < 0.6) { put(lists.planter, -len / 4, 20, faceYaw, 26); put(lists.planter, len / 4, 20, faceYaw, 26); }
+      if (r < 0.6) { put('planter', -len / 4, 20, faceYaw, 26); put('planter', len / 4, 20, faceYaw, 26); }
     } else {
-      if (r < 0.35) put(lists.util, (rnd() - 0.5) * (len - 60), 20, faceYaw, 17);
-      if (rnd() < 0.4) {
-        const s = (rnd() - 0.5) * (len - 60);
-        if (put(lists.bike, s, 34, faceYaw, 4)) cols.bike.push(new THREE.Color(BIKE[Math.floor(rnd() * BIKE.length)]));
-      }
-      if (rnd() < 0.3) put(lists.planter, (rnd() - 0.5) * (len - 70), 20, faceYaw, 26);
+      if (r < 0.35) put('util', (rnd() - 0.5) * (len - 60), 20, faceYaw, 17);
+      if (rnd() < 0.4) put('bike', (rnd() - 0.5) * (len - 60), 34, faceYaw, 4, BIKE[Math.floor(rnd() * BIKE.length)]);
+      if (rnd() < 0.3) put('planter', (rnd() - 0.5) * (len - 70), 20, faceYaw, 26);
     }
   }
+  return spots;
+}
+
+export function buildStreetProps(scene: THREE.Scene): void {
+  const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
+  const all = streetPropSpots();
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, metalness: 0.05 });
-  const add = (geo: THREE.BufferGeometry, ms: THREE.Matrix4[], colors?: THREE.Color[], shadow = true) => {
-    if (!ms.length) return;
-    const m = new THREE.InstancedMesh(geo, mat, ms.length);
-    ms.forEach((x, i) => m.setMatrixAt(i, x));
-    colors?.forEach((c, i) => m.setColorAt(i, c));
+  const add = (kind: PropKind, geo: THREE.BufferGeometry, shadow = true) => {
+    const list = all.filter((p) => p.kind === kind);
+    if (!list.length) return;
+    const m = new THREE.InstancedMesh(geo, mat, list.length);
+    list.forEach((p, i) => {
+      m.setMatrixAt(i, new THREE.Matrix4().compose(new THREE.Vector3(p.x, CURB, p.z), q.setFromAxisAngle(up, p.yaw), one));
+      if (p.color !== undefined) m.setColorAt(i, new THREE.Color(p.color));
+    });
     m.castShadow = shadow;
     m.receiveShadow = true;
     m.computeBoundingSphere();
     scene.add(m);
   };
-  add(bicycle(), lists.bike, cols.bike, false);
-  add(bins(), lists.bins);
-  add(planter(), lists.planter);
-  add(aframe(), lists.aframe, cols.aframe, false);
-  add(utilityBox(), lists.util);
+  add('bike', bicycle(), false);
+  add('bins', bins());
+  add('planter', planter());
+  add('aframe', aframe(), false);
+  add('util', utilityBox());
 }

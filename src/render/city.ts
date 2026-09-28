@@ -510,6 +510,7 @@ function buildFurniture(scene: THREE.Scene): void {
   const vend: THREE.Matrix4[][] = [[], []], cars: THREE.Matrix4[] = [], carCol: THREE.Color[] = [];
   const trunks: THREE.Matrix4[] = [], crowns: THREE.Matrix4[] = [], crownCol: THREE.Color[] = [];
   const rnd = prng(99);
+  const BLDG = (WORLD as BoxPrim[]).filter((p) => p.mat === 'bldg' || (p.kind === 'box' && p.y1 > 150 && !p.noFloor && p.mat !== 'water'));
   const rot: Record<string, number> = { s: 0, n: Math.PI, e: Math.PI / 2, w: -Math.PI / 2 };
   const CAR_COLORS = [0xf2f2f0, 0xf2f2f0, 0x1c1d20, 0xa9adb3, 0x8f959c, 0x7a1f22, 0x243c6a, 0xe9d9b0, 0x3d5a3a];
   for (const p of WORLD) {
@@ -521,7 +522,13 @@ function buildFurniture(scene: THREE.Scene): void {
     } else if (p.mat === 'tree') {
       // Rooted on whatever it stands on (street, lawn, hilltop); the crown top is y1.
       const base = groundAt(b.x, b.z, b.y1 - 40);
-      const H = Math.min(b.y1 - base, 300), r = H * 0.21;
+      const H = Math.min(b.y1 - base, 300);
+      // Crowns never push into a building: shrink to the gap to the nearest wall.
+      let r = H * 0.21;
+      for (const w of BLDG) {
+        const gap = Math.hypot(Math.max(Math.abs(b.x - w.x) - w.w / 2, 0), Math.max(Math.abs(b.z - w.z) - w.d / 2, 0));
+        if (gap < r) r = Math.max(24, gap - 3);
+      }
       trunks.push(at(b.x, base, b.z, 0, 1, b.y1 - r * 0.6 - base, 1));
       crowns.push(at(b.x, b.y1 - r * 1.05, b.z, rnd() * 6, r, r * 1.15, r));
       crownCol.push(new THREE.Color().setHSL(0.24 + rnd() * 0.08, 0.35 + rnd() * 0.2, 0.2 + rnd() * 0.1));
