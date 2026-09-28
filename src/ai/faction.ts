@@ -1,6 +1,7 @@
 import type { NationId } from '../config/nations';
 import { NATION_IDS, NATIONS } from '../config/nations';
 import type { Entity } from '../sim/entity';
+import { isHuman } from '../sim/entity';
 import type { GameState } from '../sim/state';
 import { kingOf } from '../sim/state';
 import { dist } from '../sim/systems/collision';
@@ -34,7 +35,8 @@ const HUNTER_ROLES = new Set(['soldier', 'impostor']);
 
 /** AI members the commander can give tasks to (the player's own squad answers to the player). */
 function aiMembers(state: GameState, n: NationId): Entity[] {
-  return state.entities.filter((e) => e.nation === n && !e.isPlayer && e.alive && !e.jailed && e.ai.leaderId !== state.player.id);
+  return state.entities.filter((e) => e.nation === n && !isHuman(e) && e.alive && !e.jailed
+    && (e.ai.leaderId === null || !isHuman(state.entities[e.ai.leaderId])));
 }
 
 /** Size of the player's squad for a nation of `n` people: 6 → 2, 10 → 3, 15 → 4. */
@@ -44,7 +46,7 @@ export function playerSquadSize(n: number): number {
 /** AI squads: a leader and up to this many followers. */
 const AI_SQUAD_FOLLOWERS = 2;
 
-const squadable = (e: Entity) => !e.isPlayer && e.alive && !e.jailed && (e.role === 'soldier' || e.role === 'impostor' || e.role === 'sniper');
+const squadable = (e: Entity) => !isHuman(e) && e.alive && !e.jailed && (e.role === 'soldier' || e.role === 'impostor' || e.role === 'sniper');
 
 /**
  * Groups people into squads so they move and fight together instead of alone:
@@ -53,20 +55,22 @@ const squadable = (e: Entity) => !e.isPlayer && e.alive && !e.jailed && (e.role 
  * snipers keep to their perches unless they are in the player's squad.
  */
 function formSquads(state: GameState, n: NationId): void {
-  const p = state.player;
-  const people = state.entities.filter((e) => e.nation === n && !e.isPlayer);
+  const people = state.entities.filter((e) => e.nation === n && !isHuman(e));
   const followersOf = (L: Entity) => people.filter((e) => e.ai.leaderId === L.id);
   for (const e of people) {
     const L = e.ai.leaderId === null ? null : state.entities[e.ai.leaderId];
     if (!L) continue;
     const ok = squadable(e) && L.alive && !L.jailed
-      && (L.isPlayer || (!e.ai.task && !L.ai.task && L.ai.leaderId === null && e.role !== 'sniper'));
+      && (isHuman(L) || (!e.ai.task && !L.ai.task && L.ai.leaderId === null && e.role !== 'sniper'));
     if (!ok) e.ai.leaderId = null;
   }
   const free = (e: Entity) => squadable(e) && e.ai.leaderId === null && !e.ai.task && followersOf(e).length === 0;
-  if (n === p.nation && p.alive && !p.jailed) {
+  // Each person gets a squad (online, the nation's people share the followers).
+  const humans = state.humans.map((id) => state.entities[id]).filter((h) => h.nation === n);
+  for (const p of humans) {
+    if (!p.alive || p.jailed) continue;
     const size = state.entities.filter((e) => e.nation === n).length;
-    const want = playerSquadSize(size) - followersOf(p).length;
+    const want = Math.max(1, Math.ceil(playerSquadSize(size) / humans.length)) - followersOf(p).length;
     if (want > 0) {
       const rank = (e: Entity) => (e.role === 'sniper' ? 1 : 0) * 1e6 + dist(e, p);
       for (const e of people.filter(free).sort((a, b) => rank(a) - rank(b)).slice(0, want)) e.ai.leaderId = p.id;
@@ -80,7 +84,7 @@ function formSquads(state: GameState, n: NationId): void {
     else leaders.push(u);
   }
   // Formation slots in id order.
-  for (const L of [...leaders, p]) followersOf(L).sort((a, b) => a.id - b.id).forEach((e, i) => { e.ai.slot = i; });
+  for (const L of [...leaders, ...humans]) followersOf(L).sort((a, b) => a.id - b.id).forEach((e, i) => { e.ai.slot = i; });
 }
 
 function byDistance<T extends { x: number; z: number }>(list: Entity[], p: T): Entity[] {

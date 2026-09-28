@@ -40,6 +40,6 @@ export type GameEvent =
   | { type: 'MEETING_DENIED'; reason: MeetingDeniedReason }
   | { type: 'MEETING_OPENED'; kind: 'emergency' | 'scheduled' }
   | { type: 'MEETING_SOON'; inSec: number }
-  | { type: 'SQUAD_ORDER'; order: 'follow' | 'spread' | 'hold' }
+  | { type: 'SQUAD_ORDER'; leaderId: number; order: 'follow' | 'spread' | 'hold' }
   | { type: 'MEETING_CLOSED'; focusSet: boolean }
   | { type: 'GAME_OVER'; winner: NationId | 'draw' };

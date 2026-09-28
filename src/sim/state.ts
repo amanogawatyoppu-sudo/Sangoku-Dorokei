@@ -38,12 +38,41 @@ export interface PlayerInput {
 /** Orders the player gives their squad: follow in formation, spread out and search here, hold this spot. */
 export type SquadOrder = 'follow' | 'spread' | 'hold';
 
-export type Command =
+export type Command = (
   | { type: 'squad'; order: SquadOrder }
   | { type: 'capture' }
   | { type: 'special' }
   /** Turn the player in place toward a world-space direction (振り向き). */
-  | { type: 'face'; x: number; z: number };
+  | { type: 'face'; x: number; z: number }
+) & {
+  /** Who gives it (online: a friend's character). Omitted = the player. */
+  by?: number;
+};
+
+/** A squad order and where it was given (spread / hold happen around that point). */
+export interface SquadCommand {
+  order: SquadOrder;
+  anchor: { x: number; y: number; z: number } | null;
+}
+
+/** Where a friend's device says their character is (online matches; applied by the host each step). */
+export interface RemotePose {
+  x: number;
+  y: number;
+  z: number;
+  dirX: number;
+  dirZ: number;
+  speed: number;
+  dash: boolean;
+  /** The teleport count (mod 16) the device has caught up with (older poses are ignored). */
+  tp: number;
+}
+
+/** A person in the match: where they asked to play. */
+export interface HumanSeat {
+  nation: NationId;
+  role: RoleId;
+}
 
 export interface GameState {
   /** Game time in ms. Only advances inside `stepSimulation`. */
@@ -80,6 +109,12 @@ export interface GameState {
   meetingsHeld: number;
   input: PlayerInput;
   commands: Command[];
+  /** Entity ids of every person in the match (just the player offline). */
+  humans: number[];
+  /** Squad orders of friends' characters (the player's own are `squadOrder` / `squadAnchor`). */
+  humanOrders: Record<number, SquadCommand>;
+  /** Latest reported positions of friends' characters. */
+  remotePose: Record<number, RemotePose>;
   /** Outbox drained by the presentation layer after each frame. */
   events: GameEvent[];
 }
@@ -88,21 +123,54 @@ function perNation<T>(make: () => T): PerNation<T> {
   return { sun: make(), moon: make(), star: make() };
 }
 
-export function createGameState(playerNation: NationId, playerRole: RoleId, rng: Rng = createRng(), rosterSize: RosterSize = 6): GameState {
+/**
+ * Gives each person a character: the first free one of the nation and role they
+ * asked for, else another free non-king in that nation, else anywhere. Returns
+ * entity ids in seat order. Deterministic, so every device agrees.
+ */
+export function seatHumans(roles: { nation: NationId; role: RoleId }[], seats: HumanSeat[]): number[] {
+  const taken = new Set<number>();
+  const pick = (ok: (r: { nation: NationId; role: RoleId }) => boolean) => {
+    const i = roles.findIndex((r, j) => !taken.has(j) && ok(r));
+    if (i >= 0) taken.add(i);
+    return i;
+  };
+  return seats.map((h) => {
+    let i = pick((r) => r.nation === h.nation && r.role === h.role);
+    if (i < 0) i = pick((r) => r.nation === h.nation && r.role !== 'king');
+    if (i < 0) i = pick((r) => r.role !== 'king');
+    if (i < 0) i = pick(() => true);
+    return i;
+  });
+}
+
+/**
+ * A new match. Offline, the player takes the first `playerNation` / `playerRole`
+ * character. Online, `online.seats` lists everyone in the room (same order on
+ * every device) and `online.me` is this device's seat; the others are remote.
+ */
+export function createGameState(
+  playerNation: NationId, playerRole: RoleId, rng: Rng = createRng(), rosterSize: RosterSize = 6,
+  online?: { seats: HumanSeat[]; me: number },
+): GameState {
   const entities: Entity[] = [];
+  const slots = NATION_IDS.flatMap((n) => ROSTERS[rosterSize].map((role) => ({ nation: n, role })));
+  const seats = online?.seats ?? [{ nation: playerNation, role: playerRole }];
+  const humans = seatHumans(slots, seats);
+  const me = humans[online?.me ?? 0];
   let id = 0;
   for (const n of NATION_IDS) {
-    let playerPlaced = false;
     const roster = ROSTERS[rosterSize].map((r) => {
-      const isPlayer = !playerPlaced && n === playerNation && r === playerRole;
-      if (isPlayer) playerPlaced = true;
-      return createEntity(id++, n, r, isPlayer, rng);
+      const e = createEntity(id, n, r, id === me, rng);
+      e.remote = id !== me && humans.includes(id);
+      id++;
+      return e;
     });
     entities.push(...roster);
     const nonKing = roster.filter((x) => x.role !== 'king');
     nonKing[Math.floor(rng() * nonKing.length)].decoy = true;
   }
-  const player = entities.find((e) => e.isPlayer)!;
+  const player = entities[me];
   return {
     time: 0,
     rng,
@@ -131,6 +199,9 @@ export function createGameState(playerNation: NationId, playerRole: RoleId, rng:
     meetingsHeld: 0,
     input: { forward: 0, turn: 0, dash: false },
     commands: [],
+    humans,
+    humanOrders: {},
+    remotePose: {},
     events: [],
   };
 }
@@ -164,6 +235,17 @@ export function kingOf(state: GameState, nation: NationId): Entity | undefined {
 
 export function speedMul(state: GameState): number {
   return state.time < state.speedBoostUntil ? 1.3 : 1;
+}
+
+/** A person's squad order (the player's lives on the state itself). */
+export function squadCommandOf(state: GameState, leader: Entity): SquadCommand {
+  if (leader.isPlayer) return { order: state.squadOrder, anchor: state.squadAnchor };
+  return state.humanOrders[leader.id] ?? { order: 'follow', anchor: null };
+}
+
+/** Online match (more than one person). Emergency meetings are off there: the whole match would stop. */
+export function isOnline(state: GameState): boolean {
+  return state.humans.length > 1;
 }
 
 /** Queues a player action. Refused while a meeting is open or after the game ends. */

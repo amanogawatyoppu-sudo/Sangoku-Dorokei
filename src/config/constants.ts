@@ -48,6 +48,8 @@ export const MEETING_RANGE = 90;
 export const SCHEDULED_MEETING_AT = (GAME_TIME * 1000) / 2;
 export const SCHEDULED_MEETING_WARN = 5000;
 export const SCHEDULED_MEETING_CLOSE = 20000;
+/** Online, several people read and vote: a little longer. */
+export const ONLINE_MEETING_CLOSE = 30000;
 
 /** A/D turning speed (rad/s): about 200°/s, quick enough to dodge, smooth enough to read. */
 export const PLAYER_TURN_RATE = 3.5;

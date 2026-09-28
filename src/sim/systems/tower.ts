@@ -15,7 +15,7 @@ export function towerTick(state: GameState, dt: number): void {
       state.tower.channel[n] += dt * 1000 * rate;
       state.natStats[n].tower += dt;
       // v6: the player's tower stat counts whenever their nation holds the tower.
-      if (state.player.nation === n) state.player.towerTime += dt;
+      for (const id of state.humans) if (state.entities[id].nation === n) state.entities[id].towerTime += dt;
       if (state.tower.channel[n] >= TOWER_CHANNEL && state.tower.owner !== n) {
         state.tower.owner = n;
         emit(state, { type: 'TOWER_CAPTURED', nation: n });

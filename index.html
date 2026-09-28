@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>三国ドロケイ v7.10 3D</title>
+<title>三国ドロケイ v7.11 3D</title>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -27,6 +27,7 @@
     <div id="log"></div>
     <div id="centerCol">
       <canvas id="game3d"></canvas>
+      <div id="nametags"></div>
       <div id="vignette"></div>
       <div id="banner"></div>
       <div id="progText"></div>
@@ -36,7 +37,7 @@
         <div id="mbtns"><div id="mStamWrap"><div id="mStam"></div></div><button id="mFace">振向</button><button id="mSpec">特殊</button><button id="mDash">ダッシュ</button><button id="mCap">捕獲</button><button id="mSquad">分隊<br><small>同行</small></button></div>
       </div>
       <div id="setup">
-        <h1>三国ドロケイ<span class="seal ver">v7.10</span></h1>
+        <h1>三国ドロケイ<span class="seal ver">v7.11</span></h1>
         <p class="tagline">太陽・月・星 ― 広大な戦場で、正体を隠した敵国の王を探し出せ。</p>
         <div class="step-label">所属国</div><div class="pickrow" id="pickNation"></div>
         <div class="step-label">役職</div><div class="pickrow" id="pickRole"></div>
@@ -45,6 +46,20 @@
         <div class="pickrow">
           <button class="pickbtn" id="btnRandom">ランダム(国+役職をおまかせ)</button>
           <button class="go" id="btnStart">ゲーム開始</button>
+        </div>
+        <div id="netBox">
+          <div class="step-label">友達と遊ぶ（オンライン）</div>
+          <div id="netEntry" class="netrow">
+            <input id="netNick" maxlength="12" placeholder="ニックネーム" aria-label="ニックネーム">
+            <button class="pickbtn" id="btnHost">部屋を作る</button>
+            <input id="netCode" maxlength="12" placeholder="部屋コード" aria-label="部屋コード" autocapitalize="off" autocomplete="off">
+            <button class="pickbtn" id="btnJoin">参加</button>
+          </div>
+          <div id="netRoom" hidden>
+            <div class="netrow">部屋コード <b id="netCodeShow"></b><button class="pickbtn" id="btnLeave">部屋を出る</button></div>
+            <ul id="netMembers"></ul>
+          </div>
+          <p id="netNote"></p>
         </div>
         <p class="controls-note">前進/後退:W・S　旋回:A・D　カメラの上下:ドラッグ/スワイプ（距離:ホイール）　ダッシュ:Shift　捕獲:Space　特殊:E　振り向き:Q<br>カメラは常にキャラクターの背後。背中は見えないので、気配と足音に注意。</p>
       </div>

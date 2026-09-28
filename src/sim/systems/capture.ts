@@ -1,6 +1,7 @@
 import { CAP_HEIGHT, CAP_RANGE } from '../../config/constants';
 import { CAPTURE_CD, KING_DODGE_CD } from '../../config/roles';
 import type { Entity } from '../entity';
+import { isHuman } from '../entity';
 import type { GameState } from '../state';
 import { emit } from '../state';
 import { dist } from './collision';
@@ -51,7 +52,7 @@ export function attemptCapture(state: GameState, attacker: Entity): void {
   }
   if (best.role === 'king') {
     state.natStats[attacker.nation].hit++;
-    if (attacker.isPlayer) attacker.kingHits++;
+    if (isHuman(attacker)) attacker.kingHits++;
     if (best.cd.dodge <= 0 && state.rng() < 0.2) {
       best.cd.dodge = KING_DODGE_CD;
       emit(state, { type: 'KING_DODGED', nation: best.nation });

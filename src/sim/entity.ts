@@ -28,7 +28,12 @@ export interface Entity {
   id: number;
   nation: NationId;
   role: RoleId;
+  /** The person at this screen (single player, or this device in an online match). */
   isPlayer: boolean;
+  /** Another person's character in an online match: moved by their device, never by the AI. */
+  remote: boolean;
+  /** Teleport count (jail, release): lets a remote device know its position was reset. */
+  tp: number;
   x: number;
   /** Height of the feet above the ground plane (stairs, floors, hills, bridges). */
   y: number;
@@ -99,7 +104,7 @@ export function createEntity(id: number, nation: NationId, role: RoleId, isPlaye
   // Face the middle of the map (the camera sits behind the facing).
   const fl = Math.hypot(x, z) || 1;
   return {
-    id, nation, role, isPlayer,
+    id, nation, role, isPlayer, remote: false, tp: 0,
     x, y: 0, z, prevX: x, prevY: 0, prevZ: z, dirX: -x / fl, dirZ: -z / fl,
     speed: 0, gait: 0.94 + ((id * 37) % 13) / 100,
     alive: true, jailed: false, jailedAt: 0, capturedBy: null,
@@ -123,4 +128,10 @@ export function teleport(e: Entity, x: number, z: number, y?: number): void {
   e.z = e.prevZ = z;
   e.y = e.prevY = y ?? groundAt(x, z);
   e.ai.path = null;
+  e.tp++;
+}
+
+/** Controlled by a person (this screen or a friend's), not by the AI. */
+export function isHuman(e: Entity): boolean {
+  return e.isPlayer || e.remote;
 }

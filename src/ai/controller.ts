@@ -3,8 +3,9 @@ import { NATION_IDS, NATIONS } from '../config/nations';
 import { HOTSPOTS, PERCHES as MAP_PERCHES, TOWER } from '../config/map';
 import { AI_REACTION_MS, AI_SPEED, AI_TURN_RATE, CAP_RANGE } from '../config/constants';
 import type { Entity } from '../sim/entity';
+import { isHuman } from '../sim/entity';
 import type { GameState } from '../sim/state';
-import { elapsedSec, kingOf, speedMul } from '../sim/state';
+import { elapsedSec, kingOf, speedMul, squadCommandOf } from '../sim/state';
 import { SNIPE_RANGE, useSpecial } from '../sim/systems/abilities';
 import { attemptCapture, captureCandidate } from '../sim/systems/capture';
 import { SAME_LEVEL, dist, dist3 } from '../sim/systems/collision';
@@ -159,7 +160,7 @@ function pickPrey(state: GameState, e: Entity, range: number): Entity | null {
 
 function chaseRank(state: GameState, e: Entity, targetId: number): number {
   const mates = state.entities
-    .filter((o) => o.nation === e.nation && !o.isPlayer && o.alive && !o.jailed && (o.ai.state === 'CHASE' || o.ai.state === 'INTERCEPT') && o.ai.targetId === targetId)
+    .filter((o) => o.nation === e.nation && !isHuman(o) && o.alive && !o.jailed && (o.ai.state === 'CHASE' || o.ai.state === 'INTERCEPT') && o.ai.targetId === targetId)
     .sort((a, b) => a.id - b.id);
   const i = mates.indexOf(e);
   return i < 0 ? mates.length : i;
@@ -410,7 +411,7 @@ function keyholderThink(state: GameState, e: Entity): void {
     // is fighting at the jail (or no guard is in sight).
     const guarded = visibleEnemies(state, e).some((t) => dist(t, j) < 200);
     const escortIn = state.entities.some((o) => o.nation === e.nation && o !== e && o.alive && !o.jailed
-      && (o.ai.task?.kind === 'rescueEscort' || o.isPlayer) && dist(o, j) < 230);
+      && (o.ai.task?.kind === 'rescueEscort' || isHuman(o)) && dist(o, j) < 230);
     const dj = dist(e, j);
     if (dj < 380 && guarded && !escortIn) {
       const k = 340 / (dj || 1);
@@ -491,17 +492,18 @@ function squadThink(state: GameState, e: Entity, L: Entity, aggro: number): bool
     if (t && (e.dirX * (t.x - e.x) + e.dirZ * (t.z - e.z)) / (dist(e, t) || 1) > 0.9 && e.cd.special <= 0) useSpecial(state, e);
     if (t && dist(e, t) < 380) { stop(e, 'HOLD'); return true; }
   } else {
-    if (engage(state, e, L.isPlayer ? 420 : Math.min(aggro, 520))) return true;
+    if (engage(state, e, isHuman(L) ? 420 : Math.min(aggro, 520))) return true;
     if (dist(e, L) < 600 && lostTargetSearch(state, e)) return true;
   }
-  if (L.isPlayer) {
-    const a = state.squadAnchor ?? L;
-    if (state.squadOrder === 'hold') {
+  if (isHuman(L)) {
+    const cmd = squadCommandOf(state, L);
+    const a = cmd.anchor ?? L;
+    if (cmd.order === 'hold') {
       const ang = e.ai.slot * 2.1;
       setGoal(state, e, { x: a.x + Math.cos(ang) * 70, y: a.y, z: a.z + Math.sin(ang) * 70 }, 'GUARD');
       return true;
     }
-    if (state.squadOrder === 'spread') {
+    if (cmd.order === 'spread') {
       if (!ai.goal || ai.state !== 'SEARCH' || Math.hypot(ai.goal.x - e.x, ai.goal.z - e.z) < 40) {
         const n = randomNodeNear(a.x, a.y, a.z, 420, state.rng);
         if (n) setGoal(state, e, { x: n.x, y: n.y, z: n.z }, 'SEARCH');
@@ -530,7 +532,7 @@ function squadMove(state: GameState, e: Entity, L: Entity, dt: number): void {
   const ai = e.ai, now = state.time;
   const spot = formationSpot(e, L);
   const d = Math.hypot(spot.x - e.x, spot.z - e.z);
-  const catchUp = Math.max(0.4, Math.min(L.isPlayer ? 1.2 : 1.05, 0.35 + d / 220));
+  const catchUp = Math.max(0.4, Math.min(isHuman(L) ? 1.2 : 1.05, 0.35 + d / 220));
   const speed = AI_SPEED * e.gait * speedMul(state) * catchUp;
   if (now >= ai.directAt) {
     ai.directAt = now + 400;

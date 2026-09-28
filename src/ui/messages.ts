@@ -72,6 +72,7 @@ export function bindMessages(bus: EventBus<GameEvent>, state: GameState, log: Lo
     hud.banner(`${ev.inSec}秒後にハーフタイム会議`, 2500);
   });
   bus.on('SQUAD_ORDER', (ev) => {
+    if (ev.leaderId !== state.player.id) return;
     const text = { follow: '分隊：ついて来い（同行して周りを警戒）', spread: '分隊：散開して周囲を探せ', hold: '分隊：ここを守れ' }[ev.order];
     log.add(text);
     hud.banner(text.replace('分隊：', ''), 1100);
