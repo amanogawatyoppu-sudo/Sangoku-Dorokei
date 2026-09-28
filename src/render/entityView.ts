@@ -35,6 +35,15 @@ interface Anim {
   aim: number;
   recoil: number;
   lastSpecialCd: number;
+  /** Smoothed forward acceleration (units/s²): lean into starts, rock back when braking. */
+  accel: number;
+  /** Seconds since the character stopped moving (idle variations kick in after a while). */
+  still: number;
+  /** Landing dip after a drop (s left), and whether we were in the air last frame. */
+  land: number;
+  airborne: boolean;
+  /** Step phase for turning on the spot. */
+  turnStep: number;
 }
 
 /** Rifle placement on the chest bone: low ready (muzzle down, across the body) and shouldered. */
@@ -94,6 +103,7 @@ export class EntityView {
       this.anims.set(e.id, {
         human, phase: (e.id * 1.7) % (Math.PI * 2), yaw: Math.atan2(e.dirX, e.dirZ), turnRate: 0, speed: 0,
         headYaw: 0, reach: 0, lastCapCd: e.cd.capture, nation: e.nation, aim: 0, recoil: 0, lastSpecialCd: e.cd.special,
+        accel: 0, still: 0, land: 0, airborne: false, turnStep: 0,
       });
     }
   }
@@ -145,7 +155,9 @@ export class EntityView {
     // Ground speed: the simulation's (smooth) speed, but never faster than it really moved (walls).
     const measured = Math.hypot(e.x - e.prevX, e.z - e.prevZ) / STEP_SEC;
     const target = Math.min(Math.abs(e.speed), measured * 1.15 + 8);
+    const before = a.speed;
     a.speed = lerp(a.speed, target, 1 - Math.exp(-dt * 12));
+    a.accel = lerp(a.accel, (a.speed - before) / Math.max(dt, 1e-3), 1 - Math.exp(-dt * 6));
     const spd = a.speed, back = e.speed < -1;
     const move = smooth(6, 45, spd); // 0 standing … 1 moving
     const run = smooth(140, 280, spd); // 0 walk … 1 run
@@ -160,9 +172,14 @@ export class EntityView {
     a.reach = Math.max(0, a.reach - dt);
 
     const pose: Pose = {};
-    let hipsY = 0, rootZ = 0;
+    let hipsY = 0, hipsX = 0, rootZ = 0;
     const stunned = e.stunUntil > state.time;
     const falling = e.y < e.prevY - 3;
+    // Landing: a short knee dip when a drop ends.
+    if (a.airborne && !falling) a.land = 0.28;
+    a.airborne = falling;
+    a.land = Math.max(0, a.land - dt);
+    a.still = spd < 6 ? a.still + dt : 0;
     if (e.jailed) {
       // 体育座り: hugging the knees on the ground.
       hipsY = -17;
@@ -215,11 +232,24 @@ export class EntityView {
       pose.foreR = [-E - 0.15 * Math.max(0, s) * move, 0, 0];
       // Bob twice per cycle, lower when running; hips twist against the shoulders.
       hipsY = move * (lerp(0.45, 1.3, run) * Math.cos(2 * ph) - run * 1.2);
+      // Pelvis shifts over the planted foot while walking.
+      hipsX = move * (1 - run) * 0.9 * s;
       const idle = 1 - move;
-      const lean = (back ? -0.08 : lerp(0.05, 0.24, run)) * move;
+      // Starts and stops: lean into the acceleration, rock back when braking hard.
+      const surge = Math.max(-0.12, Math.min(0.14, a.accel * 0.0009));
+      const lean = (back ? -0.08 : lerp(0.05, 0.24, run)) * move + surge;
       pose.hips = [0, 0.13 * s * move, 0.045 * s * move * (1 - run) + idle * 0.025 * Math.sin(t * 0.7)];
       pose.spine = [lean, 0, 0];
       pose.chest = [0.02 + idle * 0.018 * Math.sin(t * 1.9), -0.17 * s * move, 0];
+      if (idle > 0.01) this.idleStance(a, e, pose, t, idle);
+      // Turning on the spot: small stepping feet instead of sliding round.
+      const spin = Math.abs(a.turnRate);
+      if (move < 0.5 && spin > 1.2) {
+        a.turnStep += dt * Math.min(12, spin * 3);
+        const lift = Math.max(0, Math.sin(a.turnStep)) * (1 - move) * 0.45, lift2 = Math.max(0, -Math.sin(a.turnStep)) * (1 - move) * 0.45;
+        pose.thighL[0] -= lift; pose.shinL[0] += lift * 1.6;
+        pose.thighR[0] -= lift2; pose.shinR[0] += lift2 * 1.6;
+      }
       // Lean into turns (the left is +x: turning left leans the top toward +x).
       rootZ = Math.max(-0.22, Math.min(0.22, -a.turnRate * spd * 0.0007));
       if (falling) {
@@ -246,8 +276,70 @@ export class EntityView {
         pose.spine = [lean + 0.2 * k, 0, 0];
       }
     }
+    if (a.land > 0 && !e.jailed) {
+      const k = Math.sin((a.land / 0.28) * Math.PI);
+      hipsY -= 6 * k;
+      for (const [th, sh] of [['thighL', 'shinL'], ['thighR', 'shinR']] as const) {
+        pose[th] = [(pose[th]?.[0] ?? 0) - 0.5 * k, pose[th]?.[1] ?? 0, pose[th]?.[2] ?? 0];
+        pose[sh] = [(pose[sh]?.[0] ?? 0) + 0.9 * k, 0, 0];
+      }
+      pose.spine = [(pose.spine?.[0] ?? 0) + 0.2 * k, 0, 0];
+    }
     if (a.human.gun) this.holdRifle(a, e, state, pose, dt);
-    this.apply(a, pose, hipsY, rootZ, dt);
+    this.apply(a, pose, hipsY, hipsX, rootZ, dt);
+  }
+
+  /**
+   * Standing still: breathing, weight on one leg, and after a few seconds a personal
+   * idle (hands behind the back, arms folded, or a stretch of the neck). Out of breath after
+   * sprinting: hands on the knees, heavy breaths.
+   */
+  private idleStance(a: Anim, e: Entity, pose: Pose, t: number, idle: number): void {
+    const breathe = Math.sin(t * (e.stamina < 30 ? 5.5 : 1.8));
+    const add = (b: BoneName, x: number, y: number, z: number) => {
+      const r = pose[b] ?? [0, 0, 0];
+      pose[b] = [r[0] + x * idle, r[1] + y * idle, r[2] + z * idle];
+    };
+    add('chest', 0.025 * breathe, 0, 0);
+    add('neck', -0.02 * breathe, 0, 0);
+    if (e.stamina < 30 && !e.isPlayer || (e.isPlayer && e.stamina < 20)) {
+      // Winded: bent over, hands on knees.
+      add('spine', 0.55, 0, 0); add('chest', 0.15, 0, 0); add('head', -0.45, 0, 0);
+      add('thighL', -0.35, 0, 0.05); add('thighR', -0.35, 0, -0.05);
+      add('shinL', 0.55, 0, 0); add('shinR', 0.55, 0, 0);
+      add('armL', -0.75, 0, -0.1); add('armR', -0.75, 0, 0.1);
+      add('foreL', -0.2, 0, 0); add('foreR', -0.2, 0, 0);
+      return;
+    }
+    // Weight on one leg: that hip rises, the other knee relaxes.
+    const side = e.id % 2 ? 1 : -1;
+    const shift = 0.5 + 0.5 * Math.sin(t * 0.23 + e.id);
+    add('hips', 0, 0, 0.05 * side * shift);
+    add('chest', 0, 0, -0.035 * side * shift);
+    add(side > 0 ? 'shinR' : 'shinL', 0.18 * shift, 0, 0);
+    add(side > 0 ? 'thighR' : 'thighL', -0.08 * shift, 0, 0);
+    add('foreL', -0.15, 0, 0); add('foreR', -0.15, 0, 0);
+    if (a.still < 3 || e.role === 'sniper') return;
+    const k = Math.min(1, (a.still - 3) / 0.6);
+    const style = e.role === 'king' ? 0 : e.id % 3;
+    const blend = (b: BoneName, x: number, y: number, z: number) => {
+      const r = pose[b] ?? [0, 0, 0];
+      pose[b] = [lerp(r[0], x, k * idle), lerp(r[1], y, k * idle), lerp(r[2], z, k * idle)];
+    };
+    if (style === 0) {
+      // Hands clasped behind the back.
+      blend('armL', 0.4, 0.6, 0.15); blend('armR', 0.4, -0.6, -0.15);
+      blend('foreL', -1.3, 0, 0); blend('foreR', -1.3, 0, 0);
+    } else if (style === 1) {
+      // Arms folded.
+      blend('armL', -0.15, 0.3, -0.75); blend('armR', -0.15, -0.3, 0.75);
+      blend('foreL', -1.75, 0, 0); blend('foreR', -1.75, 0, 0);
+    } else {
+      // Rolls the neck and shoulders now and then.
+      const r = Math.max(0, Math.sin(t * 0.5)) ** 3;
+      add('head', 0, 0, 0.25 * r * Math.sin(t * 2));
+      add('armL', 0, 0, -0.08 * r); add('armR', 0, 0, 0.08 * r);
+    }
   }
 
   /** Snipers carry the rifle at low ready and shoulder it while drawing a bead or firing. */
@@ -289,7 +381,7 @@ export class EntityView {
   }
 
   /** Eases every bone toward its pose (quick, so the gait keeps its snap). */
-  private apply(a: Anim, pose: Pose, hipsY: number, rootZ: number, dt: number): void {
+  private apply(a: Anim, pose: Pose, hipsY: number, hipsX: number, rootZ: number, dt: number): void {
     const k = 1 - Math.exp(-dt * 20);
     const { bones, rest } = a.human;
     for (const name of BONES) {
@@ -301,5 +393,6 @@ export class EntityView {
     }
     bones.root.rotation.z = lerp(bones.root.rotation.z, rootZ, k);
     bones.hips.position.y = lerp(bones.hips.position.y, rest.hips.y + hipsY, k);
+    bones.hips.position.x = lerp(bones.hips.position.x, rest.hips.x + hipsX, k);
   }
 }

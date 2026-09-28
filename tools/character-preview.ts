@@ -28,7 +28,7 @@ const people = Array.from({ length: 8 }, (_, i) => {
   const n = nations[i % 3];
   const h = buildHuman(i * 7 + 3, NATIONS[n].color, new THREE.MeshBasicMaterial({ color: 0xffffff }), { gun: i === 5 });
   h.mesh.position.set((i - 3.5) * 16, 0, 0);
-  h.mesh.rotation.y = params.has('back') ? Math.PI : 0.25;
+  h.mesh.rotation.y = params.has('back') ? Math.PI : params.has('side') ? Math.PI / 2 : 0.25;
   scene.add(h.mesh);
   return h;
 });
@@ -39,7 +39,21 @@ function frame() {
   t += 1 / 60;
   for (const [i, h] of people.entries()) {
     const ph = t * 7 + i;
-    if (pose === 'walk') {
+    const set = (b: keyof typeof h.bones, x: number, y: number, z: number) => h.bones[b].rotation.set(x, y, z);
+    const custom = params.get('bones');
+    if (custom) {
+      // ?bones=[{"armL":[x,y,z],...}, ...] — one pose per person (cycled).
+      const list = JSON.parse(custom) as Record<string, [number, number, number]>[];
+      for (const [b, r] of Object.entries(list[i % list.length])) set(b as keyof typeof h.bones, ...r);
+    } else if (pose === 'behind') {
+      set('armL', 0.4, 0.6, 0.15); set('armR', 0.4, -0.6, -0.15); set('foreL', -1.3, 0, 0); set('foreR', -1.3, 0, 0);
+    } else if (pose === 'fold') {
+      set('armL', -0.15, 0.3, -0.75); set('armR', -0.15, -0.3, 0.75); set('foreL', -1.75, 0, 0); set('foreR', -1.75, 0, 0);
+    } else if (pose === 'winded') {
+      set('spine', 0.55, 0, 0); set('chest', 0.15, 0, 0); set('head', -0.45, 0, 0);
+      set('thighL', -0.35, 0, 0.05); set('thighR', -0.35, 0, -0.05); set('shinL', 0.55, 0, 0); set('shinR', 0.55, 0, 0);
+      set('armL', -0.75, 0, -0.1); set('armR', -0.75, 0, 0.1); set('foreL', -0.2, 0, 0); set('foreR', -0.2, 0, 0);
+    } else if (pose === 'walk') {
       h.bones.thighL.rotation.x = Math.sin(ph) * 0.55; h.bones.thighR.rotation.x = -Math.sin(ph) * 0.55;
       h.bones.shinL.rotation.x = Math.max(0, -Math.sin(ph + 1)) * 0.9; h.bones.shinR.rotation.x = Math.max(0, Math.sin(ph + 1)) * 0.9;
       h.bones.armL.rotation.x = -Math.sin(ph) * 0.5; h.bones.armR.rotation.x = Math.sin(ph) * 0.5;
