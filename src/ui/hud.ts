@@ -15,6 +15,7 @@ import { dist } from '../sim/systems/collision';
 import { suspStars } from '../sim/systems/suspicion';
 import { sniperTarget } from '../sim/systems/abilities';
 import { visibleTo } from '../sim/systems/vision';
+import { SECTORS, sectorOf } from '../sim/war';
 import { $ } from './dom';
 
 /** v6 UI cooldown scale for the special button fill (keyholder uses 1 in v6). */
@@ -92,8 +93,27 @@ export class Hud {
     if (m) m.textContent = { follow: '付いて', spread: '警戒', hold: '守れ' }[state.squadOrder];
   }
 
+  private sectorId = -1;
+  private sectorShownAt = new Map<number, number>();
+
+  /** Entering a sector: its name, holder and what fighting there is like (once in a while). */
+  private updateSector(state: GameState): void {
+    const p = state.player;
+    if (!p.alive) return;
+    const here = sectorOf(state, p);
+    if (here.id === this.sectorId) return;
+    const first = this.sectorId < 0;
+    this.sectorId = here.id;
+    const now = performance.now();
+    if (first || now - (this.sectorShownAt.get(here.id) ?? -Infinity) < 60000) return;
+    this.sectorShownAt.set(here.id, now);
+    const who = here.owner ? (here.owner === p.nation ? '自国領' : NATIONS[here.owner].name + '国領') : '中立';
+    this.banner(`${SECTORS[here.id].name}戦区（${who}）— ${SECTORS[here.id].style}`, 2200);
+  }
+
   update(state: GameState): void {
     this.updateSquad(state);
+    this.updateSector(state);
     const p = state.player, el = this.el;
     const left = timeLeftSec(state);
     const mm = Math.floor(left / 60), ss = Math.floor(left % 60);

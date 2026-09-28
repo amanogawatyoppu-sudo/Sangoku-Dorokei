@@ -52,7 +52,15 @@ export type Task =
   | { kind: 'escortKing' }
   | { kind: 'raidJail'; jail: 'sun' | 'moon' | 'star' }
   | { kind: 'takeTower' }
-  | { kind: 'hunt'; nation: 'sun' | 'moon' | 'star' };
+  | { kind: 'hunt'; nation: 'sun' | 'moon' | 'star' }
+  /** The war (v7.13): march on a sector's strategic point (maybe by a second route), hold one, cover one from high ground. */
+  | { kind: 'assault'; sector: number; via: Waypoint | null }
+  | { kind: 'defend'; sector: number }
+  | { kind: 'overwatch'; sector: number }
+  /** Keyholders wait a little behind the fighting, ready for a rescue. */
+  | { kind: 'standby'; sector: number }
+  /** Communicators without the tower support from the rear. */
+  | { kind: 'rear'; sector: number };
 
 export interface AiMemory {
   state: AiState;

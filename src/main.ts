@@ -36,10 +36,13 @@ import { initOnlineLobby } from './ui/onlineLobby';
 import { ClientLink, HostLink, seatsOf } from './net/online';
 import { NameTags } from './render/nameTags';
 import { Ghost } from './render/ghost';
+import { WarView } from './render/warView';
+import { SECTORS, TRUCE_MS, answerTruce, proposeTruce, sectorPoint, strength, trucesLeft } from './sim/war';
+import { NATION_IDS } from './config/nations';
+import { kingOf } from './sim/state';
 import { createRng } from './core/rng';
 import { STEP_MS, STEP_SEC } from './core/clock';
-import { updatePlayerMovement } from './sim/systems/movement';
-import { settle } from './sim/systems/world';
+import { settleBody, updatePlayerMovement } from './sim/systems/movement';
 import { updateEnemiesSeen } from './sim/systems/vision';
 
 const canvas = $('game3d') as HTMLCanvasElement;
@@ -72,6 +75,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
   const entityView = new EntityView(refs.scene, state);
   const indicators = new Indicators(refs.scene);
   const effects = new Effects(refs.scene, entityView);
+  const warView = new WarView(refs.scene);
   const clock = new FixedStepClock();
 
   bindMessages(bus, state, log, hud);
@@ -116,6 +120,22 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
     },
   });
   $('btnMeeting').onclick = () => { openMeeting(state); flush(); };
+  // Ceasefire (一時停戦): offers to us wait for an answer; our own offer goes to the weaker of the other two.
+  const truceBox = $('truceBox');
+  bus.on('TRUCE_PROPOSED', (ev) => {
+    if (ev.to !== state.player.nation || client) return;
+    $('truceText').textContent = `${NATIONS[ev.from].name}国から提案：「${strongestOther(state, ev.from)}の勢いが強い。${TRUCE_MS / 1000}秒だけ停戦しないか？」（停戦中は互いに捕獲しない）`;
+    truceBox.hidden = false;
+  });
+  $('truceYes').onclick = () => { answerTruce(state, true); truceBox.hidden = true; flush(); };
+  $('truceNo').onclick = () => { answerTruce(state, false); truceBox.hidden = true; flush(); };
+  const btnTruce = $('btnTruce') as HTMLButtonElement;
+  if (client) btnTruce.style.display = 'none';
+  btnTruce.onclick = () => {
+    const me = state.player.nation;
+    const others = NATION_IDS.filter((n) => n !== me && kingOf(state, n)?.alive).sort((a, b) => strength(state, a) - strength(state, b));
+    if (others.length === 2 && proposeTruce(state, me, others[0])) flush();
+  };
   if (online) $('btnMeeting').style.display = 'none'; // no emergency meetings online (the whole match would stop)
 
   hud.initFor(state);
@@ -123,7 +143,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
   if (online) {
     log.add(`オンライン対戦：部屋 ${online.lobby.code}・${online.info.seats.length}人。同じ国は味方、ほかの国は敵。`);
     if (host) log.add('あなたがホストです。このタブを閉じると試合が終わります。');
-  } else log.add('v7.12: ↑↓で前後、←→で旋回、Shiftで加速、Spaceで捕獲、Zで特殊、Qで振り向き。分隊はX 付いてこい・C 周りを警戒・V ここを守れ。');
+  } else log.add('v7.13: 東京は9つの戦区。旗の拠点に立ち続けると制圧。ミニマップに勢力と前線。↑↓で前後、←→で旋回、Shiftで加速、Spaceで捕獲、Zで特殊、Qで振り向き。分隊はX 付いてこい・C 周りを警戒・V ここを守れ。');
   hud.banner('三国ドロケイ 開始　' + NATIONS[me.nation].name + 'の' + roleName(me.role), 2200);
   const tags = online ? new NameTags($('nametags'), state, names) : null;
   resizeRenderer(refs, canvas);
@@ -178,7 +198,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
       for (const e of state.entities) { e.prevX = e.x; e.prevY = e.y; e.prevZ = e.z; }
       state.time += STEP_MS;
       updatePlayerMovement(state, STEP_SEC);
-      if (state.player.alive && !state.player.jailed) settle(state.player, STEP_SEC);
+      if (state.player.alive && !state.player.jailed) settleBody(state.player, STEP_SEC);
       link.mirror.smooth(state, STEP_SEC, now);
     }
     link.send(state, now);
@@ -207,8 +227,13 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
       ghost.step(cam, axes, input.dash, input.held(' '), input.held('z'), frameMs / 1000);
     }
     if (state.meeting) meetingView.refresh(state);
+    if (!truceBox.hidden && !state.war.proposal) truceBox.hidden = true;
+    $('trLeft').textContent = String(trucesLeft(state));
+    btnTruce.disabled = trucesLeft(state) <= 0 || !!state.war.proposal || !state.player.alive || state.over
+      || state.war.truces.some((t) => t.until > state.time && (t.a === state.player.nation || t.b === state.player.nation));
     render(state, entityView, indicators, cam, clock.alpha, frameMs / 1000, ghost);
     effects.sync(state, frameMs / 1000);
+    warView.sync(state);
     tags?.sync(state, entityView, refs.camera, clock.alpha);
   });
   // A hidden tab gets no animation frames: the host keeps the match running anyway (browsers
@@ -222,6 +247,12 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
       for (let t = Math.min(gap, 5000); t > 0; t -= 50) simulate(Math.min(50, t));
     }, 200);
   }
+}
+
+/** The strongest nation other than `n` (named in a ceasefire offer). */
+function strongestOther(state: GameState, n: NationId): string {
+  const o = NATION_IDS.filter((x) => x !== n && x !== state.player.nation).sort((a, b) => strength(state, b) - strength(state, a))[0];
+  return o ? NATIONS[o].name + '国' : '敵';
 }
 
 function showHostLeft(): void {
@@ -279,6 +310,11 @@ function exposeDebug(state: GameState, cam: CameraController): void {
     solidAtCamera: () => solidAt(refs.camera.position.x, refs.camera.position.y, refs.camera.position.z),
     executeKing: (nation: NationId) => { const k = state.entities.find((e) => e.nation === nation && e.role === 'king')!; eliminate(state, k); },
     squadOrder: () => state.squadOrder,
+    war: () => state.war.sectors.map((x, i) => ({ name: SECTORS[i].name, owner: x.owner, capturer: x.capturer, progress: x.progress, contested: x.contested, point: sectorPoint(i) })),
+    strategy: () => ({ sun: state.factions.sun.strategy, moon: state.factions.moon.strategy, star: state.factions.star.strategy }),
+    truces: () => state.war.truces,
+    proposeTruceTo: (to: NationId) => proposeTruce(state, state.player.nation, to),
+    offerTruceFrom: (from: NationId) => proposeTruce(state, from, state.player.nation),
     ghost: () => ({ x: refs.camera.position.x, y: refs.camera.position.y, z: refs.camera.position.z }),
     captureKing: (nation: NationId, by: NationId) => { const k = state.entities.find((e) => e.nation === nation && e.role === 'king')!; sendToJail(state, k, by, null); },
     camera: () => ({ yaw: cam.yaw, pitch: cam.pitch, distance: cam.distance }),

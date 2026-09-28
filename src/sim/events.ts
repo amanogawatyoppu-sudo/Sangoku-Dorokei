@@ -43,4 +43,14 @@ export type GameEvent =
   | { type: 'MEETING_SOON'; inSec: number }
   | { type: 'SQUAD_ORDER'; leaderId: number; order: 'follow' | 'spread' | 'hold' }
   | { type: 'MEETING_CLOSED'; focusSet: boolean }
-  | { type: 'GAME_OVER'; winner: NationId | 'draw' };
+  | { type: 'GAME_OVER'; winner: NationId | 'draw' }
+  /** The war for Tokyo (戦区). */
+  | { type: 'SECTOR_CAPTURED'; sector: number; nation: NationId; from: NationId | null }
+  | { type: 'SECTOR_ATTACKED'; sector: number; by: NationId; owner: NationId }
+  | { type: 'SECTOR_CONTESTED'; sector: number; nations: NationId[] }
+  | { type: 'SECTOR_BATTLE'; sector: number; nations: NationId[] }
+  | { type: 'STRATEGY'; nation: NationId; kind: string; sector: number | null }
+  | { type: 'TRUCE_PROPOSED'; from: NationId; to: NationId }
+  | { type: 'TRUCE_STARTED'; a: NationId; b: NationId; sec: number }
+  | { type: 'TRUCE_DECLINED'; from: NationId; to: NationId }
+  | { type: 'TRUCE_ENDED'; a: NationId; b: NationId };

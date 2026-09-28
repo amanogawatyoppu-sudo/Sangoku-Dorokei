@@ -4,6 +4,7 @@ import type { Entity } from '../sim/entity';
 import type { GameState } from '../sim/state';
 import { dist3 } from '../sim/systems/collision';
 import { hasLineOfSight, inRevealedJail, nearTower, scopeRange } from '../sim/systems/vision';
+import { atWar } from '../sim/war';
 import type { Sighting } from './memory';
 
 /**
@@ -27,7 +28,8 @@ export const PERCEIVE_MS = 200;
 
 /** True if `target` looks like a friend to `observer` (impostor disguised as the observer's nation). */
 export function looksFriendly(state: GameState, observer: Entity, target: Entity): boolean {
-  return target.nation === observer.nation || (target.fakeUntil > state.time && target.fakeNation === observer.nation);
+  // Ceasefire partners are left alone for the length of the truce.
+  return target.nation === observer.nation || (target.fakeUntil > state.time && target.fakeNation === observer.nation) || !atWar(state, observer.nation, target.nation);
 }
 
 export function canPerceive(state: GameState, observer: Entity, target: Entity): boolean {

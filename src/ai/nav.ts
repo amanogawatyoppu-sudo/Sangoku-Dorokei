@@ -1,6 +1,6 @@
 import { BOUNDS, WORLD, insideLoop } from '../config/map';
 import type { Body } from '../sim/systems/world';
-import { blocked, canWalk, primsAt, supportHeight, topAt } from '../sim/systems/world';
+import { blocked, canWalk, inWater, primsAt, supportHeight, topAt } from '../sim/systems/world';
 import type { Waypoint } from './memory';
 
 /**
@@ -282,6 +282,17 @@ export function planPath(body: Body, goal: Waypoint): Waypoint[] | null {
 }
 
 /** Random standable point within `radius` of (x, z) on roughly the given level (for searches / patrols). */
+/** The nearest walkable spot on dry land (someone who fell into the water climbs out there). */
+export function dryNodeNear(x: number, z: number): NavNode | null {
+  let best: NavNode | null = null, bd = Infinity;
+  for (const n of navGraph().nodes) {
+    if (!n.reachable || n.y > 40) continue;
+    const d = (n.x - x) ** 2 + (n.z - z) ** 2;
+    if (d < bd && !inWater(n.x, n.z, n.y + 1)) { bd = d; best = n; }
+  }
+  return best;
+}
+
 let chokes: NavNode[] | null = null;
 
 /**

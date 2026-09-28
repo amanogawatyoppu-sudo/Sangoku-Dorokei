@@ -5,7 +5,13 @@ import { isHuman } from '../sim/entity';
 import type { GameState } from '../sim/state';
 import { kingOf } from '../sim/state';
 import { dist } from '../sim/systems/collision';
-import type { Sighting, Task } from './memory';
+import type { Sighting, Task, Waypoint } from './memory';
+import { emit } from '../sim/state';
+import type { SectorId } from '../sim/war';
+import { CENTRAL, POINT_R, proposeTruce, rearSectors, sectorAt, sectorPoint, strength, trucesLeft } from '../sim/war';
+import { chokePoints } from './nav';
+import type { Strategy } from './strategy';
+import { NO_STRATEGY, decideNormal, frontSectors, opportunistTarget, threatenedSector } from './strategy';
 
 /**
  * Each kingdom is an independent commander. Once a second it reads the
@@ -25,11 +31,13 @@ export interface Faction {
   lastAllyCapturedAt: number;
   /** Where the latest capture attempt involving this nation happened (rangers go there). */
   fight: { x: number; y: number; z: number; t: number } | null;
+  /** The kingdom's current plan (国家戦略). */
+  strategy: Strategy;
   nextTickAt: number;
 }
 
 export function createFaction(): Faction {
-  return { intel: new Map(), belief: new Map(), posture: 'NORMAL', lastAllyCapturedAt: -Infinity, nextTickAt: 0, fight: null };
+  return { intel: new Map(), belief: new Map(), posture: 'NORMAL', lastAllyCapturedAt: -Infinity, nextTickAt: 0, fight: null, strategy: { ...NO_STRATEGY } };
 }
 
 const TICK_MS = 1000;
@@ -48,6 +56,9 @@ export function playerSquadSize(n: number): number {
 /** AI squads: a leader and up to this many followers. */
 const AI_SQUAD_FOLLOWERS = 2;
 
+/** A follower stays with its leader when neither has a job, or both are on the same attack. */
+const sameAssault = (e: Entity, L: Entity) => (!e.ai.task && !L.ai.task)
+  || (e.ai.task?.kind === 'assault' && L.ai.task?.kind === 'assault' && e.ai.task.sector === L.ai.task.sector);
 const squadable = (e: Entity) => !isHuman(e) && e.alive && !e.jailed && (e.role === 'soldier' || e.role === 'ranger' || e.role === 'sniper');
 
 /**
@@ -63,10 +74,12 @@ function formSquads(state: GameState, n: NationId): void {
     const L = e.ai.leaderId === null ? null : state.entities[e.ai.leaderId];
     if (!L) continue;
     const ok = squadable(e) && L.alive && !L.jailed
-      && (isHuman(L) || (!e.ai.task && !L.ai.task && L.ai.leaderId === null && e.role === 'soldier'));
+      && (isHuman(L) || (sameAssault(e, L) && L.ai.leaderId === null && e.role === 'soldier'));
     if (!ok) e.ai.leaderId = null;
   }
-  const free = (e: Entity) => squadable(e) && e.ai.leaderId === null && !e.ai.task && followersOf(e).length === 0;
+  const free = (e: Entity) => squadable(e) && e.ai.leaderId === null && (!e.ai.task || e.ai.task.kind === 'assault') && followersOf(e).length === 0;
+  // A person's squad comes first: any free-standing hunter or sniper may be called (not the king's escort).
+  const freeForPerson = (e: Entity) => squadable(e) && e.ai.leaderId === null && followersOf(e).length === 0 && e.ai.task?.kind !== 'escortKing';
   // Each person gets a squad (online, the nation's people share the followers).
   const humans = state.humans.map((id) => state.entities[id]).filter((h) => h.nation === n);
   for (const p of humans) {
@@ -75,13 +88,13 @@ function formSquads(state: GameState, n: NationId): void {
     const want = Math.max(1, Math.ceil(playerSquadSize(size) / humans.length)) - followersOf(p).length;
     if (want > 0) {
       const rank = (e: Entity) => (e.role === 'sniper' ? 1 : 0) * 1e6 + dist(e, p);
-      for (const e of people.filter(free).sort((a, b) => rank(a) - rank(b)).slice(0, want)) e.ai.leaderId = p.id;
+      for (const e of people.filter(freeForPerson).sort((a, b) => rank(a) - rank(b)).slice(0, want)) { e.ai.leaderId = p.id; e.ai.task = null; }
     }
   }
-  const leaders: Entity[] = people.filter((e) => squadable(e) && e.role === 'soldier' && e.ai.leaderId === null && !e.ai.task && followersOf(e).length > 0);
+  const leaders: Entity[] = people.filter((e) => squadable(e) && e.role === 'soldier' && e.ai.leaderId === null && (!e.ai.task || e.ai.task.kind === 'assault') && followersOf(e).length > 0);
   for (const u of people.filter((e) => free(e) && e.role === 'soldier').sort((a, b) => a.id - b.id)) {
     if (leaders.includes(u)) continue;
-    const L = leaders.filter((l) => l !== u && followersOf(l).length < AI_SQUAD_FOLLOWERS && dist(l, u) < 1600).sort((a, b) => dist(a, u) - dist(b, u))[0];
+    const L = leaders.filter((l) => l !== u && sameAssault(u, l) && followersOf(l).length < AI_SQUAD_FOLLOWERS && dist(l, u) < 1600).sort((a, b) => dist(a, u) - dist(b, u))[0];
     if (L) u.ai.leaderId = L.id;
     else leaders.push(u);
   }
@@ -107,67 +120,214 @@ function updateBelief(state: GameState, n: NationId): void {
   for (const [id, s] of f.intel) if (state.time - s.t > 15000) f.intel.delete(id);
 }
 
+/** Hunters grouped as they move: each squad leader with its followers, and everyone alone. */
+function units(hunters: Entity[]): Entity[][] {
+  const out: Entity[][] = [];
+  const inUnit = new Set<Entity>();
+  for (const L of hunters) {
+    if (L.ai.leaderId !== null && hunters.some((h) => h.id === L.ai.leaderId)) continue;
+    const u = [L, ...hunters.filter((f) => f.ai.leaderId === L.id)];
+    u.forEach((x) => inUnit.add(x));
+    out.push(u);
+  }
+  for (const h of hunters) if (!inUnit.has(h)) out.push([h]);
+  return out;
+}
+
+/** A second way in (歩道橋・階段・高台) for a flanking group: a stair end or high walkway near the point. */
+const viaCache = new Map<string, Waypoint | null>();
+function flankRoute(sector: SectorId, variant: number): Waypoint | null {
+  const key = sector + ':' + variant;
+  if (viaCache.has(key)) return viaCache.get(key)!;
+  const p = sectorPoint(sector);
+  const cands = chokePoints().filter((c) => { const d = Math.hypot(c.x - p.x, c.z - p.z); return d > 220 && d < 750; })
+    .sort((a, b) => b.y - a.y || a.id - b.id);
+  const w = cands.length ? cands[variant % Math.min(3, cands.length)] : null;
+  const via = w ? { x: w.x, y: w.y, z: w.z } : null;
+  viaCache.set(key, via);
+  return via;
+}
+
+/** Sends whole units (a squad stays a squad) on a task until about `k` people are on it. */
+function sendUnits(pool: Entity[][], k: number, make: (u: number) => Task): Entity[][] {
+  let n = 0, u = 0;
+  const rest: Entity[][] = [];
+  for (const unit of pool) {
+    if (n >= k) { rest.push(unit); continue; }
+    const task = make(u++);
+    for (const e of unit) e.ai.task = { ...task };
+    n += unit.length;
+  }
+  return rest;
+}
+
+/** Announces a change of plan (the nation's own people hear it; others via the tower). */
+function setStrategy(state: GameState, n: NationId, st: Strategy): void {
+  const f = state.factions[n], old = f.strategy;
+  f.strategy = st;
+  if (old.kind !== st.kind || old.sector !== st.sector) emit(state, { type: 'STRATEGY', nation: n, kind: st.kind, sector: st.sector });
+}
+
 function assign(state: GameState, n: NationId): void {
   const f = state.factions[n];
   const members = aiMembers(state, n);
   for (const e of members) e.ai.task = null;
   const hunters = members.filter((e) => HUNTER_ROLES.has(e.role));
+  const snipers = members.filter((e) => e.role === 'sniper');
+  const keyholders = members.filter((e) => e.role === 'keyholder');
+  const comms = members.filter((e) => e.role === 'communicator');
   const take = (list: Entity[], k: number, task: Task) => {
     const picked = list.slice(0, k);
-    for (const e of picked) e.ai.task = task;
+    for (const e of picked) e.ai.task = { ...task };
     return list.filter((e) => !picked.includes(e));
   };
   const myKing = kingOf(state, n);
   const heldKing = state.entities.find((e) => e.role === 'king' && e.jailed && e.capturedBy === n);
   const otherCapture = state.entities.find((e) => e.role === 'king' && e.jailed && e.nation !== n && e.capturedBy !== n);
+  const front = frontSectors(state, n);
+  const threat = threatenedSector(state, n);
+  const defendSpot = threat ?? front[0] ?? null;
 
   if (myKing?.alive && myKing.jailed && myKing.capturedBy) {
-    // Our king is in someone's jail: everything turns into the rescue.
+    // Our king is in someone's jail: the war stops for the rescue.
     f.posture = 'RESCUE_KING';
+    setStrategy(state, n, { kind: 'RESCUE_KING', sector: sectorAt(NATIONS[myKing.capturedBy].jail.x, NATIONS[myKing.capturedBy].jail.z), enemy: myKing.capturedBy, until: 0 });
     const jail = myKing.capturedBy;
     const j = NATIONS[jail].jail;
     // Every keyholder heads for the jail (the nearest one usually gets there first).
-    for (const kh of members.filter((e) => e.role === 'keyholder')) kh.ai.task = { kind: 'rescueKing', jail };
+    for (const kh of keyholders) kh.ai.task = { kind: 'rescueKing', jail };
     // Rescue party: keyholder + escort + sniper overwatch. Rangers always go (they get there first).
     const rangers = hunters.filter((e) => e.role === 'ranger');
     for (const r of rangers) r.ai.task = { kind: 'rescueEscort', jail };
     const soldiers = hunters.filter((e) => e.role !== 'ranger');
-    take(byDistance(soldiers, j), Math.max(2 - rangers.length, Math.ceil(soldiers.length * 0.5)), { kind: 'rescueEscort', jail });
-    for (const sn of members.filter((e) => e.role === 'sniper')) sn.ai.task = { kind: 'rescueEscort', jail };
+    const rest = take(byDistance(soldiers, j), Math.max(2 - rangers.length, Math.ceil(soldiers.length * 0.6)), { kind: 'rescueEscort', jail });
+    // The rest hold the line (the front shrinks, it is not abandoned).
+    if (defendSpot !== null) take(rest, 9, { kind: 'defend', sector: defendSpot });
+    for (const sn of snipers) sn.ai.task = { kind: 'rescueEscort', jail };
     return;
   }
   if (heldKing) {
-    // We hold an enemy king: defend the jail until the execution.
+    // We hold an enemy king: guard the jail, but keep the front manned too.
     f.posture = 'HOLD_KING';
+    setStrategy(state, n, { kind: 'HOLD_KING', sector: sectorAt(NATIONS[n].jail.x, NATIONS[n].jail.z), enemy: heldKing.nation, until: 0 });
     const j = NATIONS[n].jail;
-    const rest = take(byDistance(hunters, j), Math.max(2, Math.ceil(hunters.length * 0.35)), { kind: 'guardJail' });
-    for (const sn of members.filter((e) => e.role === 'sniper')) sn.ai.task = { kind: 'guardJail' };
+    let rest = take(byDistance(hunters, j), Math.max(2, Math.ceil(hunters.length * 0.4)), { kind: 'guardJail' });
+    snipers.forEach((sn, i) => { sn.ai.task = i % 2 === 0 || defendSpot === null ? { kind: 'guardJail' } : { kind: 'overwatch', sector: defendSpot }; });
+    if (defendSpot !== null) rest = take(rest, Math.ceil(rest.length / 2), { kind: 'defend', sector: defendSpot });
     take(rest, 9, { kind: 'hunt', nation: heldKing.nation });
     return;
   }
   if (otherCapture?.capturedBy) {
-    // Two other kingdoms are locked in a jail fight: exploit it.
+    // Two other kingdoms are locked in a jail fight: exploit it (漁夫の利).
     f.posture = 'OPPORTUNIST';
-    const captor = otherCapture.capturedBy;
-    let rest = take(byDistance(hunters, NATIONS[captor].jail), Math.max(1, Math.round(hunters.length * 0.25)), { kind: 'raidJail', jail: captor });
+    const captor = otherCapture.capturedBy, victim = otherCapture.nation;
+    // Pick the target once and stick to it for a while (not a new one every second).
+    let t: { sector: SectorId; enemy: NationId } | null = f.strategy.kind === 'OPPORTUNIST' && f.strategy.sector !== null && state.time < f.strategy.until
+      && state.war.sectors[f.strategy.sector].owner !== n ? { sector: f.strategy.sector, enemy: f.strategy.enemy ?? captor } : null;
+    if (!t) {
+      t = opportunistTarget(state, n, captor, victim);
+      setStrategy(state, n, { kind: 'OPPORTUNIST', sector: t?.sector ?? null, enemy: t?.enemy ?? captor, until: state.time + 15000 });
+    }
+    // The jail fight is the biggest event of the match: a real party goes to crash it.
+    let rest = take(byDistance(hunters, NATIONS[captor].jail), Math.max(2, Math.round(hunters.length * 0.5)), { kind: 'raidJail', jail: captor });
     if (state.tower.owner !== n) rest = take(rest, 1, { kind: 'takeTower' });
+    if (t) {
+      const left = sendUnits(units(rest), Math.ceil(rest.length * 0.6), (u) => ({ kind: 'assault', sector: t.sector, via: u % 3 === 2 ? flankRoute(t.sector, u) : null }));
+      rest = left.flat();
+      snipers.forEach((sn, i) => { sn.ai.task = { kind: 'overwatch', sector: i % 2 ? t.sector : sectorAt(NATIONS[captor].jail.x, NATIONS[captor].jail.z) }; });
+    }
     take(rest, 9, { kind: 'hunt', nation: captor });
     return;
   }
+
   f.posture = 'NORMAL';
-  if (myKing?.alive && !myKing.jailed) {
-    const escorts = Math.floor(hunters.length / 4) + (state.time - f.lastAllyCapturedAt < 15000 ? 2 : 1);
-    take(byDistance(hunters, myKing), escorts, { kind: 'escortKing' });
+  if (state.time >= f.strategy.until || f.strategy.kind === 'RESCUE_KING' || f.strategy.kind === 'HOLD_KING' || f.strategy.kind === 'OPPORTUNIST'
+    || (f.strategy.kind === 'ATTACK_SECTOR' && f.strategy.sector !== null && state.war.sectors[f.strategy.sector].owner === n)
+    || (f.strategy.kind !== 'DEFEND_SECTOR' && threat !== null)) {
+    setStrategy(state, n, decideNormal(state, n, f.strategy));
   }
+  const st = f.strategy;
+  let pool = hunters;
+  if (myKing?.alive && !myKing.jailed) {
+    // One loose escort (more after a scare): a crowd around the king gives it away.
+    const escorts = (state.time - f.lastAllyCapturedAt < 15000 ? 2 : 1) + Math.floor(hunters.length / 10);
+    pool = take(byDistance(pool, myKing), escorts, { kind: 'escortKing' });
+  }
+  const target = st.sector;
+  let rest = units(pool);
+  if (target !== null) {
+    switch (st.kind) {
+      case 'ATTACK_SECTOR': case 'HUNT_KING':
+        rest = sendUnits(rest, Math.ceil(pool.length * 0.8), (u) => ({ kind: 'assault', sector: target, via: u % 3 === 2 ? flankRoute(target, u) : null }));
+        break;
+      case 'TAKE_TOWER':
+        rest = sendUnits(rest, Math.ceil(pool.length * 0.3), () => ({ kind: 'takeTower' }));
+        rest = sendUnits(rest, Math.ceil(pool.length * 0.3), (u) => ({ kind: 'assault', sector: CENTRAL, via: u % 2 ? flankRoute(CENTRAL, u) : null }));
+        break;
+      case 'DEFEND_SECTOR': case 'RECOVER':
+        rest = sendUnits(rest, Math.ceil(pool.length * (st.kind === 'RECOVER' ? 0.5 : 0.6)), () => ({ kind: 'defend', sector: target }));
+        break;
+    }
+    for (const sn of snipers) sn.ai.task = { kind: 'overwatch', sector: target };
+    for (const kh of keyholders) kh.ai.task = { kind: 'standby', sector: target };
+  }
+  // A second group holds a threatened front while the main force attacks elsewhere.
+  if (threat !== null && st.kind !== 'DEFEND_SECTOR') sendUnits(rest, 2, () => ({ kind: 'defend', sector: threat }));
+  // Communicators: the tower if it can be held, else support from the rear.
+  if (state.tower.owner && state.tower.owner !== n && st.kind !== 'TAKE_TOWER') {
+    const rear = rearSectors(state, n);
+    for (const c of comms) if (rear.length) c.ai.task = { kind: 'rear', sector: rear[0] };
+  }
+}
+
+/**
+ * The tower with a communicator on our side (通信士×管制塔): reports of every enemy
+ * fighting over a strategic point, or where a capture was just tried, reach the
+ * whole nation (the commander plans with them; the AIs go and check).
+ */
+function towerIntel(state: GameState, n: NationId): void {
+  if (state.tower.owner !== n || !state.entities.some((e) => e.nation === n && e.role === 'communicator' && e.alive && !e.jailed)) return;
+  const f = state.factions[n];
+  state.war.sectors.forEach((s, i) => {
+    if (!s.contested && state.time - s.lastClashAt > 6000) return;
+    const p = sectorPoint(i);
+    for (const e of state.entities) {
+      if (e.nation === n || !e.alive || e.jailed || Math.hypot(e.x - p.x, e.z - p.z) > POINT_R * 2.5) continue;
+      const prev = f.intel.get(e.id);
+      if (prev && state.time - prev.t < 1000) continue;
+      f.intel.set(e.id, { id: e.id, x: e.x, y: e.y, z: e.z, vx: 0, vz: 0, t: state.time, since: state.time });
+    }
+  });
+}
+
+/**
+ * Diplomacy (外交): when one kingdom is clearly ahead, the weakest may offer the
+ * other a short ceasefire so both can turn on the leader. Rare by design: at most
+ * twice a match, and never while one is already on.
+ */
+function diplomacy(state: GameState): void {
+  const w = state.war;
+  if (state.time < w.nextTruceCheckAt || w.proposal || trucesLeft(state) <= 0) return;
+  w.nextTruceCheckAt = state.time + 30000;
+  if (w.truces.some((t) => t.until > state.time)) return;
+  const alive = NATION_IDS.filter((n) => kingOf(state, n)?.alive && !kingOf(state, n)?.jailed);
+  if (alive.length < 3) return;
+  const byStr = [...alive].sort((a, b) => strength(state, b) - strength(state, a));
+  const [top, mid, low] = byStr;
+  if (state.time < 90000 || strength(state, top) < Math.max(strength(state, mid) * 1.6, strength(state, mid) + 4)) return;
+  proposeTruce(state, low, mid);
 }
 
 /** Runs each nation's commander once per second. */
 export function factionTick(state: GameState): void {
+  diplomacy(state);
   for (const n of NATION_IDS) {
     const f = state.factions[n];
     if (state.time < f.nextTickAt) continue;
     f.nextTickAt = state.time + TICK_MS;
+    towerIntel(state, n);
     updateBelief(state, n);
+    formSquads(state, n); // people's squads first (the commander then leaves them alone)
     assign(state, n);
     formSquads(state, n);
   }

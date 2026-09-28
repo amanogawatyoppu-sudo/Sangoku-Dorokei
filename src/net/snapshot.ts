@@ -49,6 +49,8 @@ export interface Snapshot {
   /** Per-person numbers: [id, capture cd ×10, special cd ×10, meetings left, captures, rescues, king hits, king captures, king rescues, tower time ×10, squad order, eliminated at ×10 (-1 = no)]. */
   h: number[][];
   ev: NetEvent[];
+  /** The war: per sector [owner, capturer, gauge %, contested, sun, moon, star on the point]; ceasefires [a, b, until]; ceasefires held. */
+  w?: { s: number[][]; t: [number, number, number][]; n: number };
   /** Open meeting: its kind (0 emergency, 1 scheduled) and each nation's view. */
   m?: { k: number; n: Partial<Record<NationId, NetMeeting>> };
 }
@@ -159,6 +161,11 @@ export function encodeSnapshot(state: GameState, events: NetEvent[]): Snapshot {
   const snap: Snapshot = { v: 1, t: Math.round(state.time), g: packGlobals(state), e: state.meeting ? [] : packEntities(state), h, ev: events.slice(-EVENT_WINDOW) };
   const m = packMeeting(state);
   if (m) snap.m = m;
+  snap.w = {
+    s: state.war.sectors.map((x) => [nIdx(x.owner), nIdx(x.capturer), Math.round(x.progress * 100), x.contested ? 1 : 0, x.count.sun, x.count.moon, x.count.star]),
+    t: state.war.truces.map((t) => [nIdx(t.a), nIdx(t.b), Math.round(t.until)]),
+    n: state.war.trucesHeld,
+  };
   return snap;
 }
 
@@ -214,6 +221,7 @@ export class Mirror {
     const teleported = bytes.length ? this.applyEntities(state, bytes, nowMs) : false;
     this.applyHumans(state, Array.isArray(snap.h) ? snap.h : []);
     this.applyMeeting(state, snap.m);
+    this.applyWar(state, snap.w);
     const events: GameEvent[] = [];
     for (const ev of Array.isArray(snap.ev) ? snap.ev : []) {
       if (num(ev?.s, -1) <= this.lastEventSeq || !ev.e || typeof ev.e.type !== 'string') continue;
@@ -318,6 +326,24 @@ export class Mirror {
       e.eliminatedAt = el < 0 ? null : el / 10;
       if (e.isPlayer) state.squadOrder = ORDERS[num(row[10])] ?? state.squadOrder;
     }
+  }
+
+  private applyWar(state: GameState, w: Snapshot['w']): void {
+    if (!w || !Array.isArray(w.s)) return;
+    state.war.sectors.forEach((x, i) => {
+      const r = w.s[i];
+      if (!Array.isArray(r)) return;
+      x.owner = nAt(num(r[0], -1));
+      x.capturer = nAt(num(r[1], -1));
+      x.progress = num(r[2]) / 100;
+      x.contested = r[3] === 1;
+      x.count = { sun: num(r[4]), moon: num(r[5]), star: num(r[6]) };
+    });
+    state.war.truces = (Array.isArray(w.t) ? w.t : []).flatMap((t) => {
+      const a = nAt(num(t?.[0], -1)), b = nAt(num(t?.[1], -1));
+      return a && b ? [{ a, b, until: num(t[2]) }] : [];
+    });
+    state.war.trucesHeld = num(w.n);
   }
 
   private applyMeeting(state: GameState, m: Snapshot['m']): void {

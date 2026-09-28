@@ -152,3 +152,26 @@ describe('meeting talk', () => {
     expect(new Set(state.entities.map((e) => nameOf(e.id))).size).toBe(state.entities.length);
   });
 });
+
+describe('water', () => {
+  it('someone who falls into the river climbs out onto a bank instead of being stuck', async () => {
+    const { SITES } = await import('../src/config/map');
+    const { settleBody } = await import('../src/sim/systems/movement');
+    const { inWater } = await import('../src/sim/systems/world');
+    const state = newGame();
+    const p = state.player;
+    // Straight down into the river (as if off a bridge).
+    p.x = SITES.riverBank.x; p.z = SITES.riverZ(SITES.riverBank.x); p.y = 60;
+    expect(inWater(p.x, p.z, 1)).toBe(true);
+    for (let i = 0; i < 120; i++) settleBody(p, 1 / 60);
+    expect(inWater(p.x, p.z, p.y + 1)).toBe(false);
+    // And can walk again.
+    const x0 = p.x, z0 = p.z;
+    state.input = { forward: 1, turn: 0, dash: false };
+    for (let a = 0; a < 8 && Math.hypot(p.x - x0, p.z - z0) < 20; a++) {
+      p.dirX = Math.sin(a * 0.8); p.dirZ = Math.cos(a * 0.8);
+      for (let i = 0; i < 30; i++) { state.time += 16; updatePlayerMovement(state, 1 / 60); }
+    }
+    expect(Math.hypot(p.x - x0, p.z - z0)).toBeGreaterThan(20);
+  });
+});

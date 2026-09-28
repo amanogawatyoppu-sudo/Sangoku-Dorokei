@@ -12,6 +12,8 @@ import { createFaction } from '../ai/faction';
 import type { Entity } from './entity';
 import { createEntity } from './entity';
 import type { GameEvent } from './events';
+import type { WarState } from './war';
+import { createWar } from './war';
 
 export type PerNation<T> = Record<NationId, T>;
 
@@ -115,6 +117,8 @@ export interface GameState {
   humanOrders: Record<number, SquadCommand>;
   /** Online: everyone's nickname by character id (meeting lines). */
   humanNames: Record<number, string>;
+  /** The war for Tokyo: sectors, fronts, ceasefires. */
+  war: WarState;
   /** Latest reported positions of friends' characters. */
   remotePose: Record<number, RemotePose>;
   /** Outbox drained by the presentation layer after each frame. */
@@ -204,6 +208,7 @@ export function createGameState(
     humans,
     humanOrders: {},
     humanNames: {},
+    war: createWar(),
     remotePose: {},
     events: [],
   };

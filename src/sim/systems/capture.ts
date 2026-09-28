@@ -6,6 +6,7 @@ import type { GameState } from '../state';
 import { emit } from '../state';
 import { dist } from './collision';
 import { sendToJail } from './jail';
+import { atWar, noteClash } from '../war';
 
 export type CaptureTier = 'front' | 'side' | 'back' | 'deepback';
 
@@ -27,7 +28,7 @@ export function canAct(state: GameState, e: Entity): boolean {
 export function captureCandidate(state: GameState, attacker: Entity): Entity | null {
   let best: Entity | null = null, bd = CAP_RANGE;
   for (const t of state.entities) {
-    if (t.nation === attacker.nation || !t.alive || t.jailed) continue;
+    if (t.nation === attacker.nation || !t.alive || t.jailed || !atWar(state, attacker.nation, t.nation)) continue;
     // Same floor only: someone directly above or below cannot be grabbed.
     if (Math.abs(t.y - attacker.y) > CAP_HEIGHT) continue;
     const d = dist(t, attacker);
@@ -51,6 +52,7 @@ export function attemptCapture(state: GameState, attacker: Entity): void {
   const fight = { x: best.x, y: best.y, z: best.z, t: now };
   state.factions[attacker.nation].fight = fight;
   state.factions[best.nation].fight = fight;
+  noteClash(state, best, attacker.nation, best.nation);
   const tier = superHand(attacker) ? 'deepback' : captureTier(best, attacker);
   if (tier === 'side' && state.rng() < 0.5) { emit(state, { type: 'CAPTURE_FAILED', attackerId: attacker.id, reason: 'side' }); return; }
   if (tier === 'back' && state.rng() < 0.15) { emit(state, { type: 'CAPTURE_FAILED', attackerId: attacker.id, reason: 'back' }); return; }

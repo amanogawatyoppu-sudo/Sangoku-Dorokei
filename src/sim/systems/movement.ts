@@ -3,7 +3,8 @@ import type { Entity } from '../entity';
 import type { GameState } from '../state';
 import { emit, speedMul } from '../state';
 import { SAME_LEVEL } from './collision';
-import { blocked, moveBody, settle, supportHeight } from './world';
+import { blocked, inWater, moveBody, settle, supportHeight } from './world';
+import { dryNodeNear } from '../../ai/nav';
 
 /**
  * AI walking: the body turns toward (tx, tz) at AI_TURN_RATE and moves along its
@@ -126,7 +127,21 @@ export function updatePlayerMovement(state: GameState, dt: number): void {
 
 /** Everyone lands on the floor under them (stairs up, drops down). */
 export function settleAll(state: GameState, dt: number): void {
-  for (const e of state.entities) if (e.alive && !e.jailed) settle(e, dt);
+  for (const e of state.entities) if (e.alive && !e.jailed) settleBody(e, dt);
+}
+
+/**
+ * Settles one character; anyone who ended up in the water (fell off a bridge or a
+ * moat wall) climbs out onto the nearest dry bank instead of being stuck there.
+ */
+export function settleBody(e: Entity, dt: number): void {
+  settle(e, dt);
+  if (!inWater(e.x, e.z, e.y + 1)) return;
+  const n = dryNodeNear(e.x, e.z);
+  if (!n) return;
+  e.x = n.x; e.z = n.z; e.y = n.y;
+  e.ai.path = null;
+  e.speed = 0;
 }
 
 /**

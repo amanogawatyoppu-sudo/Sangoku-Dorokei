@@ -1,4 +1,4 @@
-import type { NationId, Point } from '../config/nations';
+import type { Point } from '../config/nations';
 import { NATION_IDS, NATIONS } from '../config/nations';
 import { HOTSPOTS, PERCHES as MAP_PERCHES, TOWER } from '../config/map';
 import { AI_REACTION_MS, AI_SPEED, AI_TURN_RATE, CAP_RANGE, SPRINT_SPEED } from '../config/constants';
@@ -13,7 +13,9 @@ import { accelerate, moveToward, turnBy, turnToward } from '../sim/systems/movem
 import { tryStartRescue } from '../sim/systems/rescue';
 import { blocked, canWalk } from '../sim/systems/world';
 import type { AiState, Sighting, Waypoint } from './memory';
-import { chokePoints, planPath, randomNodeNear } from './nav';
+import { chokePoints, navGraph, planPath, randomNodeNear } from './nav';
+import { behind, neighbours, sectorPoint } from '../sim/war';
+import { frontSectors, kingRefuge, rearPoint } from './strategy';
 import { PERCEIVE_MS, perceive, predict } from './perception';
 
 const THINK_MS = 220;
@@ -276,7 +278,15 @@ function patrol(state: GameState, e: Entity): void {
   const hunt = ai.task?.kind === 'hunt' ? ai.task.nation : null;
   let p: Point;
   const r = state.rng();
-  if (focus && r < 0.6) p = focus;
+  const front = frontSectors(state, e.nation);
+  if (front.length && state.rng() < 0.45) {
+    // Free hands drift to the front: between an own front point and the enemy's.
+    const id = front[Math.floor(state.rng() * front.length)];
+    const enemyNb = [...neighbours(id)].filter((b) => { const o = state.war.sectors[b].owner; return o && o !== e.nation; });
+    const a = sectorPoint(id), b = enemyNb.length ? sectorPoint(enemyNb[Math.floor(state.rng() * enemyNb.length)]) : a;
+    const k = 0.3 + state.rng() * 0.3;
+    p = { x: a.x + (b.x - a.x) * k, z: a.z + (b.z - a.z) * k };
+  } else if (focus && r < 0.6) p = focus;
   else if (hunt && r < 0.6) p = NATIONS[hunt].base;
   else if (r < 0.8) {
     const total = HOTSPOTS.reduce((a, h) => a + h.weight, 0);
@@ -376,7 +386,32 @@ function hunterThink(state: GameState, e: Entity, aggro: number): void {
       if (king && engage(state, e, 230, king)) return;
       // Still on the way back to a distant king: deal with enemies met en route.
       if (king && dist(e, king) > 400 && engage(state, e, 260, e)) return;
-      if (king) setGoal(state, e, { x: king.x - king.dirX * 40 + (e.id % 2 ? 30 : -30), y: king.y, z: king.z - king.dirZ * 40 }, 'ESCORT');
+      // A loose screen, not a ring of bodyguards (that would give the king away).
+      if (king) setGoal(state, e, { x: king.x - king.dirX * 110 + (e.id % 2 ? 90 : -90), y: king.y, z: king.z - king.dirZ * 110 }, 'ESCORT');
+      return;
+    }
+    case 'assault': case 'defend': {
+      const p = sectorPoint(task.sector);
+      // Fight whoever is on or near the point, and anyone met on the way.
+      if (engage(state, e, task.kind === 'defend' ? 420 : 380, p)) return;
+      if (engage(state, e, aggro)) return; // anyone met on the way, as usual
+      if (lostTargetSearch(state, e)) return;
+      // Rangers answer a fight first (then rejoin the operation).
+      if (e.role === 'ranger' && respond(state, e)) return;
+      const d = Math.hypot(p.x - e.x, p.z - e.z);
+      // A flanking group goes round by the second route first (stairs, footbridge, high ground).
+      if (task.kind === 'assault' && task.via && d > 380 && Math.hypot(task.via.x - e.x, task.via.z - e.z) > 60) {
+        setGoal(state, e, task.via, 'INVESTIGATE');
+        return;
+      }
+      if (task.kind === 'assault' && task.via && Math.hypot(task.via.x - e.x, task.via.z - e.z) <= 60) task.via = null;
+      if (d > 140) {
+        if (e.role === 'ranger' && e.cd.special <= 0 && d > 600) useSpecial(state, e);
+        setGoal(state, e, around(p, e, 70, p.y), 'INVESTIGATE');
+      } else if (!e.ai.goal || state.rng() < 0.08) {
+        // On the point: hold it, moving about a little and watching.
+        setGoal(state, e, around(p, e, 40 + ((e.id * 37) % 90), p.y), 'GUARD');
+      }
       return;
     }
     case 'takeTower':
@@ -413,6 +448,25 @@ function escortKeyholder(state: GameState, e: Entity, j: Point): boolean {
   return true;
 }
 
+const overwatchCache = new Map<string, Waypoint>();
+/** High ground covering a sector's point: a perch within reach, else the highest walkable spot nearby, else behind the point. */
+function overwatchSpot(sector: number, id: number): Waypoint {
+  const key = sector + ':' + (id % 2);
+  const hit = overwatchCache.get(key);
+  if (hit) return hit;
+  const p = sectorPoint(sector);
+  const perches = PERCHES.filter((q) => Math.hypot(q.x - p.x, q.z - p.z) < 800).sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z));
+  let spot: Waypoint | null = perches.length ? { ...perches[id % 2 % perches.length] } : null;
+  if (!spot) {
+    const high = navGraph().nodes.filter((c) => c.reachable && c.y >= 25 && Math.hypot(c.x - p.x, c.z - p.z) > 150 && Math.hypot(c.x - p.x, c.z - p.z) < 900)
+      .sort((a, b) => b.y - a.y || a.id - b.id);
+    if (high.length) spot = { x: high[id % 2 % high.length].x, y: high[id % 2 % high.length].y, z: high[id % 2 % high.length].z };
+  }
+  if (!spot) spot = { x: p.x + (id % 2 ? 260 : -260), y: p.y, z: p.z + 180 };
+  overwatchCache.set(key, spot);
+  return spot;
+}
+
 function sniperThink(state: GameState, e: Entity): void {
   const threat = nearestVisible(state, e, 130);
   if (threat && Math.abs(threat.y - e.y) < SAME_LEVEL) { flee(state, e, threat); return; }
@@ -423,7 +477,7 @@ function sniperThink(state: GameState, e: Entity): void {
     e.ai.lookAt = { x: target.x, z: target.z };
     e.ai.aimId = target.id;
     const d = Math.hypot(dx, dz) || 1;
-    if ((e.dirX * dx + e.dirZ * dz) / d > 0.9 && e.cd.special <= 0) useSpecial(state, e);
+    if ((e.dirX * dx + e.dirZ * dz) / d > 0.997 && e.cd.special <= 0) useSpecial(state, e);
   } else { e.ai.lookAt = null; e.ai.aimId = null; }
   const task = e.ai.task;
   if (task?.kind === 'rescueEscort') {
@@ -432,6 +486,13 @@ function sniperThink(state: GameState, e: Entity): void {
     return;
   }
   if (task?.kind === 'guardJail') { setGoal(state, e, around(NATIONS[e.nation].jail, e, 160), 'GUARD'); return; }
+  if (task?.kind === 'overwatch') {
+    // Cover the sector from high ground near it (a rooftop perch, footbridge, expressway or hill), not from the point itself.
+    const spot = overwatchSpot(task.sector, e.id);
+    if (Math.hypot(spot.x - e.x, spot.z - e.z) > 40 || Math.abs(spot.y - e.y) > 10) setGoal(state, e, spot, 'HOLD');
+    else stop(e, 'HOLD');
+    return;
+  }
   const base = NATIONS[e.nation].base;
   const perch = [...PERCHES].sort((a, b) => Math.hypot(a.x - base.x, a.z - base.z) - Math.hypot(b.x - base.x, b.z - base.z))[e.id % 2];
   if (Math.hypot(perch.x - e.x, perch.z - e.z) > 70 || Math.abs(perch.y - e.y) > 10) setGoal(state, e, perch, 'HOLD');
@@ -441,6 +502,13 @@ function sniperThink(state: GameState, e: Entity): void {
 function communicatorThink(state: GameState, e: Entity): void {
   const threat = nearestVisible(state, e, 120);
   if (threat && dist(e, TOWER) > TOWER.r) { flee(state, e, threat); return; }
+  const task = e.ai.task;
+  if (task?.kind === 'rear') {
+    // The tower is the enemy's: pass on what we can from a safe spot in the rear.
+    const p = sectorPoint(task.sector);
+    if (Math.hypot(p.x - e.x, p.z - e.z) > 200) setGoal(state, e, around(p, e, 120, p.y), 'HOLD');
+    return;
+  }
   if (dist(e, TOWER) > TOWER.r - 10) setGoal(state, e, around(TOWER, e, 58), 'HOLD');
   else { stop(e, 'HOLD'); useSpecial(state, e); }
 }
@@ -468,8 +536,9 @@ function keyholderThink(state: GameState, e: Entity): void {
     setGoal(state, e, { x: ally.x + (e.x < ally.x ? -28 : 28), y: ally.y, z: ally.z }, 'RESCUE');
     return;
   }
-  const b = NATIONS[e.nation].base;
-  if (!e.ai.goal) {
+  // Not needed yet: wait a little behind the fighting (or at home), ready to go.
+  const b = task?.kind === 'standby' ? behind(task.sector, e.nation, 420) : NATIONS[e.nation].base;
+  if (!e.ai.goal || Math.hypot(e.ai.goal.x - b.x, e.ai.goal.z - b.z) > 260) {
     const n = randomNodeNear(b.x, 0, b.z, 120, state.rng);
     if (n) setGoal(state, e, { x: n.x, y: n.y, z: n.z }, 'GUARD');
   }
@@ -489,14 +558,16 @@ function kingThink(state: GameState, e: Entity): void {
   }
   if (e.ai.state === 'FLEE' && e.ai.goal) return;
   if (e.ai.goal && e.ai.state !== 'FLEE') return;
-  let anchor: Point = NATIONS[e.nation].base;
-  if (persona === 'commander' && state.tower.owner === e.nation) anchor = TOWER;
-  if (persona === 'lurker') anchor = HOTSPOTS[Math.floor(state.rng() * HOTSPOTS.length)];
-  if (persona === 'aggressive') {
-    const others = NATION_IDS.filter((n) => n !== e.nation) as NationId[];
-    anchor = state.rng() < 0.5 ? HOTSPOTS[Math.floor(state.rng() * HOTSPOTS.length)] : NATIONS[others[Math.floor(state.rng() * 2)]].base;
+  // Kings keep to their own rear territory (not only the base), moving about; bolder ones
+  // go as far as their own front sectors, never beyond.
+  let anchor: Point = state.rng() < 0.6 ? kingRefuge(state, e.nation) : rearPoint(state, e.nation);
+  if (persona === 'commander' && state.tower.owner === e.nation && state.rng() < 0.5) anchor = TOWER;
+  if (persona === 'aggressive' || persona === 'lurker') {
+    const front = frontSectors(state, e.nation);
+    if (front.length && state.rng() < (persona === 'aggressive' ? 0.5 : 0.25)) anchor = behind(front[Math.floor(state.rng() * front.length)], e.nation, 350);
+    else anchor = rearPoint(state, e.nation);
   }
-  const n = randomNodeNear(anchor.x, 0, anchor.z, persona === 'cautious' ? 110 : 170, state.rng);
+  const n = randomNodeNear(anchor.x, 0, anchor.z, persona === 'cautious' ? 160 : 220, state.rng);
   if (n) setGoal(state, e, { x: n.x, y: n.y, z: n.z }, 'PATROL');
 }
 
@@ -551,7 +622,7 @@ function squadThink(state: GameState, e: Entity, L: Entity, aggro: number): bool
     const t = nearestVisible(state, e, SNIPE_RANGE);
     ai.aimId = t ? t.id : null;
     ai.lookAt = t ? { x: t.x, z: t.z } : null;
-    if (t && (e.dirX * (t.x - e.x) + e.dirZ * (t.z - e.z)) / (dist(e, t) || 1) > 0.9 && e.cd.special <= 0) useSpecial(state, e);
+    if (t && (e.dirX * (t.x - e.x) + e.dirZ * (t.z - e.z)) / (dist(e, t) || 1) > 0.997 && e.cd.special <= 0) useSpecial(state, e);
     if (t && dist(e, t) < 380) { stop(e, 'HOLD'); return true; }
   } else {
     if (engage(state, e, isHuman(L) ? (ringOrder(state, L) ? 520 : 420) : Math.min(aggro, 520))) return true;

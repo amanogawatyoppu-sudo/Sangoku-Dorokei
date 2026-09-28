@@ -16,6 +16,7 @@ import { towerTick } from './systems/tower';
 import { updateEnemiesSeen } from './systems/vision';
 import { forceEndByTime } from './systems/winCondition';
 import { scheduledMeetingTick } from '../meeting/meetingSystem';
+import { warTick } from './war';
 
 /** Carries out what people asked for this step (the player's buttons and, online, friends' buttons). */
 function runPlayerCommands(state: GameState): void {
@@ -85,6 +86,7 @@ export function stepSimulation(state: GameState, dt: number): void {
   updateJailTimers(state);
   updateEnemiesSeen(state);
   towerTick(state, dt);
+  warTick(state, dt);
   eventTick(state);
   scheduledMeetingTick(state);
 }

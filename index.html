@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>三国ドロケイ v7.12 3D</title>
+<title>三国ドロケイ v7.13 3D</title>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,6 +17,7 @@
     <div class="tb-tower">管制塔:<b id="tbTower">未占領</b></div>
     <div>残り時間:<b id="tbTime">--:--</b> <span id="tbMeet" class="tb-meet"></span></div>
     <div id="tbActions">
+      <button id="btnTruce" title="いちばん強い国に対抗するため、もう一国に短い停戦を持ちかける">停戦(残<span id="trLeft">2</span>)</button>
       <button id="btnMeeting">緊急会議(残<span id="mtLeft">2</span>)</button>
       <button id="btnInfo" class="drawer-btn" aria-controls="side" aria-expanded="false">情報</button>
       <button id="btnLog" class="drawer-btn" aria-controls="log" aria-expanded="false">ログ</button>
@@ -32,12 +33,13 @@
       <div id="banner"></div>
       <div id="progText"></div>
       <div id="statusBadge" hidden></div>
+      <div id="truceBox" hidden><div id="truceText"></div><div class="truce-btns"><button id="truceYes">承諾</button><button id="truceNo">拒否</button></div></div>
       <div id="mctrl">
         <div id="joyBase"><div id="joyStick"></div></div>
         <div id="mbtns"><div id="mStamWrap"><div id="mStam"></div></div><button id="mFace">振向</button><button id="mSpec">特殊</button><button id="mDash">ダッシュ</button><button id="mCap">捕獲</button><button id="mSquad">分隊<br><small>付いて</small></button></div>
       </div>
       <div id="setup">
-        <h1>三国ドロケイ<span class="seal ver">v7.12</span></h1>
+        <h1>三国ドロケイ<span class="seal ver">v7.13</span></h1>
         <p class="tagline">太陽・月・星 ― 広大な戦場で、正体を隠した敵国の王を探し出せ。</p>
         <div class="step-label">所属国</div><div class="pickrow" id="pickNation"></div>
         <div class="step-label">役職</div><div class="pickrow" id="pickRole"></div>

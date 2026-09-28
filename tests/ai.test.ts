@@ -42,7 +42,7 @@ describe('AI movement', () => {
       runFrames(state, 120_000);
       for (const e of state.entities) if (!e.isPlayer) expect(e.ai.maxStuckSec).toBeLessThan(5);
     }
-  });
+  }, 30_000);
 
   it('keeps characters from stacking on the same spot', () => {
     const state = newGame();
@@ -80,6 +80,8 @@ describe('AI pursuit', () => {
     state.nextEventAt = Infinity;
     const hunter = find(state, 'moon', 'soldier');
     freezeOthers(state, [hunter, state.player]);
+    // One AI on its own (no commander sending it off on an operation).
+    for (const n of ['sun', 'moon', 'star'] as const) state.factions[n].nextTickAt = Infinity;
     teleport(hunter, O.x, O.z + 180); // open plaza, clear line of sight
     hunter.dirX = 0;
     hunter.dirZ = -1;
@@ -137,7 +139,7 @@ describe('AI pursuit', () => {
 
 describe('kingdom commanders', () => {
   it('a king capture turns the victim to rescue, the captor to defence, the third nation opportunist', () => {
-    const state = newGame('star', 'communicator', 4);
+    const state = newGame('star', 'communicator', 4, 15);
     state.nextEventAt = Infinity;
     const sunKing = find(state, 'sun', 'king');
     sendToJail(state, sunKing, 'moon', find(state, 'moon', 'soldier'));

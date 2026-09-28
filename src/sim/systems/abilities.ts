@@ -6,6 +6,7 @@ import { emit } from '../state';
 import { canAct } from './capture';
 import { nearTowerBase } from './towerZone';
 import { effNation, hasLineOfSight } from './vision';
+import { atWar } from '../war';
 import { tryStartRescue } from './rescue';
 
 /** Sniper range (≈20 m), ×1.25 when shooting down from 60+ above the target (rooftops, footbridges, hills). */
@@ -22,7 +23,7 @@ export const SNIPE_AIM_COS = Math.cos((30 * Math.PI) / 180);
 export function sniperTarget(state: GameState, e: Entity): Entity | null {
   let best: Entity | null = null, bs = Infinity;
   for (const t of state.entities) {
-    if (t.nation === e.nation || !t.alive || t.jailed || effNation(state, t, e.nation) === e.nation) continue;
+    if (t.nation === e.nation || !atWar(state, e.nation, t.nation) || !t.alive || t.jailed || effNation(state, t, e.nation) === e.nation) continue;
     const vx = t.x - e.x, vz = t.z - e.z, flat = Math.hypot(vx, vz) || 1;
     const range = SNIPE_RANGE * (e.y - t.y > 60 ? SNIPE_HIGH_BONUS : 1);
     const d = Math.hypot(vx, vz, t.y - e.y);

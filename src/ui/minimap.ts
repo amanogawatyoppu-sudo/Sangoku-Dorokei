@@ -2,6 +2,8 @@ import { NATION_IDS, NATIONS, nationCss } from '../config/nations';
 import type { BoxPrim } from '../config/map';
 import { BLOCKS, BOUNDS, KANDA, LOOP, PARKS, RIVER_WIDTH, STATIONS, STREET_SEGS, TOWER, WORLD, insideLoop } from '../config/map';
 import type { GameState } from '../sim/state';
+import type { NationId } from '../config/nations';
+import { SECTORS, sectorAt, sectorOf, sectorPoint } from '../sim/war';
 import { effNation, visibleTo } from '../sim/systems/vision';
 import { $ } from './dom';
 
@@ -125,9 +127,110 @@ export class Minimap {
   }
 
   /** `ghost`: spectating after elimination: everyone is shown, and where the ghost is. */
+  private warLayer: HTMLCanvasElement | null = null;
+  private warKey = '';
+  private sectorIds: Int8Array | null = null;
+
+  /** Territory: each sector faintly tinted in its holder's colour; fronts drawn as bright borders. */
+  private territory(state: GameState): HTMLCanvasElement {
+    const key = state.war.sectors.map((s) => s.owner ?? '-').join();
+    if (this.warLayer && key === this.warKey) return this.warLayer;
+    this.warKey = key;
+    if (!this.sectorIds) {
+      this.sectorIds = new Int8Array(W * H).fill(-1);
+      for (let py = 0; py < H; py++) {
+        for (let px = 0; px < W; px++) {
+          const x = px / SX + BOUNDS.minX - PAD, z = py / SZ + BOUNDS.minZ - PAD;
+          if (insideLoop(x, z, 0)) this.sectorIds[py * W + px] = sectorAt(x, z);
+        }
+      }
+    }
+    const c = this.warLayer ?? document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const g = c.getContext('2d')!;
+    const img = g.createImageData(W, H);
+    const ids = this.sectorIds;
+    const rgb = (n: NationId | null): [number, number, number] => {
+      const v = n ? NATIONS[n].color : 0x9a9488;
+      return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+    };
+    for (let i = 0; i < W * H; i++) {
+      const id = ids[i];
+      if (id < 0) continue;
+      const owner = state.war.sectors[id].owner;
+      const right = i % W < W - 1 ? ids[i + 1] : id, down = i + W < W * H ? ids[i + W] : id;
+      const other = right !== id && right >= 0 ? right : down !== id && down >= 0 ? down : -1;
+      const o = i * 4;
+      if (other >= 0) {
+        const ob = state.war.sectors[other].owner;
+        const front = owner && ob && owner !== ob;
+        // Fronts: bright; other borders: a faint line.
+        img.data[o] = 255; img.data[o + 1] = front ? 90 : 240; img.data[o + 2] = front ? 70 : 220; img.data[o + 3] = front ? 230 : 70;
+        continue;
+      }
+      const [r, gg, b] = rgb(owner);
+      img.data[o] = r; img.data[o + 1] = gg; img.data[o + 2] = b; img.data[o + 3] = owner ? 46 : 14;
+    }
+    g.putImageData(img, 0, 0);
+    this.warLayer = c;
+    return c;
+  }
+
+  /** Strategic points: holder's colour and emblem; the gauge of whoever is taking it; a pulse when contested. */
+  private drawPoints(state: GameState): void {
+    const g = this.ctx, me = state.player.nation;
+    const intel = state.tower.owner === me && state.entities.some((e) => e.nation === me && e.role === 'communicator' && e.alive && !e.jailed);
+    SECTORS.forEach((def, i) => {
+      const s = state.war.sectors[i], p = sectorPoint(i), x = mx(p.x), y = my(p.z);
+      g.fillStyle = s.owner ? nationCss(s.owner) : '#9a9488';
+      g.strokeStyle = '#111';
+      g.lineWidth = 2;
+      g.beginPath();
+      g.arc(x, y, 7, 0, Math.PI * 2);
+      g.fill();
+      g.stroke();
+      if (s.capturer && s.progress > 0) {
+        g.strokeStyle = nationCss(s.capturer);
+        g.lineWidth = 3;
+        g.beginPath();
+        g.arc(x, y, 10, -Math.PI / 2, -Math.PI / 2 + s.progress * Math.PI * 2);
+        g.stroke();
+      }
+      if (s.contested) {
+        g.strokeStyle = `rgba(255,255,255,${0.5 + 0.5 * Math.sin(state.time / 140)})`;
+        g.lineWidth = 2;
+        g.beginPath();
+        g.arc(x, y, 13, 0, Math.PI * 2);
+        g.stroke();
+      }
+      g.font = '700 11px sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillStyle = '#111';
+      g.fillText(s.owner ? NATIONS[s.owner].emblem : '・', x, y + 1);
+      g.font = '600 11px sans-serif';
+      g.textBaseline = 'top';
+      g.fillStyle = 'rgba(12,12,16,.6)';
+      const label = def.name + (s.contested ? ' 交戦' : '');
+      const tw = g.measureText(label).width;
+      g.fillRect(x - tw / 2 - 3, y + 11, tw + 6, 14);
+      g.fillStyle = s.contested ? '#ffd9a0' : '#f2ead8';
+      g.fillText(label, x, y + 12);
+      // Tower + communicator: headcounts at contested points.
+      if (intel && s.contested) {
+        const txt = NATION_IDS.filter((n) => n !== me && s.count[n] > 0).map((n) => NATIONS[n].name + s.count[n]).join(' ');
+        g.fillStyle = '#9fe0ff';
+        g.fillText(txt, x, y + 26);
+      }
+    });
+  }
+
   draw(state: GameState, ghost: { x: number; z: number; yaw: number } | null = null): void {
     const g = this.ctx, p = state.player;
     g.drawImage(this.staticLayer(), 0, 0);
+    g.drawImage(this.territory(state), 0, 0);
+    this.drawPoints(state);
     for (const n of NATION_IDS) {
       if (state.jailReveal[n] > state.time) {
         const j = NATIONS[n].jail;
@@ -189,7 +292,8 @@ export class Minimap {
       g.textAlign = 'left';
       g.textBaseline = 'top';
       g.fillStyle = 'rgba(12,12,16,.75)';
-      const label = '現在: ' + levelLabel(p.y);
+      const here = sectorOf(state, p);
+      const label = `${SECTORS[here.id].name}戦区 ${here.owner ? NATIONS[here.owner].emblem : '中立'} · ${levelLabel(p.y)}`;
       g.fillRect(4, 4, g.measureText(label).width + 10, 19);
       g.fillStyle = '#fff4d6';
       g.fillText(label, 9, 7);

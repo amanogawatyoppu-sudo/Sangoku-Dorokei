@@ -106,6 +106,14 @@ export function blocked(x: number, z: number, y: number, r = CR): boolean {
   return false;
 }
 
+/** Down in the water (river, moat, pond): below its surface inside its outline. */
+export function inWater(x: number, z: number, y: number): boolean {
+  for (const p of near(x, z, x, z, scratch)) {
+    if (p.mat === 'water' && p.kind === 'box' && y < p.y1 && Math.abs(x - p.x) < p.w / 2 && Math.abs(z - p.z) < p.d / 2) return true;
+  }
+  return false;
+}
+
 /** Point inside solid, sight-blocking matter (walls, floors, hills; not water). */
 export function solidAt(x: number, y: number, z: number): boolean {
   for (const p of near(x, z, x, z, scratch)) {
