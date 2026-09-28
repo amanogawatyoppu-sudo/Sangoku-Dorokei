@@ -425,42 +425,151 @@ export function roofTileTexture(): THREE.CanvasTexture {
   return repeatTex(c);
 }
 
-/** Asphalt with fine aggregate and patching (world-tiled). */
-function asphalt(g: CanvasRenderingContext2D, w: number, h: number, rnd: () => number): void {
+/** Wet patches drawn into the colour map; the same shapes go into the roughness map. */
+interface Puddle { x: number; y: number; rx: number; ry: number; a: number }
+
+/** Asphalt with fine aggregate, patching, cracks (some tar-sealed), oil stains and shallow puddles. */
+function asphalt(g: CanvasRenderingContext2D, w: number, h: number, rnd: () => number, wear = false): Puddle[] {
   g.fillStyle = '#44464a';
   g.fillRect(0, 0, w, h);
+  // Large, soft tone variation so the tiling does not read.
+  for (let i = 0; i < 10; i++) {
+    const x = rnd() * w, y = rnd() * h, r = 40 + rnd() * 90;
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    const v = rnd() < 0.5 ? '18,18,20' : '120,118,112';
+    gr.addColorStop(0, `rgba(${v},${0.05 + rnd() * 0.06})`);
+    gr.addColorStop(1, `rgba(${v},0)`);
+    g.fillStyle = gr;
+    g.fillRect(x - r, y - r, 2 * r, 2 * r);
+  }
   speckle(g, w, h, (w * h) / 12, rnd, 0.16);
-  for (let i = 0; i < 4; i++) {
-    g.fillStyle = `rgba(20,20,22,${0.08 + rnd() * 0.1})`;
-    g.fillRect(rnd() * w, rnd() * h, 20 + rnd() * 80, 20 + rnd() * 60);
+  // Patches: rectangular re-surfacing, slightly darker with a lighter seam.
+  for (let i = 0; i < Math.max(2, (w * h) / 30000); i++) {
+    const x = rnd() * w, y = rnd() * h, pw = 20 + rnd() * 70, ph = 20 + rnd() * 60;
+    g.fillStyle = `rgba(22,22,24,${0.12 + rnd() * 0.1})`;
+    g.fillRect(x, y, pw, ph);
+    g.strokeStyle = 'rgba(150,146,138,.12)';
+    g.lineWidth = 1;
+    g.strokeRect(x + 0.5, y + 0.5, pw, ph);
+  }
+  // Tyre wear: two slightly polished bands per lane, along v.
+  if (wear) {
+    for (const u of [0.14, 0.36, 0.64, 0.86]) {
+      const gr = g.createLinearGradient((u - 0.05) * w, 0, (u + 0.05) * w, 0);
+      gr.addColorStop(0, 'rgba(24,24,26,0)');
+      gr.addColorStop(0.5, 'rgba(24,24,26,.16)');
+      gr.addColorStop(1, 'rgba(24,24,26,0)');
+      g.fillStyle = gr;
+      g.fillRect((u - 0.05) * w, 0, 0.1 * w, h);
+    }
+  }
+  // Cracks: branching polylines; about half are sealed with shiny black tar.
+  const crack = (x: number, y: number, ang: number, len: number, depth: number) => {
+    const sealed = rnd() < 0.5;
+    g.strokeStyle = sealed ? 'rgba(12,12,14,.55)' : 'rgba(16,16,18,.7)';
+    g.lineWidth = sealed ? 2.2 : 0.9;
+    g.beginPath();
+    g.moveTo(x, y);
+    for (let k = 0; k < len; k += 6) {
+      ang += (rnd() - 0.5) * 0.9;
+      x += Math.cos(ang) * 6; y += Math.sin(ang) * 6;
+      g.lineTo(x, y);
+      if (depth < 2 && rnd() < 0.08) crack(x, y, ang + (rnd() < 0.5 ? 1 : -1) * (0.6 + rnd()), len * 0.4, depth + 1);
+    }
+    g.stroke();
+  };
+  for (let i = 0; i < Math.max(2, (w * h) / 20000); i++) crack(rnd() * w, rnd() * h, rnd() * Math.PI * 2, 30 + rnd() * 90, 0);
+  // Oil stains.
+  for (let i = 0; i < Math.max(1, (w * h) / 40000); i++) {
+    const x = rnd() * w, y = rnd() * h, r = 6 + rnd() * 14;
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, 'rgba(8,8,10,.35)');
+    gr.addColorStop(1, 'rgba(8,8,10,0)');
+    g.fillStyle = gr;
+    g.beginPath(); g.ellipse(x, y, r * 1.4, r, rnd() * 3, 0, Math.PI * 2); g.fill();
+  }
+  // Puddles: darker, glossy (low roughness), catching the dusk light.
+  const puddles: Puddle[] = [];
+  for (let i = 0; i < Math.max(1, (w * h) / 60000); i++) {
+    const p = { x: 20 + rnd() * (w - 40), y: 20 + rnd() * (h - 40), rx: 10 + rnd() * 26, ry: 6 + rnd() * 14, a: rnd() * Math.PI };
+    puddles.push(p);
+    g.fillStyle = 'rgba(14,16,22,.45)';
+    blob(g, p, 1);
+    g.fillStyle = 'rgba(70,64,70,.25)';
+    blob(g, p, 0.55);
+  }
+  return puddles;
+}
+
+function blob(g: CanvasRenderingContext2D, p: Puddle, k: number): void {
+  g.beginPath();
+  g.ellipse(p.x, p.y, p.rx * k, p.ry * k, p.a, 0, Math.PI * 2);
+  g.ellipse(p.x + p.rx * 0.5 * k, p.y + p.ry * 0.4 * k, p.rx * 0.6 * k, p.ry * 0.7 * k, p.a + 0.6, 0, Math.PI * 2);
+  g.fill();
+}
+
+/** Roughness map: rough everywhere (≈0.95), glassy in the puddles. Read from the green channel. */
+function roughnessFrom(w: number, h: number, puddles: Puddle[]): THREE.CanvasTexture {
+  const [c, g] = canvas(w, h);
+  g.fillStyle = 'rgb(242,242,242)';
+  g.fillRect(0, 0, w, h);
+  g.filter = 'blur(2px)';
+  g.fillStyle = 'rgb(40,40,40)';
+  for (const p of puddles) blob(g, p, 0.9);
+  const t = repeatTex(c);
+  t.colorSpace = THREE.NoColorSpace;
+  return t;
+}
+
+/** A 60 cm cast-iron manhole cover (マンホール) with its pattern. */
+function manhole(g: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  g.fillStyle = '#2d2c2b';
+  g.beginPath(); g.arc(x, y, r + 2, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#56524c';
+  g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = 'rgba(30,28,26,.8)';
+  g.lineWidth = 1;
+  for (let k = 1; k < 4; k++) { g.beginPath(); g.arc(x, y, (r * k) / 4, 0, Math.PI * 2); g.stroke(); }
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2;
+    g.beginPath(); g.moveTo(x + Math.cos(a) * r * 0.25, y + Math.sin(a) * r * 0.25); g.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); g.stroke();
   }
 }
 
 export function asphaltTexture(): THREE.CanvasTexture {
   const [c, g] = canvas(256, 256);
-  asphalt(g, 256, 256, prng(41));
-  return repeatTex(c);
+  const puddles = asphalt(g, 256, 256, prng(41));
+  const tex = repeatTex(c);
+  tex.userData.rough = roughnessFrom(256, 256, puddles);
+  return tex;
 }
+
+/** Road texture length along v: 4 × 260 units (four dash cycles), so manholes and cracks repeat only every ~40 m. */
+export const ROAD_TILE_V = 1040;
 
 /**
  * Road surface with its markings. u runs across the whole road (0..1), v along it
- * (1 tile = 260 units: a 5 m dash and a 5 m gap).
+ * (1 tile = ROAD_TILE_V units; each 260 units is a 5 m dash and a 5 m gap).
  * - avenue: white edge lines, dashed lane lines, yellow double centre line
  * - street: white edge lines and a dashed centre line
  * - alley:  white 路側帯 lines only
+ * Worn markings, cracks, a manhole cover and a puddle; `userData.rough` holds the matching roughness map.
  */
 export function roadTexture(kind: 'avenue' | 'street' | 'alley', widthUnits: number): THREE.CanvasTexture {
-  const W = kind === 'alley' ? 128 : 512, H = 256;
+  const W = kind === 'alley' ? 128 : 512, H = 1024;
   const [c, g] = canvas(W, H);
-  asphalt(g, W, H, prng(kind.length * 7));
+  const rnd = prng(kind.length * 7);
+  const puddles = asphalt(g, W, H, rnd, kind !== 'alley');
   const px = W / widthUnits;
   const line = (u: number, width: number, color: string, dashed = false) => {
-    g.fillStyle = color;
     const x = u * W - (width * px) / 2;
-    if (dashed) g.fillRect(x, 0, width * px, H / 2);
-    else g.fillRect(x, 0, width * px, H);
+    for (let t = 0; t < 4; t++) {
+      g.fillStyle = color;
+      if (dashed) g.fillRect(x, t * 256, width * px, 128);
+      else g.fillRect(x, t * 256, width * px, 256);
+    }
   };
-  const white = 'rgba(236,236,230,.92)', yellow = 'rgba(232,180,40,.95)';
+  const white = 'rgba(236,236,230,.88)', yellow = 'rgba(232,180,40,.9)';
   if (kind === 'avenue') {
     line(14 / widthUnits, 5, white);
     line(1 - 14 / widthUnits, 5, white);
@@ -476,8 +585,29 @@ export function roadTexture(kind: 'avenue' | 'street' | 'alley', widthUnits: num
     line(14 / widthUnits, 4, white);
     line(1 - 14 / widthUnits, 4, white);
   }
+  // Worn paint: asphalt showing through the markings.
+  g.globalCompositeOperation = 'source-atop';
+  for (let i = 0; i < 900; i++) {
+    g.fillStyle = `rgba(68,70,74,${0.25 + rnd() * 0.5})`;
+    g.fillRect(rnd() * W, rnd() * H, 1 + rnd() * 3, 1 + rnd() * 5);
+  }
+  g.globalCompositeOperation = 'source-over';
+  // A manhole in a lane (not on the lines).
+  // (u and v have different pixel densities: squash so the cover stays round.)
+  const hole = (u: number, v: number) => {
+    g.save();
+    g.translate(W * u, H * v);
+    g.scale(1, H / ROAD_TILE_V / px);
+    manhole(g, 0, 0, 15.6 * px);
+    g.restore();
+  };
+  hole(kind === 'alley' ? 0.5 : 0.38, 0.62);
+  if (kind === 'avenue') hole(0.62, 0.18);
   const tex = repeatTex(c);
   tex.wrapS = THREE.ClampToEdgeWrapping;
+  const rough = roughnessFrom(W, H, puddles);
+  rough.wrapS = THREE.ClampToEdgeWrapping;
+  tex.userData.rough = rough;
   return tex;
 }
 
@@ -496,6 +626,19 @@ export function paverTexture(): THREE.CanvasTexture {
     }
   }
   speckle(g, 256, 256, 3000, rnd, 0.1);
+  // Weathering: soft damp blotches and the odd dark spot (chewing gum, drips).
+  for (let i = 0; i < 7; i++) {
+    const x = rnd() * 256, y = rnd() * 256, r = 18 + rnd() * 40;
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, `rgba(40,36,30,${0.08 + rnd() * 0.08})`);
+    gr.addColorStop(1, 'rgba(40,36,30,0)');
+    g.fillStyle = gr;
+    g.fillRect(x - r, y - r, 2 * r, 2 * r);
+  }
+  for (let i = 0; i < 26; i++) {
+    g.fillStyle = `rgba(30,28,26,${0.2 + rnd() * 0.3})`;
+    g.beginPath(); g.arc(rnd() * 256, rnd() * 256, 0.8 + rnd() * 1.6, 0, Math.PI * 2); g.fill();
+  }
   return repeatTex(c);
 }
 

@@ -6,10 +6,11 @@ import {
   STREET_SEGS, WIRES, WORLD, prng,
 } from '../config/map';
 import {
-  SHOP_CELLS, asphaltTexture, facadeTexture, paverTexture, roadTexture, roofTexture, roofTileTexture, shopAtlas,
+  SHOP_CELLS, ROAD_TILE_V, asphaltTexture, facadeTexture, paverTexture, roadTexture, roofTexture, roofTileTexture, shopAtlas,
   radialGlowTexture, signAtlas, tactileTexture, vendingTexture, windowGlowTexture,
 } from './textures';
 import type { FacadeKind } from './textures';
+import { buildStreetProps } from './streetProps';
 
 /**
  * The city at street level: buildings with storey-accurate façades, shopfronts
@@ -268,8 +269,8 @@ export function buildCity(scene: THREE.Scene): void {
   for (const s of STREET_SEGS) {
     const x0 = s.x - s.w / 2, x1 = s.x + s.w / 2, z0 = s.z - s.d / 2, z1 = s.z + s.d / 2;
     const y = s.kind === 'avenue' ? 0.6 : 0.5;
-    if (s.axis === 'z') geos[s.kind].quad([x0, y, z1], [x1, y, z1], [x1, y, z0], [x0, y, z0], [[0, s.d / 260], [1, s.d / 260], [1, 0], [0, 0]], undefined, [0, 1, 0]);
-    else geos[s.kind].quad([x0, y, z1], [x1, y, z1], [x1, y, z0], [x0, y, z0], [[1, 0], [1, s.w / 260], [0, s.w / 260], [0, 0]], undefined, [0, 1, 0]);
+    if (s.axis === 'z') geos[s.kind].quad([x0, y, z1], [x1, y, z1], [x1, y, z0], [x0, y, z0], [[0, s.d / ROAD_TILE_V], [1, s.d / ROAD_TILE_V], [1, 0], [0, 0]], undefined, [0, 1, 0]);
+    else geos[s.kind].quad([x0, y, z1], [x1, y, z1], [x1, y, z0], [x0, y, z0], [[1, 0], [1, s.w / ROAD_TILE_V], [0, s.w / ROAD_TILE_V], [0, 0]], undefined, [0, 1, 0]);
   }
   // Expressway decks and ramps get a road surface.
   for (const p of WORLD) {
@@ -278,8 +279,8 @@ export function buildCity(scene: THREE.Scene): void {
     const hAt = (x: number, z: number) => (p.kind === 'box' ? p.y1 : rampHeight(p, x, z)) + 0.5;
     const y = (x: number, z: number): V3 => [x, hAt(x, z), z];
     if (p.kind === 'box' && p.y0 < p.y1 - 30) continue; // pillars
-    if (alongZ) geos.avenue.quad(y(x0, z1), y(x1, z1), y(x1, z0), y(x0, z0), [[0, len / 260], [1, len / 260], [1, 0], [0, 0]], undefined, [0, 1, 0]);
-    else geos.avenue.quad(y(x0, z1), y(x1, z1), y(x1, z0), y(x0, z0), [[1, 0], [1, len / 260], [0, len / 260], [0, 0]], undefined, [0, 1, 0]);
+    if (alongZ) geos.avenue.quad(y(x0, z1), y(x1, z1), y(x1, z0), y(x0, z0), [[0, len / ROAD_TILE_V], [1, len / ROAD_TILE_V], [1, 0], [0, 0]], undefined, [0, 1, 0]);
+    else geos.avenue.quad(y(x0, z1), y(x1, z1), y(x1, z0), y(x0, z0), [[1, 0], [1, len / ROAD_TILE_V], [0, len / ROAD_TILE_V], [0, 0]], undefined, [0, 1, 0]);
   }
   const auv = (x: number, z: number): UV => [x / 260, z / 260];
   for (const ix of INTERSECTIONS) geos.asphalt.top(ix.x - ix.w / 2, ix.x + ix.w / 2, ix.z - ix.d / 2, ix.z + ix.d / 2, 0.45, auv);
@@ -345,6 +346,12 @@ export function buildCity(scene: THREE.Scene): void {
     curb: std(0xb9b5ab, { roughness: 0.9 }),
     tactile: std(0xffffff, { map: tactileTexture(), roughness: 0.8 }),
   };
+  for (const k of ['avenue', 'street', 'alley', 'asphalt']) {
+    const m = mats[k] as THREE.MeshStandardMaterial;
+    m.roughnessMap = (m.map!.userData.rough as THREE.Texture) ?? null;
+    m.roughness = 1;
+  }
+  for (const k of ['glass', 'concrete', 'tileA', 'tileB', 'apartment', 'house', 'shop']) groundGrime(mats[k]);
   for (const m of [mats.zebra, mats.lines, mats.tactile, mats.asphalt]) {
     (m as THREE.MeshStandardMaterial).polygonOffset = true;
     (m as THREE.MeshStandardMaterial).polygonOffsetFactor = -1;
@@ -368,6 +375,30 @@ export function buildCity(scene: THREE.Scene): void {
   add(instanced(new THREE.CylinderGeometry(30, 30, 50, 12).translate(0, 0, 0), std(0x9fb7c4, { roughness: 0.6 }), props.tank));
 
   buildFurniture(scene);
+  buildStreetProps(scene);
+}
+
+/**
+ * Street-level grime on façades: a dark band of splash dirt and contact shadow just above
+ * the pavement, fading out by ~2 m, plus faint rain streaks under the storeys. Shader only.
+ */
+function groundGrime(m: THREE.Material): void {
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vGrimePos;')
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvGrimePos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vGrimePos;')
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        {
+          float gy = vGrimePos.y;
+          float band = 1.0 - smoothstep(4.0, 55.0, gy);
+          float streak = fract(sin(floor((vGrimePos.x + vGrimePos.z) * 0.09) * 91.7) * 4375.5);
+          float drip = smoothstep(0.75, 1.0, streak) * (1.0 - fract(gy / 86.0)) * 0.12 * step(60.0, gy);
+          diffuseColor.rgb *= 1.0 - band * 0.42 - drip;
+        }`);
+  };
+  m.customProgramCacheKey = () => 'ground-grime';
 }
 
 /**
