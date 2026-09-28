@@ -144,19 +144,16 @@ function buildGround(scene: THREE.Scene): void {
   // Kanda river: one smooth strip along its course, with railings on both banks.
   const pts: THREE.Vector3[] = [];
   const idx: number[] = [];
-  const rail: number[] = [];
+  const banks: [THREE.Vector2[], THREE.Vector2[]] = [[], []];
   KANDA.forEach((p, i) => {
     const a = KANDA[Math.max(0, i - 1)], b = KANDA[Math.min(KANDA.length - 1, i + 1)];
     const dx = b.x - a.x, dz = b.z - a.z, l = Math.hypot(dx, dz) || 1;
     const nx = -dz / l * (RIVER_WIDTH / 2 + 2), nz = dx / l * (RIVER_WIDTH / 2 + 2);
     pts.push(new THREE.Vector3(p.x + nx, 3, p.z + nz), new THREE.Vector3(p.x - nx, 3, p.z - nz));
     if (i) idx.push(2 * i - 2, 2 * i - 1, 2 * i, 2 * i - 1, 2 * i + 1, 2 * i);
-    if (i) {
-      const q = KANDA[i - 1], qa = KANDA[Math.max(0, i - 2)];
-      const qdx = p.x - qa.x, qdz = p.z - qa.z, ql = Math.hypot(qdx, qdz) || 1;
-      const qnx = -qdz / ql * (RIVER_WIDTH / 2 + 6), qnz = qdx / ql * (RIVER_WIDTH / 2 + 6);
-      for (const s of [1, -1]) for (const y of [26, 14]) rail.push(q.x + s * qnx, y, q.z + s * qnz, p.x + s * nx * 1.05, y, p.z + s * nz * 1.05);
-    }
+    const k = (RIVER_WIDTH / 2 + 6) / (RIVER_WIDTH / 2 + 2);
+    banks[0].push(new THREE.Vector2(p.x + nx * k, p.z + nz * k));
+    banks[1].push(new THREE.Vector2(p.x - nx * k, p.z - nz * k));
   });
   const g = new THREE.BufferGeometry().setFromPoints(pts);
   g.setIndex(idx);
@@ -164,9 +161,50 @@ function buildGround(scene: THREE.Scene): void {
   const river = new THREE.Mesh(g, mat);
   river.material.side = THREE.DoubleSide;
   scene.add(river);
-  const rg = new THREE.BufferGeometry();
-  rg.setAttribute('position', new THREE.Float32BufferAttribute(rail, 3));
-  scene.add(new THREE.LineSegments(rg, new THREE.LineBasicMaterial({ color: 0x4f5a55 })));
+  scene.add(...riverRailings(banks));
+}
+
+/**
+ * Riverside railings (posts with a top and a middle bar) along both banks, broken off
+ * where a bridge crosses so they never cut across a deck. Two instanced meshes.
+ */
+function riverRailings(banks: THREE.Vector2[][]): THREE.Object3D[] {
+  const bridges = WORLD.filter((p) => p.group === 'bridge');
+  const onBridge = (x: number, z: number) => bridges.some((b) => Math.abs(x - b.x) < b.w / 2 + 14 && Math.abs(z - b.z) < b.d / 2 + 14);
+  const posts: THREE.Matrix4[] = [], bars: THREE.Matrix4[] = [];
+  const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
+  const STEP = 40;
+  for (const line of banks) {
+    // Even samples along the bank.
+    const pts: THREE.Vector2[] = [];
+    for (let i = 0; i < line.length - 1; i++) {
+      const a = line[i], b = line[i + 1], n = Math.max(1, Math.round(a.distanceTo(b) / STEP));
+      for (let k = 0; k < n; k++) pts.push(a.clone().lerp(b, k / n));
+    }
+    pts.push(line[line.length - 1].clone());
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i];
+      if (onBridge(a.x, a.y)) continue;
+      posts.push(new THREE.Matrix4().makeTranslation(a.x, 14, a.y));
+      const b = pts[i + 1];
+      if (!b || onBridge(b.x, b.y)) continue;
+      const len = a.distanceTo(b), yaw = Math.atan2(b.x - a.x, b.y - a.y);
+      q.setFromAxisAngle(up, yaw);
+      for (const y of [26, 15]) {
+        bars.push(new THREE.Matrix4().compose(new THREE.Vector3((a.x + b.x) / 2, y, (a.y + b.y) / 2), q, new THREE.Vector3(1, 1, len)));
+      }
+    }
+  }
+  const mat = new THREE.MeshStandardMaterial({ color: 0x5f6b66, roughness: 0.5, metalness: 0.4 });
+  const mk = (geo: THREE.BufferGeometry, ms: THREE.Matrix4[]) => {
+    const m = new THREE.InstancedMesh(geo, mat, ms.length);
+    ms.forEach((x, i) => m.setMatrixAt(i, x));
+    m.castShadow = true;
+    m.receiveShadow = true;
+    m.computeBoundingSphere();
+    return m;
+  };
+  return [mk(new THREE.BoxGeometry(2.4, 28, 2.4), posts), mk(new THREE.BoxGeometry(1.6, 1.6, 1), bars)];
 }
 
 // ---------------------------------------------------------------- world primitives
