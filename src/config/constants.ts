@@ -36,6 +36,15 @@ export const JAIL_REVEAL_TIME = 30000;
 export const JAIL_GUARD_TIME = 30000;
 export const RADAR_TIME = 7000;
 export const DISGUISE_TIME = 8000;
+/** Ranger's 疾走 (sprint): how long, how much faster, and how much quicker stamina comes back. */
+export const SPRINT_TIME = 4500;
+export const SPRINT_SPEED = 1.3;
+export const SPRINT_REGEN = 2.5;
+/** Rangers get stamina back faster than everyone else. */
+export const RANGER_REGEN = 1.7;
+/** Walking up stairs and slopes: everyone slows down, rangers hardly at all. */
+export const CLIMB_SLOW = 0.8;
+export const RANGER_CLIMB_SLOW = 0.96;
 export const EVIDENCE_INTERVAL = 7000;
 export const FIRST_EVENT_AT = 30000;
 export const SPEED_EVENT_TIME = 7000;
@@ -47,9 +56,9 @@ export const MEETING_RANGE = 90;
 /** The half-time meeting (ハーフタイム会議): once, at half time, announced 5 s ahead, auto-closing after 20 s. */
 export const SCHEDULED_MEETING_AT = (GAME_TIME * 1000) / 2;
 export const SCHEDULED_MEETING_WARN = 5000;
-export const SCHEDULED_MEETING_CLOSE = 20000;
+export const SCHEDULED_MEETING_CLOSE = 32000;
 /** Online, several people read and vote: a little longer. */
-export const ONLINE_MEETING_CLOSE = 30000;
+export const ONLINE_MEETING_CLOSE = 40000;
 
 /** A/D turning speed (rad/s): about 200°/s, quick enough to dodge, smooth enough to read. */
 export const PLAYER_TURN_RATE = 3.5;

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { BoxPrim, Building } from '../config/map';
-import { rampHeight } from '../sim/systems/world';
+import { groundAt, rampHeight } from '../sim/systems/world';
 import {
   BLOCKS, BUILDINGS, CROSSWALKS, CURB, GROUND_FLOOR, INTERSECTIONS, LIGHTS, PARKINGS, POLES, SIGNALS, STOREY,
   STREET_SEGS, WIRES, WORLD, prng,
@@ -449,8 +449,10 @@ function buildFurniture(scene: THREE.Scene): void {
       cars.push(at(b.x, 0, b.z, b.group === 'x' ? Math.PI / 2 : 0));
       carCol.push(new THREE.Color(pick(CAR_COLORS, rnd())));
     } else if (p.mat === 'tree') {
-      const H = Math.min(b.y1, 300), r = H * 0.21;
-      trunks.push(at(b.x, (b.y1 - r) / 2, b.z, 0, 1, b.y1 - r, 1));
+      // Rooted on whatever it stands on (street, lawn, hilltop); the crown top is y1.
+      const base = groundAt(b.x, b.z, b.y1 - 40);
+      const H = Math.min(b.y1 - base, 300), r = H * 0.21;
+      trunks.push(at(b.x, base, b.z, 0, 1, b.y1 - r * 0.6 - base, 1));
       crowns.push(at(b.x, b.y1 - r * 1.05, b.z, rnd() * 6, r, r * 1.15, r));
       crownCol.push(new THREE.Color().setHSL(0.24 + rnd() * 0.08, 0.35 + rnd() * 0.2, 0.2 + rnd() * 0.1));
     }

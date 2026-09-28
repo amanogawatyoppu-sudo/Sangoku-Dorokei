@@ -20,7 +20,7 @@ import { advanceFrame } from './sim/game';
 import type { GameState } from './sim/state';
 import { createGameState, drainEvents, queueCommand } from './sim/state';
 import { teleport } from './sim/entity';
-import { sendToJail } from './sim/systems/jail';
+import { eliminate, sendToJail } from './sim/systems/jail';
 import { solidAt } from './sim/systems/world';
 import { $ } from './ui/dom';
 import { initDrawers } from './ui/drawers';
@@ -35,6 +35,7 @@ import type { OnlineStart } from './ui/onlineLobby';
 import { initOnlineLobby } from './ui/onlineLobby';
 import { ClientLink, HostLink, seatsOf } from './net/online';
 import { NameTags } from './render/nameTags';
+import { Ghost } from './render/ghost';
 import { createRng } from './core/rng';
 import { STEP_MS, STEP_SEC } from './core/clock';
 import { updatePlayerMovement } from './sim/systems/movement';
@@ -65,6 +66,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
   const host = mode.kind === 'host' ? new HostLink(mode.start.lobby.room, mode.start.info, state.humans) : null;
   const client = mode.kind === 'client' ? new ClientLink(mode.start.lobby.room, mode.start.info.seats[0][0], performance.now()) : null;
   const names = new Map<number, string>(online ? online.info.seats.map((s, i) => [state.humans[i], s[3]]) : []);
+  for (const [id, nick] of names) state.humanNames[id] = nick;
   const bus = new EventBus<GameEvent>();
   const cam = new CameraController();
   const entityView = new EntityView(refs.scene, state);
@@ -77,12 +79,12 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
   bus.on('GAME_OVER', () => showResult(state));
   bus.on('MEETING_OPENED', () => {
     meetingView.open(state, client ? {
-      say: (c) => state.meeting?.lines.push('あなた:「' + c + '」'),
+      // Said and voted through the host, which answers with the teammates' replies.
+      say: (c) => { const i = state.meeting?.choices.indexOf(c) ?? -1; if (i >= 0) client.sayChoice(state, i); },
       vote: (i) => {
         const m = state.meeting;
         if (!m || m.voted || !m.zones[i]) return;
         m.voted = true;
-        m.lines.push('→ あなたの投票:「' + m.zones[i].label + '」');
         client.voteFor(state, i);
       },
       close: () => { client.done(state); meetingView.hide(); log.add('会議の再開を待っています…'); },
@@ -121,7 +123,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
   if (online) {
     log.add(`オンライン対戦：部屋 ${online.lobby.code}・${online.info.seats.length}人。同じ国は味方、ほかの国は敵。`);
     if (host) log.add('あなたがホストです。このタブを閉じると試合が終わります。');
-  } else log.add('v7.11: 1 同行・2 散開・3 守備。W/Sで前後、A/Dで旋回、Qで振り向き。');
+  } else log.add('v7.12: ↑↓で前後、←→で旋回、Shiftで加速、Spaceで捕獲、Zで特殊、Qで振り向き。分隊はX 付いてこい・C 周りを警戒・V ここを守れ。');
   hud.banner('三国ドロケイ 開始　' + NATIONS[me.nation].name + 'の' + roleName(me.role), 2200);
   const tags = online ? new NameTags($('nametags'), state, names) : null;
   resizeRenderer(refs, canvas);
@@ -183,6 +185,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
     flush();
   };
 
+  const ghost = new Ghost();
   let lastFrameAt = performance.now();
   startRafLoop((rafMs) => {
     // Time the background catch-up already simulated is not counted twice.
@@ -195,7 +198,16 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
     state.input = { forward: axes.forward, turn: axes.turn, dash: input.dash };
     if (client) mirror(frameMs);
     else simulate(frameMs);
-    render(state, entityView, indicators, cam, clock.alpha, frameMs / 1000);
+    // Executed: spectate as a ghost, free to fly anywhere.
+    if (!state.player.alive && !state.meeting) {
+      if (!ghost.active) {
+        ghost.start(state.player.x, state.player.y, state.player.z);
+        log.add('観戦中（幽霊）：↑↓で移動、←→で向き、Shiftで速く、Spaceで上昇、Zで下降。全員が見えます。');
+      }
+      ghost.step(cam, axes, input.dash, input.held(' '), input.held('z'), frameMs / 1000);
+    }
+    if (state.meeting) meetingView.refresh(state);
+    render(state, entityView, indicators, cam, clock.alpha, frameMs / 1000, ghost);
     effects.sync(state, frameMs / 1000);
     tags?.sync(state, entityView, refs.camera, clock.alpha);
   });
@@ -219,20 +231,26 @@ function showHostLeft(): void {
   $('ovStats').textContent = '';
 }
 
-function render(state: GameState, entityView: EntityView, indicators: Indicators, cam: CameraController, alpha: number, dtSec: number): void {
+function render(state: GameState, entityView: EntityView, indicators: Indicators, cam: CameraController, alpha: number, dtSec: number, ghost: Ghost | null): void {
   const p = state.player;
+  entityView.seeAll = !!ghost?.active;
   entityView.sync(state, alpha, dtSec);
   indicators.sync(state, alpha);
   refs.towerMesh.material.color.setHex(state.tower.owner ? NATIONS[state.tower.owner].color : 0x777777);
-  const px = lerp(p.prevX, p.x, alpha), py = lerp(p.prevY, p.y, alpha), pz = lerp(p.prevZ, p.z, alpha);
-  cam.follow(Math.atan2(p.dirX, p.dirZ), dtSec);
-  cam.update(refs.camera, px, py, pz, dtSec);
+  let px = lerp(p.prevX, p.x, alpha), py = lerp(p.prevY, p.y, alpha), pz = lerp(p.prevZ, p.z, alpha);
+  if (ghost?.active) {
+    cam.free(refs.camera, ghost.x, ghost.y, ghost.z);
+    px = ghost.x; py = Math.max(0, ghost.y - 150); pz = ghost.z;
+  } else {
+    cam.follow(Math.atan2(p.dirX, p.dirZ), dtSec);
+    cam.update(refs.camera, px, py, pz, dtSec);
+  }
   entityView.playerOpacity = cam.boomLength < 70 ? 0.3 : 1;
   followSun(refs, px, py, pz);
   updateTrain(refs, state.time / 1000);
   refs.renderer.render(refs.scene, refs.camera);
   hud.update(state);
-  minimap.draw(state);
+  minimap.draw(state, ghost?.active ? { x: ghost.x, z: ghost.z, yaw: cam.yaw } : null);
 }
 
 /** Keeps the drawing buffer in sync with layout changes, rotation and pixel-ratio changes. */
@@ -259,6 +277,9 @@ function exposeDebug(state: GameState, cam: CameraController): void {
     posture: () => ({ sun: state.factions.sun.posture, moon: state.factions.moon.posture, star: state.factions.star.posture }),
     cameraPos: () => ({ x: refs.camera.position.x, y: refs.camera.position.y, z: refs.camera.position.z }),
     solidAtCamera: () => solidAt(refs.camera.position.x, refs.camera.position.y, refs.camera.position.z),
+    executeKing: (nation: NationId) => { const k = state.entities.find((e) => e.nation === nation && e.role === 'king')!; eliminate(state, k); },
+    squadOrder: () => state.squadOrder,
+    ghost: () => ({ x: refs.camera.position.x, y: refs.camera.position.y, z: refs.camera.position.z }),
     captureKing: (nation: NationId, by: NationId) => { const k = state.entities.find((e) => e.nation === nation && e.role === 'king')!; sendToJail(state, k, by, null); },
     camera: () => ({ yaw: cam.yaw, pitch: cam.pitch, distance: cam.distance }),
     time: () => state.time,

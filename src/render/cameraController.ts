@@ -139,6 +139,16 @@ export class CameraController {
     camera.lookAt(target.x + Math.sin(this.yaw) * 20, target.y, target.z + Math.cos(this.yaw) * 20);
   }
 
+  /** Ghost view (spectating): free-floating, through walls, looking along the yaw and pitch. */
+  free(camera: THREE.PerspectiveCamera, x: number, y: number, z: number): void {
+    const pitch = this.pitch - 0.2;
+    camera.position.set(x, y, z);
+    camera.lookAt(x + Math.sin(this.yaw) * Math.cos(pitch) * 100, y - Math.sin(pitch) * 100, z + Math.cos(this.yaw) * Math.cos(pitch) * 100);
+    this.boomLength = Infinity;
+    this.eyeY = null;
+    this.boom = -1;
+  }
+
   private boomDir(pitch: number): { dir: THREE.Vector3; ideal: number } {
     const cp = Math.cos(pitch), sp = Math.sin(pitch), d = this.distance;
     const offset = new THREE.Vector3(-Math.sin(this.yaw) * cp * d, sp * d * 0.75 + 30 * Math.min(1, pitch / 0.2), -Math.cos(this.yaw) * cp * d);

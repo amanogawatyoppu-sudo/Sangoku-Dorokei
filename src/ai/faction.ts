@@ -23,15 +23,17 @@ export interface Faction {
   posture: Posture;
   /** Last time one of ours was captured (escorts double for a while). */
   lastAllyCapturedAt: number;
+  /** Where the latest capture attempt involving this nation happened (rangers go there). */
+  fight: { x: number; y: number; z: number; t: number } | null;
   nextTickAt: number;
 }
 
 export function createFaction(): Faction {
-  return { intel: new Map(), belief: new Map(), posture: 'NORMAL', lastAllyCapturedAt: -Infinity, nextTickAt: 0 };
+  return { intel: new Map(), belief: new Map(), posture: 'NORMAL', lastAllyCapturedAt: -Infinity, nextTickAt: 0, fight: null };
 }
 
 const TICK_MS = 1000;
-const HUNTER_ROLES = new Set(['soldier', 'impostor']);
+const HUNTER_ROLES = new Set(['soldier', 'ranger']);
 
 /** AI members the commander can give tasks to (the player's own squad answers to the player). */
 function aiMembers(state: GameState, n: NationId): Entity[] {
@@ -46,7 +48,7 @@ export function playerSquadSize(n: number): number {
 /** AI squads: a leader and up to this many followers. */
 const AI_SQUAD_FOLLOWERS = 2;
 
-const squadable = (e: Entity) => !isHuman(e) && e.alive && !e.jailed && (e.role === 'soldier' || e.role === 'impostor' || e.role === 'sniper');
+const squadable = (e: Entity) => !isHuman(e) && e.alive && !e.jailed && (e.role === 'soldier' || e.role === 'ranger' || e.role === 'sniper');
 
 /**
  * Groups people into squads so they move and fight together instead of alone:
@@ -61,7 +63,7 @@ function formSquads(state: GameState, n: NationId): void {
     const L = e.ai.leaderId === null ? null : state.entities[e.ai.leaderId];
     if (!L) continue;
     const ok = squadable(e) && L.alive && !L.jailed
-      && (isHuman(L) || (!e.ai.task && !L.ai.task && L.ai.leaderId === null && e.role !== 'sniper'));
+      && (isHuman(L) || (!e.ai.task && !L.ai.task && L.ai.leaderId === null && e.role === 'soldier'));
     if (!ok) e.ai.leaderId = null;
   }
   const free = (e: Entity) => squadable(e) && e.ai.leaderId === null && !e.ai.task && followersOf(e).length === 0;
@@ -76,8 +78,8 @@ function formSquads(state: GameState, n: NationId): void {
       for (const e of people.filter(free).sort((a, b) => rank(a) - rank(b)).slice(0, want)) e.ai.leaderId = p.id;
     }
   }
-  const leaders: Entity[] = people.filter((e) => squadable(e) && e.role !== 'sniper' && e.ai.leaderId === null && !e.ai.task && followersOf(e).length > 0);
-  for (const u of people.filter((e) => free(e) && e.role !== 'sniper').sort((a, b) => a.id - b.id)) {
+  const leaders: Entity[] = people.filter((e) => squadable(e) && e.role === 'soldier' && e.ai.leaderId === null && !e.ai.task && followersOf(e).length > 0);
+  for (const u of people.filter((e) => free(e) && e.role === 'soldier').sort((a, b) => a.id - b.id)) {
     if (leaders.includes(u)) continue;
     const L = leaders.filter((l) => l !== u && followersOf(l).length < AI_SQUAD_FOLLOWERS && dist(l, u) < 1600).sort((a, b) => dist(a, u) - dist(b, u))[0];
     if (L) u.ai.leaderId = L.id;
@@ -126,13 +128,11 @@ function assign(state: GameState, n: NationId): void {
     const j = NATIONS[jail].jail;
     // Every keyholder heads for the jail (the nearest one usually gets there first).
     for (const kh of members.filter((e) => e.role === 'keyholder')) kh.ai.task = { kind: 'rescueKing', jail };
-    // Rescue party: keyholder + soldier escort + sniper overwatch. The impostor draws
-    // the captor's guards away in disguise (only if someone else escorts).
-    const imp = hunters.find((e) => e.role === 'impostor');
-    const soldiers = hunters.filter((e) => e !== imp);
-    const escorts = soldiers.length ? soldiers : hunters;
-    take(byDistance(escorts, j), Math.max(2, Math.ceil(escorts.length * 0.5)), { kind: 'rescueEscort', jail });
-    if (imp && soldiers.length) imp.ai.task = { kind: 'decoy', toward: jail };
+    // Rescue party: keyholder + escort + sniper overwatch. Rangers always go (they get there first).
+    const rangers = hunters.filter((e) => e.role === 'ranger');
+    for (const r of rangers) r.ai.task = { kind: 'rescueEscort', jail };
+    const soldiers = hunters.filter((e) => e.role !== 'ranger');
+    take(byDistance(soldiers, j), Math.max(2 - rangers.length, Math.ceil(soldiers.length * 0.5)), { kind: 'rescueEscort', jail });
     for (const sn of members.filter((e) => e.role === 'sniper')) sn.ai.task = { kind: 'rescueEscort', jail };
     return;
   }

@@ -7,7 +7,7 @@ export type AbilityResult =
   | 'sniper_miss'
   | 'radar'
   | 'radar_outside_tower'
-  | 'disguise';
+  | 'sprint';
 
 export type RandomEventKind = 'speed' | 'jailbreak' | 'leak';
 
@@ -23,9 +23,10 @@ export type GameEvent =
   | { type: 'CAPTURE_FAILED'; attackerId: number; reason: 'side' | 'back' }
   | { type: 'JAILED'; entityId: number; capNation: NationId }
   | { type: 'KING_CAPTURED'; nation: NationId }
+  /** A king was executed: that kingdom is out and all its people with it. */
+  | { type: 'NATION_FALLEN'; nation: NationId }
   | { type: 'KING_DODGED'; nation: NationId }
   | { type: 'SOLDIER_ENDURED'; nation: NationId; hp: number }
-  | { type: 'IMPOSTOR_EXPOSED'; nation: NationId }
   | { type: 'ELIMINATED'; entityId: number }
   | { type: 'RESCUE_STARTED'; rescuerId: number; targetId: number }
   | { type: 'RESCUE_NO_TARGET'; rescuerId: number }

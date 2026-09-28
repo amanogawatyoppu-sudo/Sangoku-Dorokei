@@ -3,7 +3,7 @@ export interface InputHandlers {
   onSpecial: () => void;
   /** Quick half-turn to check behind (Q / 振向). */
   onFace: () => void;
-  /** Squad orders: 1 follow, 2 spread and search, 3 hold here; the touch button cycles them. */
+  /** Squad orders: X follow me, C watch around me, V hold here; the touch button cycles them. */
   onSquad: (order: 'follow' | 'spread' | 'hold' | 'next') => void;
   /** Actions are ignored while this returns true (meeting open, game over). */
   isBlocked: () => boolean;
@@ -11,9 +11,9 @@ export interface InputHandlers {
 
 /** Character-relative intent: the camera always sits behind the character. */
 export interface MoveAxes {
-  /** +1 = walk forward (W / stick up), -1 = back away (S / stick down). */
+  /** +1 = walk forward (↑ / stick up), -1 = back away (↓ / stick down). */
   forward: number;
-  /** +1 = turn right (D / stick right), -1 = turn left (A / stick left). */
+  /** +1 = turn right (→ / stick right), -1 = turn left (← / stick left). */
   turn: number;
 }
 
@@ -55,9 +55,10 @@ export class InputManager {
       this.keys[k] = true;
       if (handlers.isBlocked()) return;
       if (e.key === ' ') { e.preventDefault(); handlers.onCapture(); }
-      if (k === 'e') handlers.onSpecial();
+      if (k === 'z' && !e.repeat) handlers.onSpecial();
       if (k === 'q' && !e.repeat) handlers.onFace();
-      if (!e.repeat && (k === '1' || k === '2' || k === '3')) handlers.onSquad(k === '1' ? 'follow' : k === '2' ? 'spread' : 'hold');
+      if (!e.repeat && (k === 'x' || k === 'c' || k === 'v')) handlers.onSquad(k === 'x' ? 'follow' : k === 'c' ? 'spread' : 'hold');
+      if (k.startsWith('arrow')) e.preventDefault(); // don't scroll the page
     });
     window.addEventListener('keyup', (e) => { this.keys[e.key.toLowerCase()] = false; });
     // Keys released while the window is unfocused never send keyup.
@@ -153,6 +154,11 @@ export class InputManager {
 
   get dash(): boolean {
     return !!this.keys['shift'] || this.touchDash;
+  }
+
+  /** Whether a key (lower-case `KeyboardEvent.key`) is held. */
+  held(key: string): boolean {
+    return !!this.keys[key];
   }
 
   /** Returns and clears the pixel drag accumulated since the last call. */

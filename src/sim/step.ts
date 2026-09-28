@@ -3,7 +3,7 @@ import { factionTick } from '../ai/faction';
 import { isHuman } from './entity';
 import type { GameState } from './state';
 import { emit, speedMul } from './state';
-import { PLAYER_DASH } from '../config/constants';
+import { PLAYER_DASH, SPRINT_SPEED } from '../config/constants';
 import { timeLeftSec } from './state';
 import { activate, tickCooldowns } from './systems/abilities';
 import { attemptCapture } from './systems/capture';
@@ -41,7 +41,7 @@ function runPlayerCommands(state: GameState): void {
  * reported position unless the character cannot move (jailed, stunned, rescuing)
  * or was teleported and the device has not caught up yet.
  */
-const REMOTE_MAX_SPEED = PLAYER_DASH * 1.25;
+const REMOTE_MAX_SPEED = PLAYER_DASH * SPRINT_SPEED * 1.1;
 
 function applyRemotePoses(state: GameState, dt: number): void {
   for (const id of state.humans) {

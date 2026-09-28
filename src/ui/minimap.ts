@@ -124,7 +124,8 @@ export class Minimap {
     return c;
   }
 
-  draw(state: GameState): void {
+  /** `ghost`: spectating after elimination: everyone is shown, and where the ghost is. */
+  draw(state: GameState, ghost: { x: number; z: number; yaw: number } | null = null): void {
     const g = this.ctx, p = state.player;
     g.drawImage(this.staticLayer(), 0, 0);
     for (const n of NATION_IDS) {
@@ -143,7 +144,7 @@ export class Minimap {
     g.fillRect(mx(TOWER.x) - 5, my(TOWER.z) - 5, 10, 10);
     g.strokeRect(mx(TOWER.x) - 5, my(TOWER.z) - 5, 10, 10);
     for (const e of state.entities) {
-      if (!e.alive || e === p || !visibleTo(state, e, p)) continue;
+      if (!e.alive || e === p || (!ghost && !visibleTo(state, e, p))) continue;
       g.fillStyle = nationCss(effNation(state, e, p.nation));
       g.strokeStyle = '#111';
       g.lineWidth = 1.5;
@@ -192,6 +193,20 @@ export class Minimap {
       g.fillRect(4, 4, g.measureText(label).width + 10, 19);
       g.fillStyle = '#fff4d6';
       g.fillText(label, 9, 7);
+    } else if (ghost) {
+      // The ghost: a pale arrow where the view is.
+      g.save();
+      g.translate(mx(ghost.x), my(ghost.z));
+      g.rotate(Math.atan2(Math.cos(ghost.yaw) * SZ, Math.sin(ghost.yaw) * SX));
+      g.beginPath();
+      g.moveTo(9, 0);
+      g.lineTo(-5.5, 6);
+      g.lineTo(-2.5, 0);
+      g.lineTo(-5.5, -6);
+      g.closePath();
+      g.fillStyle = 'rgba(220,235,255,.8)';
+      g.fill();
+      g.restore();
     }
   }
 }

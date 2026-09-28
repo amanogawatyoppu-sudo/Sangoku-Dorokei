@@ -111,7 +111,7 @@ describe('AI pursuit', () => {
   it('several chasers split into different roles (not one conga line)', () => {
     const state = newGame('sun', 'sniper', 8);
     state.nextEventAt = Infinity;
-    const hunters = [find(state, 'moon', 'soldier'), find(state, 'moon', 'impostor')];
+    const hunters = [find(state, 'moon', 'soldier'), find(state, 'moon', 'ranger')];
     freezeOthers(state, [...hunters, state.player]);
     teleport(hunters[0], O.x, O.z + 200);
     teleport(hunters[1], O.x + 60, O.z + 220);
@@ -148,7 +148,7 @@ describe('kingdom commanders', () => {
     expect(find(state, 'sun', 'keyholder').ai.task).toEqual({ kind: 'rescueKing', jail: 'moon' });
     const sunTasks = state.entities.filter((e) => e.nation === 'sun' && !e.jailed).map((e) => e.ai.task?.kind);
     expect(sunTasks.filter((k) => k === 'rescueEscort').length).toBeGreaterThanOrEqual(2);
-    expect(sunTasks).toContain('decoy'); // not everyone runs straight at the jail
+    expect(find(state, 'sun', 'ranger').ai.task).toEqual({ kind: 'rescueEscort', jail: 'moon' }); // rangers rush to help
     const moonTasks = state.entities.filter((e) => e.nation === 'moon').map((e) => e.ai.task?.kind);
     expect(moonTasks.filter((k) => k === 'guardJail').length).toBeGreaterThanOrEqual(2);
     const starTasks = state.entities.filter((e) => e.nation === 'star' && !e.isPlayer).map((e) => e.ai.task?.kind);

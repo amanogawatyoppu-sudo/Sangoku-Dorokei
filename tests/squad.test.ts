@@ -72,7 +72,7 @@ describe('squads', () => {
     for (const e of squadOf(state, p)) expect(d(e, p)).toBeLessThan(200);
   });
 
-  it('"ここを守れ" keeps them at the spot while the player leaves; "散開" spreads them out', () => {
+  it('"ここを守れ" keeps them at the spot while the player leaves', () => {
     const state = calm();
     const p = state.player;
     teleport(p, SITES.open.x, SITES.open.z);
@@ -90,12 +90,43 @@ describe('squads', () => {
     steps(state, 3);
     expect(d(p, anchor)).toBeGreaterThan(400);
     for (const e of sq) expect(d(e, anchor)).toBeLessThan(140);
+  });
+
+  it('"周りを警戒しろ" rings the player, each facing outward', () => {
+    const state = calm();
+    const p = state.player;
+    teleport(p, SITES.open.x, SITES.open.z);
+    steps(state, 1.2);
+    const sq = squadOf(state, p);
+    for (const e of sq) teleport(e, p.x + (e.id % 3) * 30 - 30, p.z + 60);
     queueCommand(state, { type: 'squad', order: 'spread' });
-    steps(state, 6);
-    const pts = sq.map((e) => ({ x: e.x, z: e.z }));
-    const spread = Math.max(...pts.flatMap((a) => pts.map((b) => d(a, b))));
-    expect(spread).toBeGreaterThan(150);
-    for (const e of sq) expect(d(e, state.squadAnchor!)).toBeLessThan(520);
+    steps(state, 5);
+    for (const e of sq) {
+      expect(d(e, p)).toBeGreaterThan(35);
+      expect(d(e, p)).toBeLessThan(110);
+      // Looking away from the player.
+      expect(e.dirX * (e.x - p.x) + e.dirZ * (e.z - p.z)).toBeGreaterThan(0);
+    }
+    const pts = sq.map((e) => Math.atan2(e.x - p.x, e.z - p.z)).sort((a, b) => a - b);
+    for (let i = 1; i < pts.length; i++) expect(pts[i] - pts[i - 1]).toBeGreaterThan(0.8); // spread round, not bunched
+  });
+
+  it('keeps up while the player keeps walking (no need to stop)', () => {
+    const state = calm();
+    const p = state.player;
+    teleport(p, SITES.open.x, SITES.open.z + 300);
+    steps(state, 1.5);
+    const sq = squadOf(state, p);
+    for (const e of sq) teleport(e, p.x + (e.id % 3) * 30 - 30, p.z + 60);
+    p.dirX = 0;
+    p.dirZ = -1;
+    state.input = { forward: 1, turn: 0.15, dash: false };
+    const gaps: number[] = [];
+    let t = 0;
+    steps(state, 10, () => { if ((t += STEP_SEC) > 1) for (const e of sq) gaps.push(d(e, p)); });
+    gaps.sort((a, b) => a - b);
+    expect(gaps[Math.floor(gaps.length / 2)]).toBeLessThan(110); // median
+    expect(gaps[Math.floor(gaps.length * 0.9)]).toBeLessThan(260);
   });
 
   it('squad members go after an enemy they see', () => {

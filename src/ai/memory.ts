@@ -48,7 +48,6 @@ export interface NavPath {
 export type Task =
   | { kind: 'rescueKing'; jail: 'sun' | 'moon' | 'star' }
   | { kind: 'rescueEscort'; jail: 'sun' | 'moon' | 'star' }
-  | { kind: 'decoy'; toward: 'sun' | 'moon' | 'star' }
   | { kind: 'guardJail' }
   | { kind: 'escortKing' }
   | { kind: 'raidJail'; jail: 'sun' | 'moon' | 'star' }
@@ -84,7 +83,7 @@ export interface AiMemory {
   searchUntil: number;
   searchCenter: Waypoint | null;
   /** Chase role among allies after the same enemy. */
-  chaseRole: 'direct' | 'intercept' | 'flank';
+  chaseRole: 'direct' | 'intercept' | 'flank' | 'ambush';
   flankSide: 1 | -1;
   task: Task | null;
   /** Stuck detection: last position that counted as progress. */

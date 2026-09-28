@@ -1,7 +1,7 @@
 import type { NationId, Point } from '../config/nations';
 import { NATION_IDS, NATIONS } from '../config/nations';
 import { HOTSPOTS, PERCHES as MAP_PERCHES, TOWER } from '../config/map';
-import { AI_REACTION_MS, AI_SPEED, AI_TURN_RATE, CAP_RANGE } from '../config/constants';
+import { AI_REACTION_MS, AI_SPEED, AI_TURN_RATE, CAP_RANGE, SPRINT_SPEED } from '../config/constants';
 import type { Entity } from '../sim/entity';
 import { isHuman } from '../sim/entity';
 import type { GameState } from '../sim/state';
@@ -13,7 +13,7 @@ import { accelerate, moveToward, turnBy, turnToward } from '../sim/systems/movem
 import { tryStartRescue } from '../sim/systems/rescue';
 import { blocked, canWalk } from '../sim/systems/world';
 import type { AiState, Sighting, Waypoint } from './memory';
-import { planPath, randomNodeNear } from './nav';
+import { chokePoints, planPath, randomNodeNear } from './nav';
 import { PERCEIVE_MS, perceive, predict } from './perception';
 
 const THINK_MS = 220;
@@ -179,7 +179,14 @@ function chase(state: GameState, e: Entity, t: Entity): void {
   const tdx = t.dirX, tdz = t.dirZ;
   let goal: Waypoint;
   let st: AiState = 'CHASE';
-  if (rank === 0 || d < 130) {
+  const ambush = e.role === 'ranger' && rank > 0 && d >= 130 ? ambushSpot(e, t, s) : null;
+  if (ambush) {
+    // Rangers don't chase from behind when others already are: they cut ahead to a stair exit or bridge.
+    ai.chaseRole = 'ambush';
+    st = 'INTERCEPT';
+    goal = ambush;
+    if (e.cd.special <= 0 && Math.hypot(ambush.x - e.x, ambush.z - e.z) > 250) useSpecial(state, e);
+  } else if (rank === 0 || d < 130) {
     ai.chaseRole = 'direct';
     goal = d < 200 ? { x: t.x - tdx * 34, y: t.y, z: t.z - tdz * 34 } : { x: t.x, y: t.y, z: t.z };
   } else if (rank === 1) {
@@ -197,6 +204,50 @@ function chase(state: GameState, e: Entity, t: Entity): void {
   }
   setGoal(state, e, goal, st);
   if (ai.path && ai.path.points.length === 1) ai.path.points[0] = goal;
+}
+
+/**
+ * Where a ranger can get ahead of a fleeing enemy: a stair exit, ramp end or bridge
+ * a little along the enemy's way, that the ranger can reach first.
+ */
+function ambushSpot(e: Entity, t: Entity, s: Sighting): Waypoint | null {
+  const speed = Math.hypot(s.vx, s.vz);
+  if (speed < 60) return null;
+  const ux = s.vx / speed, uz = s.vz / speed;
+  let best: Waypoint | null = null, bs = Infinity;
+  for (const c of chokePoints()) {
+    const ax = c.x - t.x, az = c.z - t.z;
+    const along = ax * ux + az * uz;
+    if (along < 80 || along > 700) continue;
+    const off = Math.abs(ax * uz - az * ux);
+    if (off > 220) continue;
+    const mine = Math.hypot(c.x - e.x, c.z - e.z), theirs = Math.hypot(ax, az);
+    if (mine > theirs * 1.4 + 100) continue; // can't get there first
+    const score = off + along * 0.4 + mine * 0.3;
+    if (score < bs) { bs = score; best = { x: c.x, y: c.y, z: c.z }; }
+  }
+  return best;
+}
+
+/** Rangers answer fights: the latest capture attempt or the freshest report of an enemy. */
+function respond(state: GameState, e: Entity): boolean {
+  const f = state.factions[e.nation];
+  let spot: Waypoint | null = null;
+  if (f.fight && state.time - f.fight.t < 10000 && Math.hypot(f.fight.x - e.x, f.fight.z - e.z) < 2600) spot = { x: f.fight.x, y: f.fight.y, z: f.fight.z };
+  else {
+    let bt = -Infinity;
+    for (const s of f.intel.values()) {
+      const t = state.entities[s.id];
+      if (state.time - s.t > 5000 || !t.alive || t.jailed || s.t <= bt || Math.hypot(s.x - e.x, s.z - e.z) > 2200) continue;
+      bt = s.t;
+      spot = predict(s, state.time);
+    }
+  }
+  if (!spot) return false;
+  if (Math.hypot(spot.x - e.x, spot.z - e.z) < 60) return false;
+  if (e.cd.special <= 0 && Math.hypot(spot.x - e.x, spot.z - e.z) > 450) useSpecial(state, e);
+  setGoal(state, e, spot, 'INVESTIGATE');
+  return true;
 }
 
 function startSearch(state: GameState, e: Entity, s: Sighting): void {
@@ -290,7 +341,8 @@ function engage(state: GameState, e: Entity, range: number, near?: Point): boole
   const t = near ? nearestVisible(state, e, range, near) : pickPrey(state, e, range);
   if (!t) return false;
   chase(state, e, t);
-  if (e.role === 'impostor' && e.fakeUntil <= state.time && dist(e, t) < 220 && state.rng() < 0.12) useSpecial(state, e);
+  // Rangers sprint to close a gap.
+  if (e.role === 'ranger' && e.cd.special <= 0 && dist(e, t) > 180) useSpecial(state, e);
   return true;
 }
 
@@ -327,12 +379,6 @@ function hunterThink(state: GameState, e: Entity, aggro: number): void {
       if (king) setGoal(state, e, { x: king.x - king.dirX * 40 + (e.id % 2 ? 30 : -30), y: king.y, z: king.z - king.dirZ * 40 }, 'ESCORT');
       return;
     }
-    case 'decoy': {
-      if (e.fakeUntil <= state.time) useSpecial(state, e);
-      if (engage(state, e, 260)) return;
-      setGoal(state, e, around(NATIONS[task.toward].base, e, 160), 'INVESTIGATE');
-      return;
-    }
     case 'takeTower':
       if (engage(state, e, 240)) return;
       setGoal(state, e, around(TOWER, e, 60), 'GUARD');
@@ -342,6 +388,7 @@ function hunterThink(state: GameState, e: Entity, aggro: number): void {
   if (engage(state, e, aggro)) return;
   if (lostTargetSearch(state, e)) return;
   // A jailed ally nearby is worth checking on.
+  if (e.role === 'ranger' && respond(state, e)) return;
   const ally = jailedAlly(state, e);
   if (ally && ally.capturedBy && dist(e, NATIONS[ally.capturedBy].jail) < 900 && state.rng() < 0.5) {
     setGoal(state, e, around(NATIONS[ally.capturedBy].jail, e, 120), 'RESCUE');
@@ -458,6 +505,15 @@ function kingThink(state: GameState, e: Entity): void {
 /** Formation spots behind the leader: [units back, units to the right]. */
 const FORMATION: readonly [number, number][] = [[-48, 42], [-48, -42], [-95, 20], [-95, -20]];
 /** Sector each slot watches when the squad stops (radians from the leader's facing): front-right, front-left, rear, rear. */
+/** 周りを警戒 (C): followers ring the person this far out, each facing outward. */
+const RING_R = 62;
+const ringOrder = (state: GameState, L: Entity) => isHuman(L) && squadCommandOf(state, L).order === 'spread';
+/** A follower's direction (world yaw) from the leader in the ring: evenly spaced. */
+function ringAngle(state: GameState, e: Entity, L: Entity): number {
+  const n = Math.max(1, state.entities.filter((o) => o.ai.leaderId === L.id && o.alive && !o.jailed).length);
+  // Fixed compass directions, so turning on the spot doesn't send everyone running round.
+  return ((e.ai.slot % n) + 0.5) * ((Math.PI * 2) / n);
+}
 const WATCH: readonly number[] = [0.6, -0.6, Math.PI, Math.PI - 0.6];
 
 /** The leader this character follows, if the squad is still valid. */
@@ -469,7 +525,13 @@ function leaderOf(state: GameState, e: Entity): Entity | null {
 }
 
 /** Where a follower should stand: its slot behind the leader (or straight behind, if that spot is inside a wall). */
-function formationSpot(e: Entity, L: Entity): Waypoint {
+function formationSpot(state: GameState, e: Entity, L: Entity): Waypoint {
+  if (ringOrder(state, L)) {
+    // 周りを警戒: stand in a ring around the leader.
+    const a = ringAngle(state, e, L);
+    const x = L.x + Math.sin(a) * RING_R, z = L.z + Math.cos(a) * RING_R;
+    if (!blocked(x, z, L.y)) return { x, y: L.y, z };
+  }
   const [back, side] = FORMATION[e.ai.slot % FORMATION.length];
   const rx = -L.dirZ, rz = L.dirX;
   const x = L.x + L.dirX * back + rx * side, z = L.z + L.dirZ * back + rz * side;
@@ -492,7 +554,7 @@ function squadThink(state: GameState, e: Entity, L: Entity, aggro: number): bool
     if (t && (e.dirX * (t.x - e.x) + e.dirZ * (t.z - e.z)) / (dist(e, t) || 1) > 0.9 && e.cd.special <= 0) useSpecial(state, e);
     if (t && dist(e, t) < 380) { stop(e, 'HOLD'); return true; }
   } else {
-    if (engage(state, e, isHuman(L) ? 420 : Math.min(aggro, 520))) return true;
+    if (engage(state, e, isHuman(L) ? (ringOrder(state, L) ? 520 : 420) : Math.min(aggro, 520))) return true;
     if (dist(e, L) < 600 && lostTargetSearch(state, e)) return true;
   }
   if (isHuman(L)) {
@@ -501,13 +563,6 @@ function squadThink(state: GameState, e: Entity, L: Entity, aggro: number): bool
     if (cmd.order === 'hold') {
       const ang = e.ai.slot * 2.1;
       setGoal(state, e, { x: a.x + Math.cos(ang) * 70, y: a.y, z: a.z + Math.sin(ang) * 70 }, 'GUARD');
-      return true;
-    }
-    if (cmd.order === 'spread') {
-      if (!ai.goal || ai.state !== 'SEARCH' || Math.hypot(ai.goal.x - e.x, ai.goal.z - e.z) < 40) {
-        const n = randomNodeNear(a.x, a.y, a.z, 420, state.rng);
-        if (n) setGoal(state, e, { x: n.x, y: n.y, z: n.z }, 'SEARCH');
-      }
       return true;
     }
   } else {
@@ -530,17 +585,29 @@ function squadThink(state: GameState, e: Entity, L: Entity, aggro: number): bool
 /** Keep formation: walk straight to the slot when it is close and clear, else take a path; catch up when behind. */
 function squadMove(state: GameState, e: Entity, L: Entity, dt: number): void {
   const ai = e.ai, now = state.time;
-  const spot = formationSpot(e, L);
+  const spot = formationSpot(state, e, L);
+  // A walking leader: aim a little ahead of where it is going.
+  const lead = Math.max(0, L.speed) * 0.35;
+  if (lead > 5 && !blocked(spot.x + L.dirX * lead, spot.z + L.dirZ * lead, L.y)) { spot.x += L.dirX * lead; spot.z += L.dirZ * lead; }
   const d = Math.hypot(spot.x - e.x, spot.z - e.z);
-  const catchUp = Math.max(0.4, Math.min(isHuman(L) ? 1.2 : 1.05, 0.35 + d / 220));
+  // A person's squad runs to keep up (people walk as fast as the AI and dash faster).
+  const catchUp = isHuman(L) ? Math.max(0.4, Math.min(1.75, 0.35 + d / 160)) : Math.max(0.4, Math.min(1.05, 0.35 + d / 220));
   const speed = AI_SPEED * e.gait * speedMul(state) * catchUp;
   if (now >= ai.directAt) {
-    ai.directAt = now + 400;
-    ai.directOk = d < 320 && Math.abs(L.y - e.y) < 20 && canWalk(e, spot.x, e.y, spot.z, 16);
+    ai.directAt = now + 300;
+    ai.directOk = d < 450 && Math.abs(L.y - e.y) < 20 && canWalk(e, spot.x, e.y, spot.z, 16);
   }
   if (!ai.directOk) {
-    setGoal(state, e, spot, 'SQUAD');
-    follow(state, e, dt, speed);
+    // The spot moves with the leader: keep the path and stretch its end, rather than
+    // dropping it (and standing still until the next plan) every time the leader moves on.
+    const g = ai.goal, path = ai.path;
+    if (g && path && ai.state === 'SQUAD' && Math.hypot(g.x - spot.x, g.z - spot.z) < 200 && Math.abs(g.y - spot.y) < 20) {
+      ai.goal = spot;
+      path.goal = spot;
+      path.points[path.points.length - 1] = spot;
+    } else setGoal(state, e, spot, 'SQUAD');
+    if (ai.path) follow(state, e, dt, speed);
+    else moveToward(e, spot.x, spot.z, dt, speed); // until the plan is ready
     return;
   }
   ai.goal = null;
@@ -548,7 +615,7 @@ function squadMove(state: GameState, e: Entity, L: Entity, dt: number): void {
   ai.progressAt = now;
   if (d > 14) { moveToward(e, spot.x, spot.z, dt, speed); return; }
   // In place: watch this slot's sector, sweeping a little.
-  const a = Math.atan2(L.dirX, L.dirZ) + WATCH[ai.slot % WATCH.length] + Math.sin(now / 1300 + e.id) * 0.35;
+  const a = (ringOrder(state, L) ? ringAngle(state, e, L) : Math.atan2(L.dirX, L.dirZ) + WATCH[ai.slot % WATCH.length]) + Math.sin(now / 1300 + e.id) * 0.35;
   turnToward(e, Math.sin(a), Math.cos(a), AI_TURN_RATE * 0.5 * dt);
 }
 
@@ -571,7 +638,7 @@ function think(state: GameState, e: Entity, aggro: number): void {
 
 /** Grab whoever is in reach from behind (hunters, and anyone escorting or guarding). */
 function opportunisticCapture(state: GameState, e: Entity): void {
-  if (e.role !== 'soldier' && e.role !== 'impostor') return;
+  if (e.role !== 'soldier' && e.role !== 'ranger') return;
   if (e.cd.capture > 0) return;
   const t = captureCandidate(state, e);
   if (!t || dist(t, e) > CAP_RANGE * 0.75) return;
@@ -597,7 +664,7 @@ export function aiTick(state: GameState, e: Entity, dt: number, aggro: number): 
     ai.thinkAt = now + THINK_MS + ((e.id * 53) % 80);
     think(state, e, aggro);
   }
-  const speed = AI_SPEED * e.gait * speedMul(state) * speedFor(ai.state) * (e.role === 'king' && ai.state !== 'FLEE' ? 0.75 : 1);
+  const speed = AI_SPEED * e.gait * speedMul(state) * (e.sprintUntil > now ? SPRINT_SPEED : 1) * speedFor(ai.state) * (e.role === 'king' && ai.state !== 'FLEE' ? 0.75 : 1);
   e.movedThisStep = false;
   // Close pursuit steers straight at the live position (only while it is in view).
   const t = ai.targetId !== null ? state.entities[ai.targetId] : null;

@@ -14,12 +14,15 @@ export function bindMessages(bus: EventBus<GameEvent>, state: GameState, log: Lo
   const ent = (id: number) => entityById(state, id)!;
 
   bus.on('CAPTURE_FAILED', (ev) => log.add(ev.reason === 'side' ? '側面からの捕獲は不安定だった…' : 'わずかに逃れられた！'));
-  bus.on('IMPOSTOR_EXPOSED', (ev) => log.add(N(ev.nation) + 'の詐欺師の正体が露見！'));
   bus.on('KING_DODGED', (ev) => log.add(N(ev.nation) + 'の王が回避した！'));
   bus.on('SOLDIER_ENDURED', (ev) => log.add(N(ev.nation) + 'の兵士が耐えた(残り' + ev.hp + ')'));
   bus.on('JAILED', (ev) => {
     const e = ent(ev.entityId);
     log.add(N(ev.capNation) + 'が' + N(e.nation) + 'の' + roleName(e.role) + 'を捕獲！');
+  });
+  bus.on('NATION_FALLEN', (ev) => {
+    log.add(`${N(ev.nation)}国の王が処刑され、${N(ev.nation)}国は敗北。国の全員が処刑された。`);
+    hud.banner(N(ev.nation) + '国 滅亡', 2600);
   });
   bus.on('KING_CAPTURED', (ev) => hud.banner(N(ev.nation) + '国王、捕縛！', 2600));
   bus.on('ELIMINATED', (ev) => {
@@ -46,9 +49,9 @@ export function bindMessages(bus: EventBus<GameEvent>, state: GameState, log: Lo
         else if (ev.targetId === state.player.id) hud.banner('狙撃された！', 1200);
         break;
       case 'sniper_miss': if (e.isPlayer) log.add('狙撃手：照準内に敵がいない（前方±30°・射程内・射線が必要）'); break;
-      case 'radar_outside_tower': log.add('通信士：管制塔内でEを押してください。'); break;
+      case 'radar_outside_tower': log.add('通信士：管制塔内でZを押してください。'); break;
       case 'radar': log.add(n + 'の通信士がレーダーを展開！'); break;
-      case 'disguise': log.add(n + 'の詐欺師が偽装を開始。'); break;
+      case 'sprint': if (e.isPlayer) hud.banner('疾走！', 900); break;
     }
   });
   bus.on('TOWER_CAPTURED', (ev) => {
@@ -73,7 +76,7 @@ export function bindMessages(bus: EventBus<GameEvent>, state: GameState, log: Lo
   });
   bus.on('SQUAD_ORDER', (ev) => {
     if (ev.leaderId !== state.player.id) return;
-    const text = { follow: '分隊：ついて来い（同行して周りを警戒）', spread: '分隊：散開して周囲を探せ', hold: '分隊：ここを守れ' }[ev.order];
+    const text = { follow: '分隊：付いてこい', spread: '分隊：周りを警戒しろ', hold: '分隊：ここを守れ' }[ev.order];
     log.add(text);
     hud.banner(text.replace('分隊：', ''), 1100);
   });

@@ -1,5 +1,6 @@
 import { NATIONS } from '../config/nations';
 import { roleName } from '../config/roles';
+import { nameOf } from '../config/names';
 import { CAP_RANGE } from '../config/constants';
 import { CAPTURE_CD } from '../config/roles';
 import { beep } from '../audio/sfx';
@@ -8,7 +9,7 @@ import { compass } from '../meeting/meetingSystem';
 import type { GameState } from '../sim/state';
 import { kingOf, timeLeftSec } from '../sim/state';
 import type { CaptureTier } from '../sim/systems/capture';
-import { captureCandidate, captureTier } from '../sim/systems/capture';
+import { captureCandidate, captureTier, superHand } from '../sim/systems/capture';
 import { jailDuration } from '../sim/systems/jail';
 import { dist } from '../sim/systems/collision';
 import { suspStars } from '../sim/systems/suspicion';
@@ -17,22 +18,23 @@ import { visibleTo } from '../sim/systems/vision';
 import { $ } from './dom';
 
 /** v6 UI cooldown scale for the special button fill (keyholder uses 1 in v6). */
-const SPECIAL_FILL_SCALE = { king: 15, soldier: 18, sniper: 8, keyholder: 1, communicator: 10, impostor: 14 } as const;
+const SPECIAL_FILL_SCALE = { king: 15, soldier: 18, sniper: 8, keyholder: 1, communicator: 10, ranger: 16 } as const;
 const SPECIAL_DESC = {
-  king: '回避を強化',
+  king: '回避を強化（捕獲はスーパーハンド：正面からでも確実）',
   soldier: '耐久を全回復',
   sniper: '照準（前方±30°・射程20m・高所から+25%）の敵を狙撃→3秒スタン。赤い線が出たら命中',
-  keyholder: '牢屋の味方の近くでE(王は詠唱長め・進捗表示あり)',
+  keyholder: '牢屋の味方の近くでZ(王は詠唱長め・進捗表示あり)',
   communicator: '管制塔内でレーダー展開',
-  impostor: '他国に偽装(捕獲で解除)',
+  ranger: '疾走: 4.5秒間 速さ×1.3・スタミナ回復アップ（再使用16秒）',
 } as const;
 
 /** Which part of the target the player is on; matches the capture success rules. */
-const TIER_LABEL: Record<CaptureTier, string> = {
+const TIER_LABEL: Record<CaptureTier | 'super', string> = {
   deepback: '真後ろ（確実）',
   back: '背後（高確率）',
   side: '側面（不安定）',
   front: '正面（不可）',
+  super: 'スーパーハンド（どこからでも確実）',
 };
 
 /** Top bar, side panel, hint line, vignette, banner and rescue progress. */
@@ -80,14 +82,14 @@ export class Hud {
       const d = document.createElement('div');
       d.className = 'squad-member';
       const st = e.jailed ? '牢屋' : !e.alive ? '脱落' : e.stunUntil > state.time ? 'スタン' : STATUS[e.ai.state] ?? '行動中';
-      d.textContent = `${roleName(e.role)}　${st}　${Math.round(Math.hypot(e.x - p.x, e.z - p.z) / 26)}m`;
+      d.textContent = `${nameOf(e.id)}（${roleName(e.role)}）${st}　${Math.round(Math.hypot(e.x - p.x, e.z - p.z) / 26)}m`;
       if (st === '追跡中' || st === '回り込み') d.classList.add('hot');
       return d;
     }));
-    if (!members.length) list.textContent = p.jailed ? '（あなたが牢屋にいる間は各自で行動）' : '（仲間を集めています…）';
+    if (!members.length) list.textContent = !p.alive ? '（処刑済み）' : p.jailed ? '（あなたが牢屋にいる間は各自で行動）' : '（仲間を集めています…）';
     for (const b of Array.from(document.querySelectorAll<HTMLButtonElement>('#squadBox [data-order]'))) b.classList.toggle('sel', b.dataset.order === state.squadOrder);
     const m = document.querySelector('#mSquad small');
-    if (m) m.textContent = { follow: '同行', spread: '散開', hold: '守備' }[state.squadOrder];
+    if (m) m.textContent = { follow: '付いて', spread: '警戒', hold: '守れ' }[state.squadOrder];
   }
 
   update(state: GameState): void {
@@ -133,12 +135,12 @@ export class Hud {
     const ready = !!target && p.cd.capture <= 0;
     el.btnCapture.classList.toggle('ready', ready);
     el.mCap.classList.toggle('ready', ready);
-    this.setStatus(this.statusFor(state, target ? captureTier(target, p) : null));
+    this.setStatus(this.statusFor(state, target ? (superHand(p) ? 'super' : captureTier(target, p)) : null));
   }
 
-  private statusFor(state: GameState, tier: CaptureTier | null): { text: string; kind: string } | null {
+  private statusFor(state: GameState, tier: CaptureTier | 'super' | null): { text: string; kind: string } | null {
     const p = state.player, now = state.time;
-    if (!p.alive) return { text: '処刑済み — 観戦中', kind: 'jail' };
+    if (!p.alive) return { text: '処刑済み — 幽霊で観戦中', kind: 'jail' };
     if (p.jailed) {
       const left = Math.max(0, Math.ceil((p.jailedAt + jailDuration(p) - now) / 1000));
       return { text: '牢屋に捕縛中 — 処刑まで ' + left + '秒', kind: 'jail' };
@@ -187,7 +189,7 @@ export class Hud {
 
   private computeHint(state: GameState): string {
     const p = state.player, now = state.time;
-    if (!p.alive) return '観戦中…最後まで見届けよう';
+    if (!p.alive) return '幽霊で観戦中：↑↓←→で自由に移動、Shiftで速く、Space上昇・Z下降';
     let danger = false;
     for (const e of state.entities) {
       if (e.nation !== p.nation && e.alive && !e.jailed && visibleTo(state, e, p)) {
@@ -202,7 +204,7 @@ export class Hud {
       const d = dist(en, p);
       const tt = d < 90 && el > 2200 ? 3 : el > 1100 ? 2 : 1;
       if (tt > tier) tier = tt;
-      if (tt >= 2 && d < CAP_RANGE + 40 && captureTier(p, en) !== 'front') danger = true;
+      if (tt >= 2 && d < CAP_RANGE + 40 && (superHand(en) || captureTier(p, en) !== 'front')) danger = true;
     }
     this.el.vignette.classList.toggle('on', danger);
     // Snipers: someone drawing a bead on you (their red laser), or your own shot lined up.
@@ -215,7 +217,7 @@ export class Hud {
         const m = Math.round(Math.hypot(t.x - p.x, t.z - p.z, t.y - p.y) / 26);
         return p.cd.special > 0.5
           ? `照準: ${NATIONS[t.nation].name}国・${m}m ― 装填中（あと${Math.ceil(p.cd.special)}秒）`
-          : `照準: ${NATIONS[t.nation].name}国・${m}m ― E / 特殊 で狙撃！`;
+          : `照準: ${NATIONS[t.nation].name}国・${m}m ― Z / 特殊 で狙撃！`;
       }
     }
     if (tier === 3) {

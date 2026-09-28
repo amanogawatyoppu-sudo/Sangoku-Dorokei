@@ -4,7 +4,7 @@ import type { RoleId, RosterSize } from '../config/roles';
 import { ROLES, ROSTER_SIZES } from '../config/roles';
 import { BOUNDS } from '../config/map';
 import { PLAYER_DASH } from '../config/constants';
-import { remoteReady, remoteVote } from '../meeting/meetingSystem';
+import { humanSay, remoteReady, remoteVote } from '../meeting/meetingSystem';
 import type { GameEvent } from '../sim/events';
 import type { Command, GameState, HumanSeat } from '../sim/state';
 import { queueCommand } from '../sim/state';
@@ -165,11 +165,14 @@ interface NetInput {
   v: [number, number] | null;
   /** Done with meeting number r. */
   r: number | null;
+  /** Remarks in the meeting: [meeting number, choice indexes in the order said]. */
+  say?: [number, number[]];
 }
 
 /** Host side: reads friends' input into the simulation and publishes snapshots. */
 export class HostLink {
   private lastCmd = new Map<number, number>();
+  private said = new Map<number, number>();
   private events: NetEvent[] = [];
   private seq = 0;
   private lastSend = -Infinity;
@@ -195,7 +198,7 @@ export class HostLink {
       const g = p.presence.g as Partial<NetInput> | undefined;
       if (!g || typeof g !== 'object') continue;
       if (finite(g.x) && finite(g.y) && finite(g.z) && finite(g.dx) && finite(g.dz) && finite(g.s) && finite(g.tp)) {
-        const lim = PLAYER_DASH * 1.4;
+        const lim = PLAYER_DASH * 1.6;
         state.remotePose[id] = {
           x: Math.max(BOUNDS.minX - 1500, Math.min(BOUNDS.maxX + 1500, g.x)),
           y: Math.max(-50, Math.min(3000, g.y)),
@@ -218,6 +221,11 @@ export class HostLink {
       if (state.meeting) {
         if (Array.isArray(g.v) && g.v[0] === state.meetingsHeld && finite(g.v[1])) remoteVote(state, id, g.v[1]);
         if (g.r === state.meetingsHeld) remoteReady(state, id);
+        if (Array.isArray(g.say) && g.say[0] === state.meetingsHeld && Array.isArray(g.say[1])) {
+          const said = this.said.get(id) ?? 0, view = state.entities[id].nation === state.player.nation ? state.meeting : state.meeting.others[state.entities[id].nation];
+          for (const i of g.say[1].slice(said, said + 4)) if (finite(i) && view?.choices[i]) humanSay(state, id, view.choices[i]);
+          this.said.set(id, Math.max(said, Math.min(g.say[1].length, said + 4)));
+        }
       }
     }
     const left: number[] = [];
@@ -260,6 +268,7 @@ export class ClientLink {
   private cmds: [number, string, string?][] = [];
   private vote: [number, number] | null = null;
   private ready: number | null = null;
+  private says: [number, number[]] = [-1, []];
   private lastSend = -Infinity;
   private hostSeenAt: number;
 
@@ -296,6 +305,12 @@ export class ClientLink {
     this.ready = state.meetingsHeld;
   }
 
+  /** Something said in the meeting (index into the meeting's choices). */
+  sayChoice(state: GameState, index: number): void {
+    if (this.says[0] !== state.meetingsHeld) this.says = [state.meetingsHeld, []];
+    this.says[1].push(index);
+  }
+
   /** Sends this device's character and buttons about 15 times a second. */
   send(state: GameState, nowMs: number): void {
     if (nowMs - this.lastSend < 66) return;
@@ -304,7 +319,7 @@ export class ClientLink {
     const r = (v: number) => Math.round(v * 10) / 10;
     const g: NetInput = {
       x: r(p.x), y: r(p.y), z: r(p.z), dx: r(p.dirX * 100) / 100, dz: r(p.dirZ * 100) / 100, s: Math.round(p.speed), d: p.dashing ? 1 : 0,
-      tp: p.tp & 15, c: this.cmds, v: this.vote, r: this.ready,
+      tp: p.tp & 15, c: this.cmds, v: this.vote, r: this.ready, say: this.says,
     };
     void this.room.presence({ g }).catch(() => {});
   }

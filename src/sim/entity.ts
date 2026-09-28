@@ -58,6 +58,8 @@ export interface Entity {
   stunUntil: number;
   fakeNation: NationId | null;
   fakeUntil: number;
+  /** Ranger's 疾走 (sprint) lasts until this game time. */
+  sprintUntil: number;
   stamina: number;
   dashing: boolean;
   /** Cooldowns in seconds. */
@@ -100,7 +102,7 @@ export function createEntity(id: number, nation: NationId, role: RoleId, isPlaye
   const z = b.z + (rng() * 60 - 30);
   const intercept = rng() < 0.5;
   const kingPersona = role === 'king' ? KING_PERSONAS[Math.floor(rng() * 4)] : null;
-  const persona: Persona = role === 'impostor' ? 'trickster' : PERSONAS[Math.floor(rng() * 3)];
+  const persona: Persona = PERSONAS[Math.floor(rng() * 3)];
   // Face the middle of the map (the camera sits behind the facing).
   const fl = Math.hypot(x, z) || 1;
   return {
@@ -108,7 +110,7 @@ export function createEntity(id: number, nation: NationId, role: RoleId, isPlaye
     x, y: 0, z, prevX: x, prevY: 0, prevZ: z, dirX: -x / fl, dirZ: -z / fl,
     speed: 0, gait: 0.94 + ((id * 37) % 13) / 100,
     alive: true, jailed: false, jailedAt: 0, capturedBy: null,
-    hp: maxHp(role), stunUntil: 0, fakeNation: null, fakeUntil: 0,
+    hp: maxHp(role), stunUntil: 0, fakeNation: null, fakeUntil: 0, sprintUntil: 0,
     stamina: STAMINA_MAX, dashing: false, cd: { capture: 0, special: 0, dodge: 0 },
     wanderTarget: null, memPos: null, memTime: 0, guardUntil: 0, revealUntil: 0, channeling: null,
     // v6 compared against performance.now(), which was always well past 7s by the

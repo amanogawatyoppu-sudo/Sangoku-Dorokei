@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { GameState } from '../sim/state';
 import type { CaptureTier } from '../sim/systems/capture';
-import { captureCandidate, captureTier } from '../sim/systems/capture';
+import { captureCandidate, captureTier, superHand } from '../sim/systems/capture';
 import { visibleTo } from '../sim/systems/vision';
 import { sniperTarget } from '../sim/systems/abilities';
 import { lerp } from './entityView';
@@ -96,7 +96,7 @@ export class Indicators {
     if (t && this.target.visible) {
       const x = lerp(t.prevX, t.x, alpha), z = lerp(t.prevZ, t.z, alpha);
       this.target.position.set(x, lerp(t.prevY, t.y, alpha) + 0.8, z);
-      this.target.material.color.setHex(TIER_COLOR[captureTier(t, p)]);
+      this.target.material.color.setHex(TIER_COLOR[superHand(p) ? 'deepback' : captureTier(t, p)]);
       this.target.material.opacity = p.cd.capture > 0 ? 0.35 : 0.85;
     }
   }

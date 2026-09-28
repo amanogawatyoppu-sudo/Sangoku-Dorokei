@@ -31,6 +31,8 @@ export interface NetEvent {
 
 /** One nation's view of an open meeting, as sent to its people. */
 export interface NetMeeting {
+  /** Index of the first line in `l` (older lines were sent before). */
+  o: number;
   l: string[];
   c: string[];
   z: [string, number, number][];
@@ -85,7 +87,7 @@ function packEntities(state: GameState): string[] {
     dv.setInt8(o + 7, Math.max(-127, Math.min(127, Math.round(e.speed / 5))));
     const fake = e.fakeUntil > now && e.fakeNation !== null;
     buf[o + 8] = (e.alive ? 1 : 0) | (e.jailed ? 2 : 0) | (e.dashing ? 4 : 0) | (e.revealUntil > now ? 8 : 0)
-      | (fake ? 16 : 0) | (e.channeling ? 32 : 0) | (e.remote || e.isPlayer ? 64 : 0);
+      | (fake ? 16 : 0) | (e.channeling ? 32 : 0) | (e.remote || e.isPlayer ? 64 : 0) | (e.sprintUntil > now ? 128 : 0);
     buf[o + 9] = (fake ? nIdx(e.fakeNation) & 3 : 0) | ((e.hp & 3) << 2) | ((e.tp & 15) << 4);
     buf[o + 10] = Math.min(255, Math.max(0, Math.ceil((e.stunUntil - now) / 100)));
     buf[o + 11] = Math.max(0, Math.min(255, Math.round(e.susp)));
@@ -131,7 +133,8 @@ function packMeeting(state: GameState): Snapshot['m'] {
   const m = state.meeting;
   if (!m) return undefined;
   const view = (v: MeetingView): NetMeeting => ({
-    l: v.lines.slice(-14).map((s) => s.slice(0, 120)),
+    o: Math.max(0, v.lines.length - 10),
+    l: v.lines.slice(-10).map((s) => s.slice(0, 120)),
     c: v.choices,
     z: v.zones.map((z) => [z.label.slice(0, 40), Math.round(z.x), Math.round(z.z)]),
   });
@@ -152,7 +155,8 @@ export function encodeSnapshot(state: GameState, events: NetEvent[]): Snapshot {
     return [id, Math.round(e.cd.capture * 10), Math.round(e.cd.special * 10), e.meetingsLeft, e.capturesMade, e.rescuesMade,
       e.kingHits, e.kingCaptures, e.kingRescues, Math.round(e.towerTime * 10), ORDERS.indexOf(order), e.eliminatedAt === null ? -1 : Math.round(e.eliminatedAt * 10)];
   });
-  const snap: Snapshot = { v: 1, t: Math.round(state.time), g: packGlobals(state), e: packEntities(state), h, ev: events.slice(-EVENT_WINDOW) };
+  // Nobody moves during a meeting: the character table is left out to make room for the talk.
+  const snap: Snapshot = { v: 1, t: Math.round(state.time), g: packGlobals(state), e: state.meeting ? [] : packEntities(state), h, ev: events.slice(-EVENT_WINDOW) };
   const m = packMeeting(state);
   if (m) snap.m = m;
   return snap;
@@ -164,7 +168,7 @@ export function fitSnapshot(snap: Snapshot, maxBytes: number, extraBytes = 0): S
   while (size() > maxBytes && snap.ev.length) snap.ev = snap.ev.slice(1);
   if (snap.m) {
     for (const v of Object.values(snap.m.n)) {
-      while (size() > maxBytes && v && v.l.length > 3) v.l.splice(1, 1);
+      while (size() > maxBytes && v && v.l.length > 3) { v.l.shift(); v.o++; }
     }
   }
   return snap;
@@ -204,9 +208,10 @@ export class Mirror {
     state.time = snap.t;
     let bytes: Uint8Array;
     try { bytes = fromBase64(snap.e.join('')); } catch { return null; }
-    if (bytes.length !== state.entities.length * ENTITY_BYTES) return null;
+    // An empty table (during a meeting) leaves everyone where they are.
+    if (bytes.length && bytes.length !== state.entities.length * ENTITY_BYTES) return null;
     this.applyGlobals(state, Array.isArray(snap.g) ? snap.g : []);
-    const teleported = this.applyEntities(state, bytes, nowMs);
+    const teleported = bytes.length ? this.applyEntities(state, bytes, nowMs) : false;
     this.applyHumans(state, Array.isArray(snap.h) ? snap.h : []);
     this.applyMeeting(state, snap.m);
     const events: GameEvent[] = [];
@@ -261,6 +266,7 @@ export class Mirror {
       e.fakeNation = f & 16 ? nAt(b9 & 3) : null;
       e.fakeUntil = f & 16 ? now + 400 : 0;
       e.hp = (b9 >> 2) & 3;
+      e.sprintUntil = f & 128 ? now + 300 : 0;
       e.stunUntil = buf[o + 10] ? now + buf[o + 10] * 100 : 0;
       e.susp = buf[o + 11];
       e.ai.state = AI_STATES[buf[o + 12]] ?? 'PATROL';
@@ -317,15 +323,17 @@ export class Mirror {
   private applyMeeting(state: GameState, m: Snapshot['m']): void {
     const mine = m?.n?.[state.player.nation];
     if (!m || !mine) { state.meeting = null; return; }
-    const lines = (Array.isArray(mine.l) ? mine.l : []).map(String);
     const zones: MeetingZone[] = (Array.isArray(mine.z) ? mine.z : []).map((z) => ({ label: String(z[0]), x: num(z[1]), z: num(z[2]) }));
-    // Once open, the meeting stays as first shown (this device adds its own lines to it).
-    if (state.meeting) return;
-    const meeting: MeetingState = {
-      kind: m.k === 1 ? 'scheduled' : 'emergency', closeAfterMs: Infinity, lines,
-      choices: (Array.isArray(mine.c) ? mine.c : []).map(String), zones, voted: false, elapsedMs: 0, others: {}, votes: {}, ready: [],
-    };
-    state.meeting = meeting;
+    if (!state.meeting) {
+      state.meeting = {
+        kind: m.k === 1 ? 'scheduled' : 'emergency', closeAfterMs: Infinity, lines: [], script: [], nextLineAt: Infinity,
+        choices: (Array.isArray(mine.c) ? mine.c : []).map(String), zones, voted: false, elapsedMs: 0, others: {}, votes: {}, ready: [],
+      } satisfies MeetingState;
+    }
+    // The talk so far: lines arrive a window at a time, each at its place in the log.
+    const lines = state.meeting.lines, o = Math.max(0, Math.min(500, num(mine.o)));
+    (Array.isArray(mine.l) ? mine.l : []).forEach((l, i) => { lines[o + i] = String(l); });
+    for (let i = 0; i < lines.length; i++) if (lines[i] === undefined) lines[i] = '…';
   }
 
   /**

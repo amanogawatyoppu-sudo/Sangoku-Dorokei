@@ -1,9 +1,9 @@
-import { AI_TURN_RATE, CR, PLAYER_DASH, PLAYER_QUICK_TURN_RATE, PLAYER_TURN_RATE, PLAYER_WALK, STAMINA_DRAIN, STAMINA_MAX, STAMINA_REGEN } from '../../config/constants';
+import { AI_TURN_RATE, CLIMB_SLOW, CR, PLAYER_DASH, RANGER_CLIMB_SLOW, RANGER_REGEN, SPRINT_REGEN, SPRINT_SPEED, PLAYER_QUICK_TURN_RATE, PLAYER_TURN_RATE, PLAYER_WALK, STAMINA_DRAIN, STAMINA_MAX, STAMINA_REGEN } from '../../config/constants';
 import type { Entity } from '../entity';
 import type { GameState } from '../state';
 import { emit, speedMul } from '../state';
 import { SAME_LEVEL } from './collision';
-import { blocked, moveBody, settle } from './world';
+import { blocked, moveBody, settle, supportHeight } from './world';
 
 /**
  * AI walking: the body turns toward (tx, tz) at AI_TURN_RATE and moves along its
@@ -18,8 +18,20 @@ export function moveToward(e: Entity, tx: number, tz: number, dt: number, speed:
   // Slow down into sharp turns, speed up out of them (never an instant top speed).
   accelerate(e, speed * Math.max(0.15, align), dt);
   const step = Math.min(d, Math.max(0, e.speed) * dt);
-  moveBody(e, e.x + e.dirX * step, e.z + e.dirZ * step);
+  const k = climbMul(e, e.x + e.dirX * step, e.z + e.dirZ * step);
+  moveBody(e, e.x + e.dirX * step * k, e.z + e.dirZ * step * k);
   e.movedThisStep = true;
+}
+
+/** Going up stairs or a slope slows people down (rangers hardly). */
+export function climbMul(e: Pick<Entity, 'x' | 'y' | 'z' | 'role'>, nx: number, nz: number): number {
+  if (supportHeight(nx, nz, e.y) - e.y <= 0.3) return 1;
+  return e.role === 'ranger' ? RANGER_CLIMB_SLOW : CLIMB_SLOW;
+}
+
+/** Ranger's 疾走 is on. */
+export function sprinting(state: GameState, e: Entity): boolean {
+  return e.sprintUntil > state.time;
 }
 
 /** Acceleration and braking (units/s²): ~0.2 s to full run, ~0.15 s to a stop. */
@@ -91,15 +103,17 @@ export function updatePlayerMovement(state: GameState, dt: number): void {
   const f = Math.max(-1, Math.min(1, forward));
   const moving = f !== 0;
   const dashing = state.input.dash && p.stamina > 0 && moving;
+  const sprint = sprinting(state, p);
   p.dashing = dashing;
-  if (dashing) p.stamina = Math.max(0, p.stamina - STAMINA_DRAIN * dt);
-  else p.stamina = Math.min(STAMINA_MAX, p.stamina + STAMINA_REGEN * dt);
-  const spd = moving ? (dashing ? PLAYER_DASH : PLAYER_WALK) * speedMul(state) * (f < 0 ? BACKWARD_FACTOR : 1) * Math.abs(f) : 0;
+  if (dashing) p.stamina = Math.max(0, p.stamina - STAMINA_DRAIN * (sprint ? 0.5 : 1) * dt);
+  else p.stamina = Math.min(STAMINA_MAX, p.stamina + STAMINA_REGEN * (p.role === 'ranger' ? RANGER_REGEN : 1) * (sprint ? SPRINT_REGEN : 1) * dt);
+  const spd = moving ? (dashing ? PLAYER_DASH : PLAYER_WALK) * speedMul(state) * (sprint ? SPRINT_SPEED : 1) * (f < 0 ? BACKWARD_FACTOR : 1) * Math.abs(f) : 0;
   // The player accelerates faster than the AI (controls must feel responsive).
   accelerate(p, f < 0 ? -spd : spd, dt, PLAYER_ACCEL, BRAKE * 1.3);
   if (Math.abs(p.speed) < 1) { p.speed = 0; return; }
   const ox = p.x, oz = p.z;
-  moveBody(p, p.x + p.dirX * p.speed * dt, p.z + p.dirZ * p.speed * dt);
+  const k = climbMul(p, p.x + p.dirX * p.speed * dt, p.z + p.dirZ * p.speed * dt);
+  moveBody(p, p.x + p.dirX * p.speed * dt * k, p.z + p.dirZ * p.speed * dt * k);
   if (dashing) {
     p.dashDistance += Math.hypot(p.x - ox, p.z - oz);
     state.footTimer -= dt;

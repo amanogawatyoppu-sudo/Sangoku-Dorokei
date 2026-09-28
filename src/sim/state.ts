@@ -113,6 +113,8 @@ export interface GameState {
   humans: number[];
   /** Squad orders of friends' characters (the player's own are `squadOrder` / `squadAnchor`). */
   humanOrders: Record<number, SquadCommand>;
+  /** Online: everyone's nickname by character id (meeting lines). */
+  humanNames: Record<number, string>;
   /** Latest reported positions of friends' characters. */
   remotePose: Record<number, RemotePose>;
   /** Outbox drained by the presentation layer after each frame. */
@@ -201,6 +203,7 @@ export function createGameState(
     commands: [],
     humans,
     humanOrders: {},
+    humanNames: {},
     remotePose: {},
     events: [],
   };

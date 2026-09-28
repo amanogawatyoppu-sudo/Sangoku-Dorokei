@@ -6,7 +6,7 @@ import { ROLE_INFO, ROLES, ROSTER_SIZES } from '../config/roles';
 import { $ } from './dom';
 
 /** One-character seal shown on each role card. */
-const ROLE_SEAL: Record<RoleId, string> = { king: '王', soldier: '兵', sniper: '狙', communicator: '通', keyholder: '鍵', impostor: '詐' };
+const ROLE_SEAL: Record<RoleId, string> = { king: '王', soldier: '兵', sniper: '狙', communicator: '通', keyholder: '鍵', ranger: '遊' };
 
 export interface SetupPicks {
   nation: NationId | null;

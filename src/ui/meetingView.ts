@@ -50,14 +50,21 @@ export class MeetingView {
     closeBtn.onclick = actions.close;
   }
 
-  /** Appends any dialogue lines not yet shown. */
+  /** Shows lines said since the last call (and fixes any that arrived late), keeping the newest in view. */
   refresh(state: GameState): void {
     const lines = state.meeting?.lines ?? [];
-    for (; this.shownLines < lines.length; this.shownLines++) {
-      const d = document.createElement('div');
-      d.textContent = lines[this.shownLines];
-      this.log.appendChild(d);
+    let added = false;
+    for (let i = 0; i < lines.length; i++) {
+      const d = this.log.children[i] as HTMLDivElement | undefined;
+      if (d) { if (d.textContent !== lines[i]) d.textContent = lines[i]; continue; }
+      const nd = document.createElement('div');
+      nd.textContent = lines[i];
+      if (i >= this.shownLines) nd.className = 'said';
+      this.log.appendChild(nd);
+      added = true;
     }
+    this.shownLines = lines.length;
+    if (added) this.log.scrollTop = this.log.scrollHeight;
   }
 
   hide(): void {

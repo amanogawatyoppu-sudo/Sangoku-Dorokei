@@ -1,5 +1,4 @@
-import { NATION_IDS } from '../../config/nations';
-import { DISGUISE_TIME, RADAR_TIME, STUN_TIME } from '../../config/constants';
+import { RADAR_TIME, SPRINT_TIME, STUN_TIME } from '../../config/constants';
 import { SPECIAL_CD } from '../../config/roles';
 import type { Entity } from '../entity';
 import type { GameState } from '../state';
@@ -35,7 +34,7 @@ export function sniperTarget(state: GameState, e: Entity): Entity | null {
   return best;
 }
 
-/** The E / 特殊 action: keyholders rescue, everyone else uses their role's special. */
+/** The Z / 特殊 action: keyholders rescue, everyone else uses their role's special. */
 export function activate(state: GameState, e: Entity): void {
   if (e.role === 'keyholder') tryStartRescue(state, e);
   else useSpecial(state, e);
@@ -75,12 +74,10 @@ export function useSpecial(state: GameState, e: Entity): void {
     e.cd.special = SPECIAL_CD.communicator;
     state.radar[e.nation] = now + RADAR_TIME;
     emit(state, { type: 'ABILITY', entityId: e.id, result: 'radar' });
-  } else if (e.role === 'impostor') {
-    e.cd.special = SPECIAL_CD.impostor;
-    const other = NATION_IDS.filter((n) => n !== e.nation);
-    e.fakeNation = other[Math.floor(state.rng() * other.length)];
-    e.fakeUntil = now + DISGUISE_TIME;
-    emit(state, { type: 'ABILITY', entityId: e.id, result: 'disguise' });
+  } else if (e.role === 'ranger') {
+    e.cd.special = SPECIAL_CD.ranger;
+    e.sprintUntil = now + SPRINT_TIME;
+    emit(state, { type: 'ABILITY', entityId: e.id, result: 'sprint' });
   }
 }
 

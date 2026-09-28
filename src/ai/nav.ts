@@ -282,6 +282,30 @@ export function planPath(body: Body, goal: Waypoint): Waypoint[] | null {
 }
 
 /** Random standable point within `radius` of (x, z) on roughly the given level (for searches / patrols). */
+let chokes: NavNode[] | null = null;
+
+/**
+ * Places a pursuer can cut someone off: the ends of stairs and ramps (a steep edge)
+ * and narrow walkways such as bridges (few neighbours), one per ~150 units.
+ */
+export function chokePoints(): NavNode[] {
+  if (chokes) return chokes;
+  const { nodes } = navGraph();
+  const taken = new Set<number>();
+  chokes = [];
+  for (const n of nodes) {
+    if (!n.reachable) continue;
+    const steep = n.edges.some((id) => Math.abs(nodes[id].y - n.y) > 18);
+    const narrow = n.edges.length <= 2 && n.y > 20;
+    if (!steep && !narrow) continue;
+    const key = Math.round(n.x / 150) * 100003 + Math.round(n.z / 150) * 7 + Math.round(n.y / 60);
+    if (taken.has(key)) continue;
+    taken.add(key);
+    chokes.push(n);
+  }
+  return chokes;
+}
+
 export function randomNodeNear(x: number, y: number, z: number, radius: number, rng: () => number): NavNode | null {
   for (let i = 0; i < 8; i++) {
     const a = rng() * Math.PI * 2, r = radius * Math.sqrt(rng());

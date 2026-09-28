@@ -31,9 +31,14 @@ export function captureCandidate(state: GameState, attacker: Entity): Entity | n
     // Same floor only: someone directly above or below cannot be grabbed.
     if (Math.abs(t.y - attacker.y) > CAP_HEIGHT) continue;
     const d = dist(t, attacker);
-    if (d < bd && captureTier(t, attacker) !== 'front') { best = t; bd = d; }
+    if (d < bd && (superHand(attacker) || captureTier(t, attacker) !== 'front')) { best = t; bd = d; }
   }
   return best;
+}
+
+/** Kings carry the スーパーハンド: they catch from any side (even face to face), every time. */
+export function superHand(e: Entity): boolean {
+  return e.role === 'king';
 }
 
 export function attemptCapture(state: GameState, attacker: Entity): void {
@@ -43,13 +48,12 @@ export function attemptCapture(state: GameState, attacker: Entity): void {
   attacker.cd.capture = CAPTURE_CD;
   const best = captureCandidate(state, attacker);
   if (!best) return;
-  const tier = captureTier(best, attacker);
+  const fight = { x: best.x, y: best.y, z: best.z, t: now };
+  state.factions[attacker.nation].fight = fight;
+  state.factions[best.nation].fight = fight;
+  const tier = superHand(attacker) ? 'deepback' : captureTier(best, attacker);
   if (tier === 'side' && state.rng() < 0.5) { emit(state, { type: 'CAPTURE_FAILED', attackerId: attacker.id, reason: 'side' }); return; }
   if (tier === 'back' && state.rng() < 0.15) { emit(state, { type: 'CAPTURE_FAILED', attackerId: attacker.id, reason: 'back' }); return; }
-  if (attacker.role === 'impostor' && attacker.fakeUntil > now) {
-    attacker.fakeUntil = 0;
-    emit(state, { type: 'IMPOSTOR_EXPOSED', nation: attacker.nation });
-  }
   if (best.role === 'king') {
     state.natStats[attacker.nation].hit++;
     if (isHuman(attacker)) attacker.kingHits++;

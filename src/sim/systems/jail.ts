@@ -53,7 +53,19 @@ export function eliminate(state: GameState, e: Entity): void {
   e.jailed = false;
   e.eliminatedAt = elapsedSec(state);
   emit(state, { type: 'ELIMINATED', entityId: e.id });
-  if (e.role === 'king') checkWin(state);
+  if (e.role !== 'king') return;
+  // A kingdom whose king is executed has lost: all its people are executed with it.
+  emit(state, { type: 'NATION_FALLEN', nation: e.nation });
+  for (const o of state.entities) {
+    if (o.nation !== e.nation || !o.alive) continue;
+    o.alive = false;
+    o.jailed = false;
+    o.channeling = null;
+    o.eliminatedAt = elapsedSec(state);
+  }
+  // Nobody is left to guard its jail: its prisoners walk free.
+  for (const o of state.entities) if (o.jailed && o.capturedBy === e.nation) freeFromJail(o);
+  checkWin(state);
 }
 
 /** Executes anyone who has been in jail longer than their sentence. */

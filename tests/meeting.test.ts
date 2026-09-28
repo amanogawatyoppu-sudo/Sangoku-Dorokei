@@ -49,18 +49,18 @@ describe('meeting pause', () => {
     expect(prisoner.jailed).toBe(true);
   });
 
-  it('stun, disguise, radar and random-event timers keep their remaining time across a meeting', () => {
+  it('stun, sprint, radar and random-event timers keep their remaining time across a meeting', () => {
     const state = newGame('sun', 'soldier');
-    const e = find(state, 'moon', 'impostor');
+    const e = find(state, 'moon', 'ranger');
     e.stunUntil = state.time + 3000;
-    e.fakeUntil = state.time + 8000;
+    e.sprintUntil = state.time + 8000;
     state.radar.star = state.time + 7000;
     const eventIn = state.nextEventAt - state.time;
     placeAtBase(state.player);
     openMeeting(state);
     runFrames(state, 25000);
     expect(e.stunUntil - state.time).toBe(3000);
-    expect(e.fakeUntil - state.time).toBe(8000);
+    expect(e.sprintUntil - state.time).toBe(8000);
     expect(state.radar.star - state.time).toBe(7000);
     expect(state.nextEventAt - state.time).toBe(eventIn);
   });

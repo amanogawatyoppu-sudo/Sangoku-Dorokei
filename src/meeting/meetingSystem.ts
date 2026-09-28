@@ -1,6 +1,5 @@
 import type { NationId, Point } from '../config/nations';
 import { NATION_IDS, NATIONS } from '../config/nations';
-import { roleName } from '../config/roles';
 import { HOTSPOTS, TOWER } from '../config/map';
 import {
   MEETING_AUTO_CLOSE, MEETING_RANGE, ONLINE_MEETING_CLOSE, SCHEDULED_MEETING_CLOSE, SCHEDULED_MEETING_WARN, TERMINAL_TIME,
@@ -9,21 +8,18 @@ import type { Entity } from '../sim/entity';
 import type { GameState } from '../sim/state';
 import { elapsedSec, emit, isOnline, timeLeftSec } from '../sim/state';
 import { dist } from '../sim/systems/collision';
-import { suspStars } from '../sim/systems/suspicion';
+import { visibleTo } from '../sim/systems/vision';
+import { VOTE_CALL, discussionLines, replyLines, voteLines } from './dialogue';
 
 export interface MeetingZone extends Point {
   label: string;
 }
 
-export interface MeetingState {
+export interface MeetingState extends MeetingView {
   /** Emergency (called by the player at their base) or scheduled (everyone, once at half time). */
   kind: 'emergency' | 'scheduled';
   /** Real-time length before it closes by itself. */
   closeAfterMs: number;
-  /** Dialogue shown in the meeting log, oldest first. */
-  lines: string[];
-  choices: string[];
-  zones: MeetingZone[];
   voted: boolean;
   /**
    * Real time the meeting has been open. Game time is frozen during a meeting,
@@ -41,10 +37,19 @@ export interface MeetingState {
 
 /** What one nation's people see and vote on. */
 export interface MeetingView {
+  /** Said so far, oldest first. */
   lines: string[];
   choices: string[];
   zones: MeetingZone[];
+  /** Still to be said: revealed one at a time, like people talking in turn. */
+  script: string[];
+  /** Meeting time (ms) the next scripted line is said. */
+  nextLineAt: number;
 }
+
+/** The discussion starts after a moment and goes at a talking pace. */
+const FIRST_LINE_MS = 900;
+const LINE_GAP_MS = 1500;
 
 const DIRS = ['東', '南東', '南', '南西', '西', '北西', '北', '北東'];
 
@@ -52,22 +57,6 @@ const DIRS = ['東', '南東', '南', '南西', '西', '北西', '北', '北東'
 export function compass(dx: number, dz: number): string {
   const a = (Math.atan2(dz, dx) * 180) / Math.PI;
   return DIRS[Math.round(((a + 360) % 360) / 45) % 8];
-}
-
-function starsText(s: number): string {
-  return '★'.repeat(s) + '☆'.repeat(5 - s);
-}
-
-function mateLine(state: GameState, p: Entity, m: Entity, foes: Entity[], topSusp: Entity | undefined): string | null {
-  const target = m.persona === 'trickster' ? foes[Math.floor(state.rng() * Math.max(1, foes.length))] : topSusp ?? foes[0];
-  if (!target) return null;
-  const label = NATIONS[target.nation].name + 'の(' + compass(target.x - p.x, target.z - p.z) + '方向にいた人物)';
-  const stars = starsText(suspStars(target.susp));
-  const who = roleName(m.role);
-  if (m.persona === 'cautious') return who + '「' + label + 'を見た。確証はないけど…」' + stars;
-  if (m.persona === 'aggressive') return who + '「' + label + 'は絶対王候補だ！」' + stars;
-  if (m.persona === 'analytical') return who + '「証拠を照らすと' + label + 'が怪しい」' + stars;
-  return who + '「いや、' + label + 'の方が怪しいと思う」' + '★'.repeat(1 + Math.floor(state.rng() * 3));
 }
 
 /** Opens an emergency meeting for the player's nation. Pauses the simulation while open. */
@@ -81,35 +70,23 @@ export function openMeeting(state: GameState): boolean {
   state.terminalActive[p.nation] = state.time + TERMINAL_TIME;
   state.commands = [];
 
-  const lines = ['（自国が生存中の仲間が集まった）'];
-  const { choices, zones } = discussion(state, p, lines);
-  state.meeting = { kind: 'emergency', closeAfterMs: MEETING_AUTO_CLOSE, lines, choices, zones, voted: false, elapsedMs: 0, others: {}, votes: {}, ready: [] };
+  const lines = ['（自国の生存している仲間が集まった）'];
+  const { choices, zones, script } = discussion(state, p);
+  state.meeting = { kind: 'emergency', closeAfterMs: MEETING_AUTO_CLOSE, lines, choices, zones, script, nextLineAt: FIRST_LINE_MS, voted: false, elapsedMs: 0, others: {}, votes: {}, ready: [] };
   state.meetingsHeld++;
   emit(state, { type: 'MEETING_OPENED', kind: 'emergency' });
   return true;
 }
 
 /** Teammates' reports, the talking points and the places to vote for (shared by both kinds of meeting). */
-function discussion(state: GameState, p: Entity, lines: string[], extraZones: MeetingZone[] = []): { choices: string[]; zones: MeetingZone[] } {
-  const mates = state.entities.filter((e) => e.nation === p.nation && e !== p && e.alive);
+function discussion(state: GameState, p: Entity, extraZones: MeetingZone[] = []): { choices: string[]; zones: MeetingZone[]; script: string[] } {
   const foes = state.entities.filter((e) => e.nation !== p.nation && e.alive && !e.jailed);
-  const topSusp = [...foes].sort((a, b) => b.susp - a.susp)[0];
-  // With a big roster, only the first few reports are read out.
-  // Same opinion from several people: one line with how many agree.
-  const said = new Map<string, { who: string; n: number }>();
-  for (const m of mates) {
-    const line = mateLine(state, p, m, foes, topSusp);
-    if (!line) continue;
-    const who = roleName(m.role), body = line.slice(who.length);
-    const prev = said.get(body);
-    if (prev) prev.n++;
-    else said.set(body, { who, n: 1 });
-  }
-  const reports = [...said].map(([body, { who, n }]) => who + body + (n > 1 ? `（ほか${n - 1}人も同意）` : ''));
-  lines.push(...reports.slice(0, 6));
-  if (reports.length > 6) lines.push(`（ほか ${reports.length - 6} 件の報告は省略）`);
-  if (!mates.length) lines.push('（生存している仲間がいない…）');
-
+  // The most suspicious enemy this nation can see right now (a guess otherwise).
+  const topSusp = [...foes].filter((e) => visibleTo(state, e, p) || e.susp > 30).sort((a, b) => b.susp - a.susp)[0];
+  const script = discussionLines(state, p.nation, {
+    seen: sightings(state, p.nation).map((g) => ({ nation: g.nation, place: g.place.name, count: g.count, ageSec: g.ageSec, king: g.king })),
+    suspect: topSusp ? { e: topSusp, dir: compass(topSusp.x - p.x, topSusp.z - p.z) + '方向' } : null,
+  });
   const choices = ['管制塔を優先しよう', '牢屋を警戒しよう', '情報が足りない'];
   if (topSusp) choices.unshift(NATIONS[topSusp.nation].name + '方面は怪しいと共有する');
 
@@ -122,7 +99,7 @@ function discussion(state: GameState, p: Entity, lines: string[], extraZones: Me
       { label: '管制塔周辺', x: TOWER.x, z: TOWER.z },
     ].filter((z) => z.label.indexOf(NATIONS[p.nation].name) !== 0),
   ];
-  return { choices, zones };
+  return { choices, zones, script };
 }
 
 const clock = (sec: number) => Math.floor(sec / 60) + ':' + String(Math.floor(sec % 60)).padStart(2, '0');
@@ -198,8 +175,8 @@ function scheduledView(state: GameState, p: Entity): MeetingView {
     lines.push(`目撃: ${NATIONS[g.nation].name}国の人物${g.count}人 ― ${g.place.name}付近（${Math.round(g.ageSec)}秒前）${g.king >= 2 ? '　護衛付き＝王の可能性' : ''}`);
   }
   const extra = seen.slice(0, 2).map((g) => ({ label: `${g.place.name}付近（${NATIONS[g.nation].name}${g.count}人）`, x: g.place.x, z: g.place.z }));
-  const { choices, zones } = discussion(state, p, lines, extra);
-  return { lines, choices, zones };
+  const { choices, zones, script } = discussion(state, p, extra);
+  return { lines, choices, zones, script, nextLineAt: FIRST_LINE_MS };
 }
 
 /** Announces and opens the half-time meeting (called every simulation step). */
@@ -216,8 +193,26 @@ export function scheduledMeetingTick(state: GameState): void {
   if (timeLeftSec(state) > 15) openScheduledMeeting(state);
 }
 
+/** The meeting as `nation`'s people see it (the player's nation is the meeting itself). */
+function viewOf(state: GameState, nation: NationId): MeetingView | undefined {
+  const m = state.meeting;
+  return !m ? undefined : nation === state.player.nation ? m : m.others[nation];
+}
+
+/** How a person is named in the meeting (a nickname online, あなた offline). */
+const personName = (state: GameState, id: number) => state.humanNames[id] ?? 'あなた';
+
+/** A person speaks up; teammates answer next. */
+export function humanSay(state: GameState, id: number, choice: string): void {
+  const e = state.entities[id], m = state.meeting, v = e && viewOf(state, e.nation);
+  if (!m || !v || !v.choices.includes(choice)) return;
+  v.lines.push(`${personName(state, id)}「${choice}」`);
+  v.script.unshift(...replyLines(state, e.nation, choice));
+  v.nextLineAt = Math.min(v.nextLineAt, m.elapsedMs + 800);
+}
+
 export function sayInMeeting(state: GameState, choice: string): void {
-  state.meeting?.lines.push('あなた:「' + choice + '」');
+  humanSay(state, state.player.id, choice);
 }
 
 export function voteInMeeting(state: GameState, zoneIndex: number): void {
@@ -228,7 +223,8 @@ export function voteInMeeting(state: GameState, zoneIndex: number): void {
   m.voted = true;
   m.votes[state.player.id] = zoneIndex;
   state.teamFocus[state.player.nation] = { x: z.x, z: z.z, t: state.time };
-  m.lines.push('→ 重点捜索対象:「' + z.label + '」に決定');
+  m.lines.push(...voteLines(state, state.player.nation, personName(state, state.player.id), z.label));
+  m.script = m.script.filter((l) => !l.includes(VOTE_CALL));
 }
 
 /** Online: a friend's vote, in their own nation's list of places. */
@@ -238,6 +234,8 @@ export function remoteVote(state: GameState, id: number, zoneIndex: number): voi
   const view = e.nation === state.player.nation ? m : m.others[e.nation];
   if (!view?.zones[zoneIndex]) return;
   m.votes[id] = zoneIndex;
+  view.lines.push(...voteLines(state, e.nation, personName(state, id), view.zones[zoneIndex].label));
+  view.script = view.script.filter((l) => !l.includes(VOTE_CALL));
 }
 
 /** Online: a friend is done with the meeting. */
@@ -269,6 +267,13 @@ export function updateMeeting(state: GameState, realMs: number): void {
   const m = state.meeting;
   if (!m) return;
   m.elapsedMs += Math.max(0, realMs);
+  // People talk in turn.
+  for (const v of [m, ...Object.values(m.others)]) {
+    while (v && v.script.length && m.elapsedMs >= v.nextLineAt) {
+      v.lines.push(v.script.shift()!);
+      v.nextLineAt += LINE_GAP_MS * (0.7 + state.rng() * 0.6);
+    }
+  }
   const allReady = isOnline(state) && state.humans.every((id) => state.entities[id].isPlayer ? m.ready.includes(id) : !state.entities[id].remote || m.ready.includes(id));
   if (m.elapsedMs >= m.closeAfterMs || allReady) closeMeeting(state);
 }

@@ -82,6 +82,9 @@ export class EntityView {
   /** Fade the player's model when the camera is squeezed right behind it (indoors, against walls). */
   playerOpacity = 1;
 
+  /** Spectating as a ghost: everyone is shown. */
+  seeAll = false;
+
   sync(state: GameState, alpha: number, dtSec = 1 / 60): void {
     const p = state.player;
     this.clock += dtSec;
@@ -89,7 +92,7 @@ export class EntityView {
       const a = this.anims.get(e.id)!;
       const mesh = a.human.mesh;
       if (!e.alive) { mesh.visible = false; continue; }
-      const vis = e === p || visibleTo(state, e, p);
+      const vis = e === p || this.seeAll || visibleTo(state, e, p);
       mesh.visible = vis;
       if (!vis) continue;
       mesh.position.set(lerp(e.prevX, e.x, alpha), lerp(e.prevY, e.y, alpha), lerp(e.prevZ, e.z, alpha));
