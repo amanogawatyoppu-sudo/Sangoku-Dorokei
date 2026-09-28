@@ -12,11 +12,10 @@
 <body>
 <div id="app">
   <div id="topbar">
-    <div>所属:<b id="tbNation">-</b>/役職:<b id="tbRole">-</b></div>
-    <div>自国王:<b id="tbKing">-</b>／牢屋:<b id="tbJailed">0</b>人</div>
-    <div class="tb-tower">管制塔:<b id="tbTower">未占領</b></div>
+    <div class="tb-id" id="tbId"><span class="tb-crest" id="tbCrest"></span><span class="tb-idtext"><b id="tbNation">-</b><small id="tbRole">-</small></span></div>
+    <div class="tb-stats"><span class="tb-stat" id="tbKingStat" title="自国の王"><i>王</i><b id="tbKing">-</b></span><span class="tb-stat" title="牢屋にいる味方"><i>牢</i><b id="tbJailed">0</b></span><span class="tb-stat tb-tower" title="管制塔"><i>塔</i><b id="tbTower">―</b></span></div>
+    <div class="tb-clock"><b id="tbTime">--:--</b><span id="tbMeet" class="tb-meet"></span></div>
     <div id="tbWar" title="各国の支配戦区（管制塔・停戦）"><span class="wchip" data-n="sun"></span><span class="wchip" data-n="moon"></span><span class="wchip" data-n="star"></span><span id="tbTruce" hidden>停戦中</span></div>
-    <div>残り時間:<b id="tbTime">--:--</b> <span id="tbMeet" class="tb-meet"></span></div>
     <div id="tbActions">
       <button id="btnTruce" title="いちばん強い国に対抗するため、もう一国に短い停戦を持ちかける">停戦(残<span id="trLeft">2</span>)</button>
       <button id="btnMeeting">緊急会議(残<span id="mtLeft">2</span>)</button>
@@ -24,7 +23,7 @@
       <button id="btnLog" class="drawer-btn" aria-controls="log" aria-expanded="false">ログ</button>
     </div>
   </div>
-  <div id="hintBox">状況: <span id="hintText">-</span></div>
+  <div id="hintBox"><span class="hb-tag">状況</span><span id="hintText">-</span></div>
   <div id="main">
     <div id="log"></div>
     <div id="centerCol">
@@ -97,7 +96,7 @@
         <button id="btnSpecial"><span class="fill" id="fillSpec"></span>特殊(Z)</button>
         <div id="specialDesc" style="font-size:10px;opacity:.7;line-height:1.4"></div>
       </div>
-      <div id="hint">前進/後退:↑・↓　旋回:←・→<br>振り向き(180°):Q　加速:Shift　特殊:Z<br>分隊:X 付いてこい・C 警戒・V 守れ<br>階段・坂で2階や高台へ上れる<br>会議は自国拠点付近で開ける(1試合2回)<br>ダッシュ中は足音が大きく見つかりやすい</div>
+      <details id="hint"><summary>操作一覧</summary>前進/後退:↑・↓　旋回:←・→<br>振り向き(180°):Q　加速:Shift　特殊:Z<br>分隊:X 付いてこい・C 警戒・V 守れ<br>階段・坂で2階や高台へ上れる<br>会議は自国拠点付近で開ける(1試合2回)<br>ダッシュ中は足音が大きく見つかりやすい</details>
     </div>
   </div>
 </div>

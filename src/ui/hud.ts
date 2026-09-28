@@ -58,6 +58,9 @@ export class Hud {
     const p = state.player;
     this.el.tbNation.textContent = NATIONS[p.nation].name;
     this.el.tbRole.textContent = roleName(p.role);
+    const id = $('tbId'), crest = $('tbCrest');
+    crest.textContent = NATIONS[p.nation].emblem;
+    id.style.setProperty('--nc', nationCss(p.nation));
   }
 
   banner(text: string, ms = 1800): void {
@@ -143,11 +146,13 @@ export class Hud {
     const mm = Math.floor(left / 60), ss = Math.floor(left % 60);
     el.tbTime.textContent = mm + ':' + (ss < 10 ? '0' : '') + ss;
     const toMeet = (state.nextMeetingAt - state.time) / 1000;
-    el.tbMeet.textContent = Number.isFinite(toMeet) && left - toMeet > 15 ? `（ハーフタイム会議まで ${Math.floor(toMeet / 60)}:${String(Math.ceil(toMeet % 60) % 60).padStart(2, '0')}）` : '';
+    el.tbMeet.textContent = Number.isFinite(toMeet) && left - toMeet > 15 ? `会議まで ${Math.floor(toMeet / 60)}:${String(Math.ceil(toMeet % 60) % 60).padStart(2, '0')}` : '';
     el.tbMeet.classList.toggle('soon', toMeet <= 10);
-    el.tbTower.textContent = state.tower.owner ? NATIONS[state.tower.owner].name + 'が占領中' : '未占領';
+    el.tbTower.textContent = state.tower.owner ? NATIONS[state.tower.owner].emblem + NATIONS[state.tower.owner].name : '―';
     const myKing = kingOf(state, p.nation)!;
     el.tbKing.textContent = !myKing.alive ? '処刑済み' : myKing.jailed ? '捕縛中！' : '生存';
+    el.tbKing.parentElement!.className = 'tb-stat' + (!myKing.alive ? ' dead' : myKing.jailed ? ' alert' : '');
+    el.tbTime.classList.toggle('low', left <= 60);
     el.tbJailed.textContent = String(state.entities.filter((e) => e.nation === p.nation && e.jailed).length);
     el.mtLeft.textContent = String(p.meetingsLeft);
     el.btnMeeting.disabled = p.meetingsLeft <= 0;

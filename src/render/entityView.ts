@@ -60,11 +60,15 @@ type Pose = Partial<Record<BoneName, [number, number, number]>>;
  * colour, so you never lose yourself behind a building or a tree.
  */
 function addXray(mesh: THREE.SkinnedMesh, color: number): void {
-  const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.42, depthWrite: false, depthFunc: THREE.GreaterDepth, fog: false });
+  // Drawn in the opaque pass after the world but before the player itself (renderOrder 1 < 2), so the
+  // depth test only sees buildings and trees — the player's own back faces never tint it.
+  const c = new THREE.Color(color).multiplyScalar(0.55);
+  const mat = new THREE.MeshBasicMaterial({ color: c, blending: THREE.AdditiveBlending, depthWrite: false, depthFunc: THREE.GreaterDepth, fog: false });
   const x = new THREE.SkinnedMesh(mesh.geometry, mat);
   x.bind(mesh.skeleton, mesh.bindMatrix);
   x.frustumCulled = false;
-  x.renderOrder = 10;
+  mesh.traverse((o) => { o.renderOrder = 2; });
+  x.renderOrder = 1;
   mesh.add(x);
 }
 
