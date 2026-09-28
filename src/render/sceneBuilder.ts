@@ -26,9 +26,11 @@ export interface SceneRefs {
 const L = Math.PI;
 
 const COLORS = {
-  skyTop: 0x4d6f9e,
-  skyHorizon: 0xe6c7a4,
-  fog: 0xc9bfb0,
+  // Dusk over Tokyo: deep blue overhead, a burning horizon, violet haze in the streets.
+  skyTop: 0x1d2a52,
+  skyMid: 0x6c5a8c,
+  skyHorizon: 0xf2955a,
+  fog: 0x8a7a8c,
   stone: 0xb5ab98,
   stoneCap: 0x5f574b,
   plaster: 0xe4d8c0,
@@ -59,7 +61,7 @@ function shadowed<T extends THREE.Object3D>(o: T, cast = true, receive = true): 
 // ---------------------------------------------------------------- environment
 
 /** Far end of the fog: the skyline fades into haze a few kilometres out. */
-const FOG_NEAR = 1800, FOG_FAR = 11000;
+const FOG_NEAR = 1600, FOG_FAR = 10000;
 
 function buildSky(scene: THREE.Scene): void {
   const sky = new THREE.Mesh(
@@ -68,11 +70,21 @@ function buildSky(scene: THREE.Scene): void {
       side: THREE.BackSide,
       depthWrite: false,
       fog: false,
-      uniforms: { top: { value: new THREE.Color(COLORS.skyTop) }, horizon: { value: new THREE.Color(COLORS.skyHorizon) } },
+      uniforms: {
+        top: { value: new THREE.Color(COLORS.skyTop) }, mid: { value: new THREE.Color(COLORS.skyMid) },
+        horizon: { value: new THREE.Color(COLORS.skyHorizon) }, sunDir: { value: SUN_DIR.clone() },
+      },
       vertexShader: 'varying vec3 vPos; void main(){ vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+      // Three-band dusk gradient, a warm glow round the setting sun and a faint band of cloud.
       fragmentShader:
-        'uniform vec3 top; uniform vec3 horizon; varying vec3 vPos;' +
-        'void main(){ float h = clamp(normalize(vPos).y, 0.0, 1.0); gl_FragColor = vec4(mix(horizon, top, pow(h, 0.45)), 1.0); }',
+        'uniform vec3 top; uniform vec3 mid; uniform vec3 horizon; uniform vec3 sunDir; varying vec3 vPos;' +
+        'void main(){ vec3 d = normalize(vPos); float h = clamp(d.y, 0.0, 1.0);' +
+        ' vec3 c = h < 0.18 ? mix(horizon, mid, smoothstep(0.0, 0.18, h)) : mix(mid, top, smoothstep(0.18, 0.75, h));' +
+        ' float s = max(dot(d, normalize(sunDir)), 0.0);' +
+        ' c += vec3(1.0, 0.55, 0.25) * (pow(s, 24.0) * 0.9 + pow(s, 4.0) * 0.25);' +
+        ' float band = smoothstep(0.05, 0.1, h) * (1.0 - smoothstep(0.1, 0.2, h)) * (0.5 + 0.5 * sin(d.x * 9.0 + d.z * 5.0));' +
+        ' c = mix(c, vec3(0.42, 0.28, 0.38), band * 0.35);' +
+        ' gl_FragColor = vec4(c, 1.0); }',
     }),
   );
   sky.renderOrder = -1;
@@ -82,13 +94,14 @@ function buildSky(scene: THREE.Scene): void {
 }
 
 /** Direction to the sun (late afternoon, ~40° up) and how far the shadow camera sits. */
-const SUN_DIR = new THREE.Vector3(-0.55, 0.64, 0.53).normalize();
+const SUN_DIR = new THREE.Vector3(-0.62, 0.36, 0.55).normalize();
 const SUN_DIST = 5000;
 
 function buildLights(scene: THREE.Scene): THREE.DirectionalLight {
-  scene.add(new THREE.HemisphereLight(0xcfdcf2, 0x4a4640, 0.62 * L));
-  scene.add(new THREE.AmbientLight(0x8899aa, 0.12 * L));
-  const sun = new THREE.DirectionalLight(0xffe6c4, 0.95 * L);
+  // Dusk: a cool blue sky fill, warm low sun (long shadows).
+  scene.add(new THREE.HemisphereLight(0xa6b2de, 0x4a3e44, 0.72 * L));
+  scene.add(new THREE.AmbientLight(0x6a6f96, 0.12 * L));
+  const sun = new THREE.DirectionalLight(0xffb27a, 1.0 * L);
   sun.position.copy(SUN_DIR).multiplyScalar(SUN_DIST);
   sun.castShadow = true;
   const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;

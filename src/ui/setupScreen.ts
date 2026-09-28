@@ -4,6 +4,7 @@ import type { RoleId } from '../config/roles';
 import type { RosterSize } from '../config/roles';
 import { ROLE_INFO, ROLES, ROSTER_SIZES } from '../config/roles';
 import { $ } from './dom';
+import { drawTitleMap } from './titleMap';
 
 /** One-character seal shown on each role card. */
 const ROLE_SEAL: Record<RoleId, string> = { king: '王', soldier: '兵', sniper: '狙', communicator: '通', keyholder: '鍵', ranger: '遊' };
@@ -79,6 +80,13 @@ export function initSetupScreen(onStart: (nation: NationId, role: RoleId, size: 
     ps.appendChild(b);
   }
   select(ps, 'size', String(selSize));
+  // The war map of Tokyo behind the title (redrawn when the window changes size).
+  const map = $('setupMap') as HTMLCanvasElement;
+  const redraw = () => { if ($('setup').style.display !== 'none') drawTitleMap(map); };
+  requestAnimationFrame(redraw);
+  document.fonts?.ready.then(redraw).catch(() => {});
+  let resizeT = 0;
+  window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = window.setTimeout(redraw, 150); });
   $('btnRandom').onclick = () => {
     pickNation(NATION_IDS[Math.floor(Math.random() * 3)]);
     pickRole(ROLES[Math.floor(Math.random() * 6)]);

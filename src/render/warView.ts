@@ -1,11 +1,32 @@
 import * as THREE from 'three';
 import { NATIONS } from '../config/nations';
 import type { GameState } from '../sim/state';
-import { POINT_R, SECTORS, sectorPoint } from '../sim/war';
+import { NATION_IDS } from '../config/nations';
+import { BOUNDS, insideLoop } from '../config/map';
+import { POINT_R, SECTORS, sectorAt, sectorPoint } from '../sim/war';
+import { radialGlowTexture } from './textures';
+
+/** A vertical fade: bright at the bottom, gone at the top (pillars and curtains of light). */
+function fadeTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 4;
+  c.height = 128;
+  const g = c.getContext('2d')!;
+  const grd = g.createLinearGradient(0, 128, 0, 0);
+  grd.addColorStop(0, 'rgba(255,255,255,1)');
+  grd.addColorStop(0.15, 'rgba(255,255,255,.6)');
+  grd.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 4, 128);
+  return new THREE.CanvasTexture(c);
+}
 
 const NEUTRAL = 0x9a9488;
 
 interface PointView {
+  beam: THREE.MeshBasicMaterial;
+  core: THREE.MeshBasicMaterial;
+  pool: THREE.MeshBasicMaterial;
   banner: THREE.MeshStandardMaterial;
   canvas: HTMLCanvasElement;
   tex: THREE.CanvasTexture;
@@ -23,8 +44,24 @@ interface PointView {
  */
 export class WarView {
   private points: PointView[] = [];
+  private front: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
+  private frontKey = '';
 
   constructor(scene: THREE.Scene) {
+    const fade = fadeTexture(), glow = radialGlowTexture();
+    // Pillars of light over each strategic point, seen across the city (the war at a glance).
+    const beamGeo = new THREE.CylinderGeometry(30, 46, 1800, 20, 1, true).translate(0, 900, 0);
+    const coreGeo = new THREE.CylinderGeometry(5, 9, 1100, 10, 1, true).translate(0, 550, 0);
+    const poolGeo = new THREE.PlaneGeometry(POINT_R * 2.8, POINT_R * 2.8).rotateX(-Math.PI / 2);
+    const additive = (tex: THREE.Texture, opacity: number) => new THREE.MeshBasicMaterial({
+      map: tex, color: NEUTRAL, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false,
+    });
+    // Front lines: curtains of light standing along the borders between two nations' sectors.
+    this.front = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({
+      map: fade, color: 0xff5a3a, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    }));
+    this.front.frustumCulled = false;
+    scene.add(this.front);
     const poleGeo = new THREE.CylinderGeometry(2.2, 2.8, 200, 8).translate(0, 100, 0);
     const poleMat = new THREE.MeshStandardMaterial({ color: 0x3b3b3e, metalness: 0.6, roughness: 0.4 });
     const bannerGeo = new THREE.PlaneGeometry(100, 60).translate(50, 0, 0);
@@ -49,13 +86,48 @@ export class WarView {
         new THREE.MeshBasicMaterial({ color: NEUTRAL, transparent: true, opacity: 0.75, depthWrite: false }));
       gauge.position.y = 0.4;
       g.add(gauge);
+      const beam = additive(fade, 0.16), core = additive(fade, 0.5), pool = additive(glow, 0.55);
+      const beamMesh = new THREE.Mesh(beamGeo, beam), coreMesh = new THREE.Mesh(coreGeo, core), poolMesh = new THREE.Mesh(poolGeo, pool);
+      beamMesh.renderOrder = coreMesh.renderOrder = poolMesh.renderOrder = 2;
+      poolMesh.position.y = 1;
+      g.add(beamMesh, coreMesh, poolMesh);
       scene.add(g);
-      this.points.push({ banner, canvas, tex, ring, gauge, flag, owner: '', shownProgress: 0 });
+      this.points.push({ beam, core, pool, banner, canvas, tex, ring, gauge, flag, owner: '', shownProgress: 0 });
     });
+  }
+
+  /** Rebuilds the front-line curtains when a sector changes hands. */
+  private syncFront(state: GameState): void {
+    const key = state.war.sectors.map((x) => x.owner ?? '-').join();
+    if (key === this.frontKey) return;
+    this.frontKey = key;
+    const STEP = 60, H = 90, pos: number[] = [], uv: number[] = [];
+    const quad = (x0: number, z0: number, x1: number, z1: number) => {
+      pos.push(x0, 0, z0, x1, 0, z1, x1, H, z1, x0, 0, z0, x1, H, z1, x0, H, z0);
+      uv.push(0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1);
+    };
+    const owner = (x: number, z: number) => state.war.sectors[sectorAt(x, z)].owner;
+    for (let x = BOUNDS.minX; x < BOUNDS.maxX; x += STEP) {
+      for (let z = BOUNDS.minZ; z < BOUNDS.maxZ; z += STEP) {
+        if (!insideLoop(x, z, 0)) continue;
+        const o = owner(x, z);
+        if (!o) continue;
+        const ox = owner(x + STEP, z), oz = owner(x, z + STEP);
+        if (ox && ox !== o && sectorAt(x, z) !== sectorAt(x + STEP, z)) quad(x + STEP / 2, z - STEP / 2, x + STEP / 2, z + STEP / 2);
+        if (oz && oz !== o && sectorAt(x, z) !== sectorAt(x, z + STEP)) quad(x - STEP / 2, z + STEP / 2, x + STEP / 2, z + STEP / 2);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    this.front.geometry.dispose();
+    this.front.geometry = geo;
   }
 
   sync(state: GameState): void {
     const t = state.time / 1000;
+    this.syncFront(state);
+    this.front.material.opacity = 0.45 + 0.15 * Math.sin(t * 2);
     this.points.forEach((v, i) => {
       const s = state.war.sectors[i];
       const key = s.owner ?? '-';
@@ -78,7 +150,20 @@ export class WarView {
         g.fillText(SECTORS[i].name + '戦区', 128, 122);
         v.tex.needsUpdate = true;
         v.ring.color.setHex(c);
+        for (const m of [v.beam, v.core, v.pool]) m.color.setHex(c);
       }
+      // Contested: the pillar flickers between the colours of the nations fighting there.
+      const fighting = NATION_IDS.filter((n) => s.count[n] > 0);
+      if (s.contested && fighting.length > 1) {
+        const n = fighting[Math.floor(t * 2.5) % fighting.length];
+        for (const m of [v.beam, v.core]) m.color.setHex(NATIONS[n].color);
+      } else if (s.contested !== undefined && v.beam.color.getHex() !== (s.owner ? NATIONS[s.owner].color : NEUTRAL)) {
+        for (const m of [v.beam, v.core]) m.color.setHex(s.owner ? NATIONS[s.owner].color : NEUTRAL);
+      }
+      const pulse = s.contested ? 0.7 + 0.3 * Math.sin(t * 9) : 0.85 + 0.15 * Math.sin(t * 1.5 + i);
+      v.beam.opacity = (s.owner ? 0.3 : 0.14) * pulse;
+      v.core.opacity = (s.owner ? 0.7 : 0.35) * pulse;
+      v.pool.opacity = (s.owner ? 0.85 : 0.4) * pulse;
       v.ring.opacity = s.contested ? 0.35 + 0.3 * Math.sin(t * 7) : 0.3;
       v.flag.rotation.y = Math.sin(t * 1.7 + i) * (s.contested ? 0.5 : 0.2);
       const prog = s.capturer ? s.progress : 0;

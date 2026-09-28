@@ -43,27 +43,27 @@ export class Minimap {
     c.width = W;
     c.height = H;
     const g = c.getContext('2d')!;
-    g.fillStyle = '#23252a';
+    g.fillStyle = '#0b0d14';
     g.fillRect(0, 0, W, H);
     // Inside the loop.
-    g.fillStyle = '#4a4943';
+    g.fillStyle = '#1b1f2a';
     g.beginPath();
     LOOP.forEach((p, i) => (i ? g.lineTo(mx(p.x), my(p.z)) : g.moveTo(mx(p.x), my(p.z))));
     g.closePath();
     g.fill();
     for (const pk of PARKS) {
-      g.fillStyle = pk.kind === 'park' ? '#4f6d38' : '#8d846f';
+      g.fillStyle = pk.kind === 'park' ? '#2e4a2f' : '#3a3a3a';
       g.fillRect(mx(pk.x - pk.w / 2), my(pk.z - pk.d / 2), pk.w * SX, pk.d * SZ);
     }
     // Streets (avenues darkest) and sidewalk blocks.
     for (const st of STREET_SEGS) {
       if (!insideLoop(st.x, st.z, 0)) continue;
-      g.fillStyle = st.kind === 'avenue' ? '#26282c' : st.kind === 'street' ? '#34363a' : '#3c3d40';
+      g.fillStyle = st.kind === 'avenue' ? '#5a4a36' : st.kind === 'street' ? '#2e323c' : '#272a33';
       g.fillRect(mx(st.x - st.w / 2), my(st.z - st.d / 2), Math.max(1, st.w * SX), Math.max(1, st.d * SZ));
     }
-    g.fillStyle = '#6a665e';
+    g.fillStyle = '#343844';
     for (const b of BLOCKS) g.fillRect(mx(b.x0), my(b.z0), (b.x1 - b.x0) * SX, (b.z1 - b.z0) * SZ);
-    g.strokeStyle = '#3f7590';
+    g.strokeStyle = '#3f8fd0';
     g.lineWidth = Math.max(2, RIVER_WIDTH * SX);
     g.beginPath();
     KANDA.forEach((p, i) => (i ? g.lineTo(mx(p.x), my(p.z)) : g.moveTo(mx(p.x), my(p.z))));
@@ -72,15 +72,15 @@ export class Minimap {
     // Draw low things first so floors and platforms sit on top.
     const sorted = [...WORLD].sort((a, b) => (a.kind === 'box' ? a.y1 : a.hHigh) - (b.kind === 'box' ? b.y1 : b.hHigh));
     for (const p of sorted) {
-      if (p.mat === 'water') { if (p.group === 'river') continue; g.fillStyle = '#3f7590'; }
+      if (p.mat === 'water') { if (p.group === 'river') continue; g.fillStyle = '#3f8fd0'; }
       else if (p.mat === 'tree' || p.mat === 'sidewalk' || p.mat === 'car' || p.mat === 'vending' || p.mat === 'pole') continue;
-      else if (p.mat === 'bldg') g.fillStyle = (p as BoxPrim).y1 > 700 ? '#b4b0a6' : '#948f84';
+      else if (p.mat === 'bldg') g.fillStyle = (p as BoxPrim).y1 > 700 ? '#6c7284' : '#4c5160';
       else if (p.kind === 'ramp') g.fillStyle = '#d6a64e';
-      else if (p.mat === 'earth') g.fillStyle = '#6f8a45';
-      else if ((p as BoxPrim).y0 > 20) g.fillStyle = '#d8cda8'; // upper floors, footbridges, decks
-      else if (p.mat === 'hedge') g.fillStyle = '#48633a';
-      else if (p.kind === 'box' && p.y1 > 700) g.fillStyle = '#c6c1b3'; // towers
-      else g.fillStyle = '#8f887a';
+      else if (p.mat === 'earth') g.fillStyle = '#3f5a33';
+      else if ((p as BoxPrim).y0 > 20) g.fillStyle = '#9a8f72'; // upper floors, footbridges, decks
+      else if (p.mat === 'hedge') g.fillStyle = '#2f4a2c';
+      else if (p.kind === 'box' && p.y1 > 700) g.fillStyle = '#7a8094'; // towers
+      else g.fillStyle = '#454a58';
       rect(p);
     }
     // The Yamanote line and its stations.
@@ -170,9 +170,20 @@ export class Minimap {
         continue;
       }
       const [r, gg, b] = rgb(owner);
-      img.data[o] = r; img.data[o + 1] = gg; img.data[o + 2] = b; img.data[o + 3] = owner ? 46 : 14;
+      img.data[o] = r; img.data[o + 1] = gg; img.data[o + 2] = b; img.data[o + 3] = owner ? 62 : 16;
     }
     g.putImageData(img, 0, 0);
+    // Fronts burn: blur a copy of the border pixels into a glow underneath.
+    const glow = document.createElement('canvas');
+    glow.width = W; glow.height = H;
+    const gg2 = glow.getContext('2d')!;
+    gg2.filter = 'blur(3px)';
+    gg2.drawImage(c, 0, 0);
+    g.globalCompositeOperation = 'lighter';
+    g.globalAlpha = 0.7;
+    g.drawImage(glow, 0, 0);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'source-over';
     this.warLayer = c;
     return c;
   }

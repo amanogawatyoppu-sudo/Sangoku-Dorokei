@@ -15,6 +15,10 @@ export class LogPanel {
       ...this.entries.slice(0, MAX_SHOWN).map((t) => {
         const d = document.createElement('div');
         d.textContent = t;
+        // War news, plans and diplomacy get their own colour.
+        if (t.startsWith('【戦況】')) d.className = 'war';
+        else if (t.startsWith('【作戦】') || t.startsWith('【通信】')) d.className = 'plan';
+        else if (t.startsWith('【外交】')) d.className = 'diplo';
         return d;
       }),
     );

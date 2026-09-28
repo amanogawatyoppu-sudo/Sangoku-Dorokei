@@ -201,8 +201,33 @@ function speckle(g: CanvasRenderingContext2D, w: number, h: number, n: number, r
 }
 
 /** A window pane: dark glass with a sky reflection, sometimes lit or with blinds / curtains. */
+/** A soft round glow (white centre fading out), for halos, light pools and beacons. */
+let glowTex: THREE.CanvasTexture | null = null;
+export function radialGlowTexture(): THREE.CanvasTexture {
+  if (glowTex) return glowTex;
+  const [c, g] = canvas(128, 128);
+  const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grd.addColorStop(0, 'rgba(255,255,255,1)');
+  grd.addColorStop(0.25, 'rgba(255,255,255,.55)');
+  grd.addColorStop(0.6, 'rgba(255,255,255,.14)');
+  grd.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 128, 128);
+  glowTex = new THREE.CanvasTexture(c);
+  return glowTex;
+}
+
+/** While set, `pane` also paints which windows are lit at dusk (the emissive map of a façade). */
+let glowG: CanvasRenderingContext2D | null = null;
+
 function pane(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, rnd: () => number, litChance = 0.12): void {
   const r = rnd();
+  if (glowG && r < litChance + 0.22) {
+    // Lit at dusk: mostly warm, some cool office white; blinds and curtains let less out.
+    const warm = (x * 7 + y * 13) % 5 !== 0;
+    glowG.fillStyle = r > 0.3 ? (warm ? '#b8894a' : '#8aa4bf') : warm ? '#ffd28a' : '#d6ecff';
+    glowG.fillRect(x + 1, y + 1, w - 2, h - 2);
+  }
   if (r < litChance) {
     const grd = g.createLinearGradient(x, y, x, y + h);
     grd.addColorStop(0, '#f6dfa4');
@@ -232,6 +257,16 @@ function pane(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: n
 
 export type FacadeKind = 'glass' | 'concrete' | 'tileA' | 'tileB' | 'apartment' | 'house';
 /** Façade tile: 2 bays wide, 4 storeys tall (256 × 512 px). */
+/** Which windows of a façade glow at dusk (same layout as `facadeTexture(kind)`), for its emissive map. */
+export function windowGlowTexture(kind: FacadeKind): THREE.CanvasTexture {
+  const [c, g] = canvas(256, 512);
+  g.fillStyle = '#000';
+  g.fillRect(0, 0, 256, 512);
+  glowG = g;
+  try { facadeTexture(kind).dispose(); } finally { glowG = null; }
+  return repeatTex(c);
+}
+
 export function facadeTexture(kind: FacadeKind): THREE.CanvasTexture {
   const W = 256, H = 512, BAY = 128, ST = 128;
   const [c, g] = canvas(W, H);

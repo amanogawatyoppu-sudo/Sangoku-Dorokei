@@ -7,7 +7,7 @@ import {
 } from '../config/map';
 import {
   SHOP_CELLS, asphaltTexture, facadeTexture, paverTexture, roadTexture, roofTexture, roofTileTexture, shopAtlas,
-  signAtlas, tactileTexture, vendingTexture,
+  radialGlowTexture, signAtlas, tactileTexture, vendingTexture, windowGlowTexture,
 } from './textures';
 import type { FacadeKind } from './textures';
 
@@ -321,15 +321,17 @@ export function buildCity(scene: THREE.Scene): void {
   }
 
   const tex = (t: THREE.Texture) => t;
+  const lit = (k: FacadeKind) => ({ emissive: 0xffffff, emissiveMap: windowGlowTexture(k), emissiveIntensity: 0.45 });
   const shop = tex(shopAtlas()), sign = tex(signAtlas());
   const mats: Record<string, THREE.Material> = {
-    glass: std(0xffffff, { map: facadeTexture('glass'), vertexColors: true, roughness: 0.35, metalness: 0.25 }),
-    concrete: std(0xffffff, { map: facadeTexture('concrete'), vertexColors: true }),
-    tileA: std(0xffffff, { map: facadeTexture('tileA'), vertexColors: true }),
-    tileB: std(0xffffff, { map: facadeTexture('tileB'), vertexColors: true }),
-    apartment: std(0xffffff, { map: facadeTexture('apartment'), vertexColors: true }),
-    house: std(0xffffff, { map: facadeTexture('house'), vertexColors: true }),
-    shop: std(0xffffff, { map: shop, emissive: 0xffffff, emissiveMap: shop, emissiveIntensity: 0.18 }),
+    // Dusk: windows light up (emissive maps of the lit panes).
+    glass: std(0xffffff, { map: facadeTexture('glass'), vertexColors: true, roughness: 0.35, metalness: 0.25, ...lit('glass') }),
+    concrete: std(0xffffff, { map: facadeTexture('concrete'), vertexColors: true, ...lit('concrete') }),
+    tileA: std(0xffffff, { map: facadeTexture('tileA'), vertexColors: true, ...lit('tileA') }),
+    tileB: std(0xffffff, { map: facadeTexture('tileB'), vertexColors: true, ...lit('tileB') }),
+    apartment: std(0xffffff, { map: facadeTexture('apartment'), vertexColors: true, ...lit('apartment') }),
+    house: std(0xffffff, { map: facadeTexture('house'), vertexColors: true, ...lit('house') }),
+    shop: std(0xffffff, { map: shop, emissive: 0xffffff, emissiveMap: shop, emissiveIntensity: 0.42 }),
     roof: std(0xffffff, { map: roofTexture(), vertexColors: true, roughness: 0.95 }),
     roofTile: std(0xffffff, { map: roofTileTexture(), vertexColors: true, roughness: 0.8 }),
     sign: std(0xffffff, { map: sign, emissive: 0xffffff, emissiveMap: sign, emissiveIntensity: 0.55 }),
@@ -416,7 +418,24 @@ function buildFurniture(scene: THREE.Scene): void {
   }
   add(instanced(new THREE.CylinderGeometry(3, 4.5, 230, 8), dark, lpM));
   add(instanced(new THREE.BoxGeometry(62, 4, 4), dark, laM));
-  add(instanced(new THREE.BoxGeometry(30, 7, 14), std(0xfff2cf, { emissive: 0xffe6b0, emissiveIntensity: 0.9 }), lhM, undefined, false));
+  add(instanced(new THREE.BoxGeometry(30, 7, 14), std(0xfff2cf, { emissive: 0xffe6b0, emissiveIntensity: 1.2 }), lhM, undefined, false));
+  // Dusk: each lamp glows (a halo round the head) and throws a warm pool of light on the street.
+  const glow = radialGlowTexture();
+  const heads = new Float32Array(LIGHTS.length * 3);
+  const pools: THREE.Matrix4[] = [];
+  LIGHTS.forEach((l, i) => {
+    const hx = l.x + Math.cos(l.ang) * 62, hz = l.z + Math.sin(l.ang) * 62;
+    heads.set([hx, 216, hz], i * 3);
+    pools.push(new THREE.Matrix4().makeRotationX(-Math.PI / 2).setPosition(hx, 1.2, hz));
+  });
+  const haloGeo = new THREE.BufferGeometry();
+  haloGeo.setAttribute('position', new THREE.BufferAttribute(heads, 3));
+  add(new THREE.Points(haloGeo, new THREE.PointsMaterial({ map: glow, color: 0xffd9a0, size: 95, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending })));
+  const poolMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(170, 170),
+    new THREE.MeshBasicMaterial({ map: glow, color: 0x8a6a3a, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }), pools.length);
+  pools.forEach((m, i) => poolMesh.setMatrixAt(i, m));
+  poolMesh.renderOrder = 1;
+  add(poolMesh);
 
   // Traffic signals: pole, arm, horizontal 3-lamp head (green lit).
   const face = document.createElement('canvas');

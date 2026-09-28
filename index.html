@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>三国ドロケイ v7.13 3D</title>
+<title>三国ドロケイ v7.14 3D</title>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Shippori+Mincho+B1:wght@700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
 </head>
 <body>
 <div id="app">
@@ -15,6 +15,7 @@
     <div>所属:<b id="tbNation">-</b>/役職:<b id="tbRole">-</b></div>
     <div>自国王:<b id="tbKing">-</b>／牢屋:<b id="tbJailed">0</b>人</div>
     <div class="tb-tower">管制塔:<b id="tbTower">未占領</b></div>
+    <div id="tbWar" title="各国の支配戦区（管制塔・停戦）"><span class="wchip" data-n="sun"></span><span class="wchip" data-n="moon"></span><span class="wchip" data-n="star"></span><span id="tbTruce" hidden>停戦中</span></div>
     <div>残り時間:<b id="tbTime">--:--</b> <span id="tbMeet" class="tb-meet"></span></div>
     <div id="tbActions">
       <button id="btnTruce" title="いちばん強い国に対抗するため、もう一国に短い停戦を持ちかける">停戦(残<span id="trLeft">2</span>)</button>
@@ -39,8 +40,12 @@
         <div id="mbtns"><div id="mStamWrap"><div id="mStam"></div></div><button id="mFace">振向</button><button id="mSpec">特殊</button><button id="mDash">ダッシュ</button><button id="mCap">捕獲</button><button id="mSquad">分隊<br><small>付いて</small></button></div>
       </div>
       <div id="setup">
-        <h1>三国ドロケイ<span class="seal ver">v7.13</span></h1>
-        <p class="tagline">太陽・月・星 ― 広大な戦場で、正体を隠した敵国の王を探し出せ。</p>
+        <canvas id="setupMap" aria-hidden="true"></canvas>
+        <div class="setup-inner">
+        <div class="logo"><h1><span class="logo-a">三国</span><span class="logo-b">ドロケイ</span></h1><span class="seal ver">v7.14</span></div>
+        <div class="logo-sub">TOKYO THREE KINGDOMS</div>
+        <p class="tagline">東京を駆け、奪い、捕らえろ。<br><span>太陽・月・星 ― 前線の向こうに隠れた敵国の王を探し出せ。</span></p>
+        <div class="setup-panel">
         <div class="step-label">所属国</div><div class="pickrow" id="pickNation"></div>
         <div class="step-label">役職</div><div class="pickrow" id="pickRole"></div>
         <div id="roleDesc">役職を選ぶと詳細が表示されます。</div>
@@ -63,7 +68,9 @@
           </div>
           <p id="netNote"></p>
         </div>
+        </div>
         <p class="controls-note">前進/後退:↑・↓　旋回:←・→　加速:Shift　捕獲:Space　特殊:Z　振り向き:Q<br>分隊:X 付いてこい　C 周りを警戒しろ　V ここを守れ　カメラの上下:ドラッグ/スワイプ（距離:ホイール）<br>カメラは常にキャラクターの背後。背中は見えないので、気配と足音に注意。</p>
+        </div>
       </div>
       <div id="overlay">
         <h1 id="ovTitle">勝敗</h1><p id="ovDesc"></p>

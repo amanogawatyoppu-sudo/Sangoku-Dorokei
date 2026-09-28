@@ -1,4 +1,4 @@
-import { NATIONS } from '../config/nations';
+import { NATIONS, nationCss } from '../config/nations';
 import { roleName } from '../config/roles';
 import { nameOf } from '../config/names';
 import { CAP_RANGE } from '../config/constants';
@@ -15,7 +15,8 @@ import { dist } from '../sim/systems/collision';
 import { suspStars } from '../sim/systems/suspicion';
 import { sniperTarget } from '../sim/systems/abilities';
 import { visibleTo } from '../sim/systems/vision';
-import { SECTORS, sectorOf } from '../sim/war';
+import { SECTORS, held, sectorOf } from '../sim/war';
+import type { NationId } from '../config/nations';
 import { $ } from './dom';
 
 /** v6 UI cooldown scale for the special button fill (keyholder uses 1 in v6). */
@@ -111,9 +112,32 @@ export class Hud {
     this.banner(`${SECTORS[here.id].name}戦区（${who}）— ${SECTORS[here.id].style}`, 2200);
   }
 
+  private warAt = 0;
+
+  /** The war strip: each kingdom's sectors (☀3 ☾2 ★2), who holds the tower, any ceasefire. */
+  private updateWar(state: GameState): void {
+    const now = performance.now();
+    if (now - this.warAt < 300) return;
+    this.warAt = now;
+    for (const chip of Array.from(document.querySelectorAll<HTMLElement>('#tbWar .wchip'))) {
+      const n = chip.dataset.n as NationId;
+      chip.style.setProperty('--nc', nationCss(n));
+      const alive = state.entities.some((e) => e.nation === n && e.role === 'king' && e.alive);
+      const text = `${NATIONS[n].emblem}${held(state, n).length}${state.tower.owner === n ? '・塔' : ''}`;
+      if (chip.textContent !== text) chip.textContent = text;
+      chip.classList.toggle('fallen', !alive);
+      chip.classList.toggle('mine', n === state.player.nation);
+    }
+    const truce = state.war.truces.find((t) => t.until > state.time);
+    const tr = $('tbTruce');
+    tr.hidden = !truce;
+    if (truce) tr.textContent = `停戦 ${NATIONS[truce.a].emblem}${NATIONS[truce.b].emblem} ${Math.ceil((truce.until - state.time) / 1000)}秒`;
+  }
+
   update(state: GameState): void {
     this.updateSquad(state);
     this.updateSector(state);
+    this.updateWar(state);
     const p = state.player, el = this.el;
     const left = timeLeftSec(state);
     const mm = Math.floor(left / 60), ss = Math.floor(left % 60);
