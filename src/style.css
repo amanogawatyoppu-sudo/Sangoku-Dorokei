@@ -96,7 +96,15 @@ canvas#mini{width:176px;height:auto;background:#1c2417;border:1px solid var(--li
 #netCodeShow{font-family:var(--display);font-size:22px;letter-spacing:4px;color:var(--accent);user-select:all}
 #netMembers{list-style:none;margin:0;padding:0;font-size:12.5px;line-height:1.8;text-align:left}
 #netNote{margin:0;font-size:11.5px;color:var(--muted);line-height:1.6}
-.nametag{position:absolute;transform:translate(-50%,-100%);pointer-events:none;font-size:12px;font-weight:700;color:#fff;padding:1px 6px;border-radius:3px;background:rgba(0,0,0,.45);border-bottom:2px solid var(--nc);white-space:nowrap;z-index:3}
+.nametag{position:absolute;left:0;top:0;transform-origin:50% 100%;pointer-events:none;display:flex;flex-direction:column;align-items:center;line-height:1.15;
+  font-size:12px;font-weight:700;color:#fff;padding:1px 7px 2px;border-radius:3px;background:rgba(8,9,13,.55);border-bottom:2px solid var(--nc);white-space:nowrap;z-index:3;text-shadow:0 1px 2px #000}
+.nametag .nt-role{font-size:10px;font-weight:500;color:color-mix(in srgb,var(--nc) 55%,#fff)}
+.nametag.king{border-bottom-color:#f3d48a;box-shadow:0 0 10px rgba(243,212,138,.35)}
+.nametag.king .nt-role{color:#f3d48a;font-weight:700}
+.nametag.far{opacity:.8}
+.nametag.far .nt-role{display:none}
+.nametag.jailed{opacity:.6}
+.nametag.jailed .nt-name::after{content:'（牢）';color:#ff9a86}
 #overlay h1{font-size:34px}
 #ovDesc{font-size:15px;margin:0}
 /* v7.14: result and meeting screens in the war-map style (dark glass, gold frame, brush lettering). */

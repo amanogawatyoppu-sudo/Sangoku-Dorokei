@@ -145,9 +145,9 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
   if (online) {
     log.add(`オンライン対戦：部屋 ${online.lobby.code}・${online.info.seats.length}人。同じ国は味方、ほかの国は敵。`);
     if (host) log.add('あなたがホストです。このタブを閉じると試合が終わります。');
-  } else log.add('v7.17: 東京は9つの戦区。画面の紋章マーカーが戦略拠点（輪が制圧ゲージ）、街の幟の色がその戦区の支配国。拠点に立ち続けると制圧。ミニマップに勢力と前線。↑↓で前後、←→で旋回、Shiftで加速、Spaceで捕獲、Zで特殊、Qで振り向き。分隊はX 付いてこい・C 周りを警戒・V ここを守れ。');
+  } else log.add('v7.18: 味方の頭上に名前と役職。東京は9つの戦区。画面の紋章マーカーが戦略拠点（輪が制圧ゲージ）、街の幟の色がその戦区の支配国。拠点に立ち続けると制圧。ミニマップに勢力と前線。↑↓で前後、←→で旋回、Shiftで加速、Spaceで捕獲、Zで特殊、Qで振り向き。分隊はX 付いてこい・C 周りを警戒・V ここを守れ。');
   hud.banner('三国ドロケイ 開始　' + NATIONS[me.nation].name + 'の' + roleName(me.role), 2200);
-  const tags = online ? new NameTags($('nametags'), state, names) : null;
+  const tags = new NameTags($('nametags'), state, names);
   resizeRenderer(refs, canvas);
   cam.snap(Math.atan2(state.player.dirX, state.player.dirZ));
   if (new URLSearchParams(location.search).has('debug')) exposeDebug(state, cam);
@@ -237,7 +237,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
     effects.sync(state, frameMs / 1000);
     warView.sync(state);
     objectives.sync(state, refs.camera, !!state.meeting || state.over);
-    tags?.sync(state, entityView, refs.camera, clock.alpha);
+    tags.sync(state, entityView, refs.camera, clock.alpha);
   });
   // A hidden tab gets no animation frames: the host keeps the match running anyway (browsers
   // slow timers in the background, so it catches up in 50 ms slices).
