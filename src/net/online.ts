@@ -12,9 +12,11 @@ import type { Command, GameState, HumanSeat } from '../sim/state';
 import { queueCommand } from '../sim/state';
 import type { NetEvent, Snapshot } from './snapshot';
 import { Mirror, encodeSnapshot, fitSnapshot } from './snapshot';
+import { p2pRoomApi } from './p2pRoom';
 
 /*
- * Playing with friends over the page's `room` capability (claude.ai). Everyone in
+ * Playing with friends over the page's `room` capability (claude.ai), or over WebRTC
+ * in any other browser (net/p2pRoom.ts, same interface). Everyone in
  * a match joins the named room "sgdk-<code>". Each device keeps one presence
  * object there:
  *   lobby: n (nickname), na (nation), ro (role), h (1 = host)
@@ -42,11 +44,20 @@ export interface RoomApi {
   join(name: string): Promise<NamedRoom>;
 }
 
-/** The room capability, or null when this page is not open in claude.ai with it (a saved file, a public link). */
-export async function roomApi(): Promise<RoomApi | null> {
+/**
+ * Where rooms live: claude.ai's room capability when the page is open there, otherwise
+ * browser-to-browser WebRTC (GitHub Pages, a saved file). Null if neither works.
+ */
+export async function roomApi(): Promise<{ api: RoomApi; kind: 'claude' | 'p2p' } | null> {
   const c = (window as unknown as { claude?: { use?: (n: string) => Promise<unknown> } }).claude;
-  if (!c?.use) return null;
-  try { return (await c.use('room')) as RoomApi | null; } catch { return null; }
+  if (c?.use) {
+    try {
+      const api = (await c.use('room')) as RoomApi | null;
+      if (api) return { api, kind: 'claude' };
+    } catch { /* fall through to WebRTC */ }
+  }
+  const p2p = p2pRoomApi();
+  return p2p ? { api: p2p, kind: 'p2p' } : null;
 }
 
 /** Presence stays under 4 KiB; a little headroom for the lobby fields. */

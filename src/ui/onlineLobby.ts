@@ -41,14 +41,16 @@ export function initOnlineLobby(setup: SetupControl, onStart: (s: OnlineStart) =
 
   let api: RoomApi | null = null;
   void roomApi().then((a) => {
-    api = a;
+    api = a?.api ?? null;
     if (!a) {
       box.classList.add('off');
-      note.textContent = 'オンライン対戦は、claude.ai でこのページを開いたときに使えます（友達はページの共有メニューから招待してください。公開リンクや保存したファイルでは使えません）。';
+      note.textContent = 'このブラウザはオンライン対戦（WebRTC）に対応していません。';
       return;
     }
     setBusy(false);
-    note.textContent = '部屋を作ってコードを友達に伝えるか、もらったコードで参加。';
+    note.textContent = a.kind === 'p2p'
+      ? '部屋を作ってコードを友達に伝えるか、もらったコードで参加。友達は同じページ（URL）をブラウザで開くだけ。ブラウザ同士が直接つながります。'
+      : '部屋を作ってコードを友達に伝えるか、もらったコードで参加。';
   });
 
   const render = () => {
