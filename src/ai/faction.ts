@@ -1,3 +1,4 @@
+import { tuning } from './difficulty';
 import type { NationId } from '../config/nations';
 import { NATION_IDS, NATIONS } from '../config/nations';
 import type { Entity } from '../sim/entity';
@@ -40,7 +41,16 @@ export function createFaction(): Faction {
   return { intel: new Map(), belief: new Map(), posture: 'NORMAL', lastAllyCapturedAt: -Infinity, nextTickAt: 0, fight: null, strategy: { ...NO_STRATEGY } };
 }
 
-const TICK_MS = 1000;
+/**
+ * Whether unit number u of an operation takes the high route (stairs, footbridge, high ground):
+ * every `base`-th unit on 標準 (as before), none on 初級, one more often on 上級.
+ */
+const highRoute = (state: GameState, u: number, base: number) => {
+  const lv = tuning(state).highRouteEvery;
+  if (lv === 0) return false;
+  const k = lv < 3 ? Math.max(2, base - 1) : base;
+  return u % k === k - 1;
+};
 const HUNTER_ROLES = new Set(['soldier', 'ranger']);
 
 /** AI members the commander can give tasks to (the player's own squad answers to the player). */
@@ -200,7 +210,7 @@ function assign(state: GameState, n: NationId): void {
     const rangers = hunters.filter((e) => e.role === 'ranger');
     for (const r of rangers) r.ai.task = { kind: 'rescueEscort', jail };
     const soldiers = hunters.filter((e) => e.role !== 'ranger');
-    const rest = take(byDistance(soldiers, j), Math.max(2 - rangers.length, Math.ceil(soldiers.length * 0.6)), { kind: 'rescueEscort', jail });
+    const rest = take(byDistance(soldiers, j), Math.max(2 - rangers.length, Math.ceil(soldiers.length * 0.6)) + tuning(state).rescueExtra, { kind: 'rescueEscort', jail });
     // The rest hold the line (the front shrinks, it is not abandoned).
     if (defendSpot !== null) take(rest, 9, { kind: 'defend', sector: defendSpot });
     for (const sn of snipers) sn.ai.task = { kind: 'rescueEscort', jail };
@@ -232,7 +242,7 @@ function assign(state: GameState, n: NationId): void {
     let rest = take(byDistance(hunters, NATIONS[captor].jail), Math.max(2, Math.round(hunters.length * 0.5)), { kind: 'raidJail', jail: captor });
     if (state.tower.owner !== n) rest = take(rest, 1, { kind: 'takeTower' });
     if (t) {
-      const left = sendUnits(units(rest), Math.ceil(rest.length * 0.6), (u) => ({ kind: 'assault', sector: t.sector, via: u % 3 === 2 ? flankRoute(t.sector, u) : null }));
+      const left = sendUnits(units(rest), Math.ceil(rest.length * 0.6), (u) => ({ kind: 'assault', sector: t.sector, via: highRoute(state, u, 3) ? flankRoute(t.sector, u) : null }));
       rest = left.flat();
       snipers.forEach((sn, i) => { sn.ai.task = { kind: 'overwatch', sector: i % 2 ? t.sector : sectorAt(NATIONS[captor].jail.x, NATIONS[captor].jail.z) }; });
     }
@@ -258,11 +268,11 @@ function assign(state: GameState, n: NationId): void {
   if (target !== null) {
     switch (st.kind) {
       case 'ATTACK_SECTOR': case 'HUNT_KING':
-        rest = sendUnits(rest, Math.ceil(pool.length * 0.8), (u) => ({ kind: 'assault', sector: target, via: u % 3 === 2 ? flankRoute(target, u) : null }));
+        rest = sendUnits(rest, Math.ceil(pool.length * 0.8), (u) => ({ kind: 'assault', sector: target, via: highRoute(state, u, 3) ? flankRoute(target, u) : null }));
         break;
       case 'TAKE_TOWER':
         rest = sendUnits(rest, Math.ceil(pool.length * 0.3), () => ({ kind: 'takeTower' }));
-        rest = sendUnits(rest, Math.ceil(pool.length * 0.3), (u) => ({ kind: 'assault', sector: CENTRAL, via: u % 2 ? flankRoute(CENTRAL, u) : null }));
+        rest = sendUnits(rest, Math.ceil(pool.length * 0.3), (u) => ({ kind: 'assault', sector: CENTRAL, via: highRoute(state, u, 2) ? flankRoute(CENTRAL, u) : null }));
         break;
       case 'DEFEND_SECTOR': case 'RECOVER':
         rest = sendUnits(rest, Math.ceil(pool.length * (st.kind === 'RECOVER' ? 0.5 : 0.6)), () => ({ kind: 'defend', sector: target }));
@@ -324,7 +334,7 @@ export function factionTick(state: GameState): void {
   for (const n of NATION_IDS) {
     const f = state.factions[n];
     if (state.time < f.nextTickAt) continue;
-    f.nextTickAt = state.time + TICK_MS;
+    f.nextTickAt = state.time + tuning(state).strategyTickMs;
     towerIntel(state, n);
     updateBelief(state, n);
     formSquads(state, n); // people's squads first (the commander then leaves them alone)

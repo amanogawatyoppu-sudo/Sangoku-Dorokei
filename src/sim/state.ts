@@ -1,3 +1,4 @@
+import type { CpuLevel } from '../ai/difficulty';
 import type { Ping, PingKind } from './ping';
 import type { NationId, Point } from '../config/nations';
 import { NATION_IDS } from '../config/nations';
@@ -94,8 +95,10 @@ export interface GameState {
   radarAll: number;
   /** Until when each nation sees the enemy kings lit up (tower, last third of the match). */
   kingBeacon: PerNation<number>;
-  /** 練習モード: the player cannot be captured. */
+  /** 練習モード / チュートリアル: the player cannot be captured. */
   practice: boolean;
+  /** CPUレベル: how the AI decides (never its speed, reach or toughness). */
+  cpuLevel: CpuLevel;
   /** The king's double (影武者), per nation, and whether it has been used this match. */
   decoy: PerNation<{ id: number; until: number } | null>;
   decoyUsed: PerNation<boolean>;
@@ -208,6 +211,7 @@ export function createGameState(
     kingBeacon: perNation(() => 0),
     pings: [],
     practice: false,
+    cpuLevel: 'normal',
     decoy: perNation<{ id: number; until: number } | null>(() => null),
     decoyUsed: perNation(() => false),
     lastAiPingCheck: perNation(() => 0),

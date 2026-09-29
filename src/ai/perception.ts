@@ -8,6 +8,7 @@ import { atWar } from '../sim/war';
 import { kingLit } from '../sim/systems/tower';
 import { nightVisionMul } from '../sim/night';
 import type { Sighting } from './memory';
+import { tuning } from './difficulty';
 
 /**
  * What an AI can know about an enemy right now. No wall-hacks: an enemy is
@@ -82,7 +83,7 @@ export function perceive(state: GameState, e: Entity): void {
     intel.set(t.id, s);
   }
   ai.alert = ai.visible.length ? 1 : Math.max(0, ai.alert - PERCEIVE_MS / 6000);
-  for (const [id, s] of ai.seen) if (now - s.t > 20000) ai.seen.delete(id);
+  for (const [id, s] of ai.seen) if (now - s.t > tuning(state).forgetMs) ai.seen.delete(id);
 }
 
 /** Where an enemy probably is now, from a sighting (clamped extrapolation). */

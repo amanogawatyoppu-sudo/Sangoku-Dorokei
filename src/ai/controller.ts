@@ -1,7 +1,8 @@
 import type { Point } from '../config/nations';
 import { NATION_IDS, NATIONS } from '../config/nations';
 import { HOTSPOTS, PERCHES as MAP_PERCHES, TOWER } from '../config/map';
-import { AI_REACTION_MS, AI_SPEED, AI_TURN_RATE, CAP_RANGE, SPRINT_SPEED } from '../config/constants';
+import { AI_SPEED, AI_TURN_RATE, CAP_RANGE, SPRINT_SPEED } from '../config/constants';
+import { tuning } from './difficulty';
 import type { Entity } from '../sim/entity';
 import { isHuman } from '../sim/entity';
 import type { GameState } from '../sim/state';
@@ -120,7 +121,7 @@ function follow(state: GameState, e: Entity, dt: number, speed: number): void {
 function visibleEnemies(state: GameState, e: Entity): Entity[] {
   const now = state.time;
   return e.ai.visible
-    .filter((id) => now - (e.ai.seen.get(id)?.since ?? now) >= AI_REACTION_MS)
+    .filter((id) => now - (e.ai.seen.get(id)?.since ?? now) >= tuning(state).reactionMs)
     .map((id) => state.entities[id])
     .filter((t) => t.alive && !t.jailed);
 }
@@ -131,7 +132,7 @@ function noticing(state: GameState, e: Entity): Entity | null {
   let best: Entity | null = null, bd = Infinity;
   for (const id of e.ai.visible) {
     const s = e.ai.seen.get(id);
-    if (!s || now - s.since >= AI_REACTION_MS) continue;
+    if (!s || now - s.since >= tuning(state).reactionMs) continue;
     const t = state.entities[id], d = dist(e, t);
     if (d < bd) { bd = d; best = t; }
   }
@@ -182,14 +183,18 @@ function chase(state: GameState, e: Entity, t: Entity): void {
   const tdx = t.dirX, tdz = t.dirZ;
   let goal: Waypoint;
   let st: AiState = 'CHASE';
-  const ambush = e.role === 'ranger' && rank > 0 && d >= 130 ? ambushSpot(e, t, s) : null;
+  const tn = tuning(state);
+  const ambusher = tn.ambush === 'rangersAndSoldiers' ? e.role === 'ranger' || (e.role === 'soldier' && rank > 1) : tn.ambush === 'rangers' && e.role === 'ranger';
+  const ambush = ambusher && rank > 0 && d >= 130 ? ambushSpot(e, t, s) : null;
+  // On easy, followers often just run after the target instead of cutting it off.
+  const plain = rank > 0 && (e.id * 7919 + rank * 31 + Math.floor(state.time / 4000)) % 100 >= tn.flankChance * 100;
   if (ambush) {
     // Rangers don't chase from behind when others already are: they cut ahead to a stair exit or bridge.
     ai.chaseRole = 'ambush';
     st = 'INTERCEPT';
     goal = ambush;
     if (e.cd.special <= 0 && Math.hypot(ambush.x - e.x, ambush.z - e.z) > 250) useSpecial(state, e);
-  } else if (rank === 0 || d < 130) {
+  } else if (rank === 0 || d < 130 || plain) {
     ai.chaseRole = 'direct';
     goal = d < 200 ? { x: t.x - tdx * 34, y: t.y, z: t.z - tdz * 34 } : { x: t.x, y: t.y, z: t.z };
   } else if (rank === 1) {
@@ -256,7 +261,7 @@ function respond(state: GameState, e: Entity): boolean {
 function startSearch(state: GameState, e: Entity, s: Sighting): void {
   const p = predict(s, state.time);
   e.ai.searchCenter = p;
-  e.ai.searchUntil = state.time + 6500;
+  e.ai.searchUntil = state.time + tuning(state).searchMs;
   e.ai.targetId = s.id;
   setGoal(state, e, p, 'SEARCH');
 }
@@ -357,11 +362,17 @@ function engage(state: GameState, e: Entity, range: number, near?: Point): boole
   return true;
 }
 
+/** Whether a sniper takes an aligned shot now (always on 標準/上級; on 初級 it often hesitates). */
+function steadyHands(state: GameState): boolean {
+  const c = tuning(state).sniperFireChance;
+  return c >= 1 || state.rng() < c;
+}
+
 function lostTargetSearch(state: GameState, e: Entity): boolean {
   const ai = e.ai;
   if ((ai.state === 'CHASE' || ai.state === 'INTERCEPT') && ai.targetId !== null) {
     const s = ai.seen.get(ai.targetId);
-    if (s && state.time - s.t < 7000) { startSearch(state, e, s); return true; }
+    if (s && state.time - s.t < tuning(state).followUpMs) { startSearch(state, e, s); return true; }
   }
   return ai.state === 'SEARCH' && continueSearch(state, e);
 }
@@ -479,7 +490,7 @@ function sniperThink(state: GameState, e: Entity): void {
     e.ai.lookAt = { x: target.x, z: target.z };
     e.ai.aimId = target.id;
     const d = Math.hypot(dx, dz) || 1;
-    if ((e.dirX * dx + e.dirZ * dz) / d > 0.997 && e.cd.special <= 0) useSpecial(state, e);
+    if ((e.dirX * dx + e.dirZ * dz) / d > 0.997 && e.cd.special <= 0 && steadyHands(state)) useSpecial(state, e);
   } else { e.ai.lookAt = null; e.ai.aimId = null; }
   const task = e.ai.task;
   if (task?.kind === 'rescueEscort') {
@@ -633,7 +644,7 @@ function squadThink(state: GameState, e: Entity, L: Entity, aggro: number): bool
     const t = nearestVisible(state, e, SNIPE_RANGE);
     ai.aimId = t ? t.id : null;
     ai.lookAt = t ? { x: t.x, z: t.z } : null;
-    if (t && (e.dirX * (t.x - e.x) + e.dirZ * (t.z - e.z)) / (dist(e, t) || 1) > 0.997 && e.cd.special <= 0) useSpecial(state, e);
+    if (t && (e.dirX * (t.x - e.x) + e.dirZ * (t.z - e.z)) / (dist(e, t) || 1) > 0.997 && e.cd.special <= 0 && steadyHands(state)) useSpecial(state, e);
     if (t && dist(e, t) < 380) { stop(e, 'HOLD'); return true; }
   } else {
     if (engage(state, e, isHuman(L) ? (ringOrder(state, L) ? 520 : 420) : Math.min(aggro, 520))) return true;
