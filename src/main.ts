@@ -152,9 +152,11 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
     },
     onBeacon: () => { if (state.tower.owner === state.player.nation) queueCommand(state, { type: 'beacon' }); },
     onPing: (kind) => { queueCommand(state, { type: 'ping', kind }); },
+    onDecoy: () => { if (state.player.role === 'king') queueCommand(state, { type: 'decoy' }); },
   });
   $('btnMeeting').onclick = () => { openMeeting(state); flush(); };
   $('btnBeacon').onclick = () => queueCommand(state, { type: 'beacon' });
+  $('btnDecoy').onclick = () => queueCommand(state, { type: 'decoy' });
   // Ceasefire (一時停戦): offers to us wait for an answer; our own offer goes to the weaker of the other two.
   const truceBox = $('truceBox');
   bus.on('TRUCE_PROPOSED', (ev) => {

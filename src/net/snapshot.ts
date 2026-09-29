@@ -132,6 +132,7 @@ function packGlobals(state: GameState): number[] {
     g.push(s.cap, s.res, Math.round(s.tower * 10), s.hit);
   }
   for (const n of NATION_IDS) g.push(fin(state.kingBeacon[n]), fin(state.beaconReadyAt[n]));
+  for (const n of NATION_IDS) { const d = state.decoy[n]; g.push(d ? d.id : -1, d ? fin(d.until) : 0, state.decoyUsed[n] ? 1 : 0); }
   return g;
 }
 
@@ -264,6 +265,11 @@ export class Mirror {
       s.cap = next(); s.res = next(); s.tower = next() / 10; s.hit = next();
     }
     for (const n of NATION_IDS) { state.kingBeacon[n] = Math.max(0, next()); state.beaconReadyAt[n] = Math.max(0, next()); }
+    for (const n of NATION_IDS) {
+      const id = next(), until = next(), used = next();
+      state.decoy[n] = id >= 0 && id < state.entities.length ? { id, until: Math.max(0, until) } : null;
+      state.decoyUsed[n] = used === 1;
+    }
   }
 
   private applyEntities(state: GameState, buf: Uint8Array, nowMs: number): boolean {

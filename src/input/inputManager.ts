@@ -7,6 +7,8 @@ export interface InputHandlers {
   onSquad: (order: 'follow' | 'spread' | 'hold' | 'next') => void;
   /** B: light the enemy kings from the tower. */
   onBeacon?: () => void;
+  /** F: the king names a double. */
+  onDecoy?: () => void;
   /** 1–4 / 合図: a ping to your nation. */
   onPing?: (kind: 'king' | 'help' | 'gather' | 'danger') => void;
   /** Actions are ignored while this returns true (meeting open, game over). */
@@ -62,6 +64,7 @@ export class InputManager {
       if (k === 'z' && !e.repeat) handlers.onSpecial();
       if (k === 'q' && !e.repeat) handlers.onFace();
       if (k === 'b' && !e.repeat) handlers.onBeacon?.();
+      if (k === 'f' && !e.repeat) handlers.onDecoy?.();
       if (!e.repeat && k >= '1' && k <= '4') handlers.onPing?.((['king', 'help', 'gather', 'danger'] as const)[Number(k) - 1]);
       if (!e.repeat && (k === 'x' || k === 'c' || k === 'v')) handlers.onSquad(k === 'x' ? 'follow' : k === 'c' ? 'spread' : 'hold');
       if (k.startsWith('arrow')) e.preventDefault(); // don't scroll the page

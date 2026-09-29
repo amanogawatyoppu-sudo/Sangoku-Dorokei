@@ -4,6 +4,7 @@ import { nameOf } from '../config/names';
 import { roleName } from '../config/roles';
 import type { GameState } from '../sim/state';
 import { canRescue } from '../sim/systems/rescue';
+import { decoyOf } from '../sim/decoy';
 import { lerp } from './entityView';
 import type { EntityView } from './entityView';
 
@@ -69,7 +70,8 @@ export class NameTags {
       d.classList.toggle('far', far > NEAR);
       d.classList.toggle('jailed', e.jailed);
       if (t.role) {
-        const txt = (e.role === 'king' ? '♛ ' : '') + roleName(e.role) + (!e.jailed && canRescue(state, e) ? ' 🔑' : '');
+        const dbl = decoyOf(state, e.nation)?.id === e.id;
+        const txt = (e.role === 'king' ? '♛ ' : '') + roleName(e.role) + (dbl ? '・影武者' : '') + (!e.jailed && canRescue(state, e) ? ' 🔑' : '');
         if (t.role.textContent !== txt) t.role.textContent = txt;
       }
       const s = Math.max(0.75, Math.min(1, 1.15 - far / 3000));

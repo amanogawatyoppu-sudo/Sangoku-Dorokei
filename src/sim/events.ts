@@ -38,6 +38,9 @@ export type GameEvent =
   | { type: 'BEACON_PHASE' }
   /** It is getting dark: vision shrinks except under lamps. */
   | { type: 'NIGHTFALL' }
+  /** A king named a double (影武者) / found nobody near to be one. */
+  | { type: 'DECOY'; kingId: number; doubleId: number }
+  | { type: 'DECOY_FAILED'; kingId: number }
   /** Someone pinged (合図) their nation. */
   | { type: 'PING'; pingId: number; by: number; kind: 'king' | 'help' | 'gather' | 'danger' }
   | { type: 'RESCUE_FAILED'; rescuerId: number; targetId: number }

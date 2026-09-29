@@ -15,6 +15,7 @@ import { updateSuspicion } from './systems/suspicion';
 import { lightKings, towerTick } from './systems/tower';
 import { aiPings, pingTick, placePing } from './ping';
 import { nightTick } from './night';
+import { useDecoy } from './decoy';
 import { updateEnemiesSeen } from './systems/vision';
 import { forceEndByTime } from './systems/winCondition';
 import { scheduledMeetingTick } from '../meeting/meetingSystem';
@@ -37,6 +38,7 @@ function runPlayerCommands(state: GameState): void {
     else if (c.type === 'special') activate(state, p);
     else if (c.type === 'beacon') lightKings(state, p.nation);
     else if (c.type === 'ping') placePing(state, p, c.kind);
+    else if (c.type === 'decoy') useDecoy(state, p);
     else if (p.isPlayer) state.playerFaceTarget = { x: c.x, z: c.z };
   }
 }

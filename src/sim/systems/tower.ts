@@ -53,7 +53,7 @@ export function lightKings(state: GameState, n: NationId): boolean {
   state.beaconReadyAt[n] = now + KING_BEACON_CD;
   const f = state.factions[n];
   for (const k of state.entities) {
-    if (k.role !== 'king' || k.nation === n || !k.alive || k.jailed) continue;
+    if (!kingLit(state, k, n)) continue;
     f.intel.set(k.id, { id: k.id, x: k.x, y: k.y, z: k.z, vx: 0, vz: 0, t: now, since: now });
     f.belief.set(k.id, 5);
   }
@@ -62,6 +62,10 @@ export function lightKings(state: GameState, n: NationId): boolean {
 }
 
 /** Whether nation `viewer` sees king `k` lit up right now. */
-export function kingLit(state: GameState, k: { role: string; nation: NationId; alive: boolean; jailed: boolean }, viewer: NationId): boolean {
-  return k.role === 'king' && k.nation !== viewer && k.alive && !k.jailed && state.kingBeacon[viewer] > state.time;
+export function kingLit(state: GameState, k: { id: number; role: string; nation: NationId; alive: boolean; jailed: boolean }, viewer: NationId): boolean {
+  if (k.nation === viewer || !k.alive || k.jailed || state.kingBeacon[viewer] <= state.time) return false;
+  // While a double (影武者) stands in, the light falls on the double instead.
+  const d = state.decoy[k.nation];
+  if (d && d.until > state.time && state.entities[d.id].alive && !state.entities[d.id].jailed) return k.id === d.id;
+  return k.role === 'king';
 }

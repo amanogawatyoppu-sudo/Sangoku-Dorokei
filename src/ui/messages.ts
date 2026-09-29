@@ -74,6 +74,13 @@ export function bindMessages(bus: EventBus<GameEvent>, state: GameState, log: Lo
     log.add(`【合図】${name}：${PING_LABEL[ev.kind]}`);
     if (!who.isPlayer) hud.toast(`${name}：${PING_LABEL[ev.kind]}`, ev.kind === 'king' ? 'rescue' : 'cap');
   });
+  bus.on('DECOY', (ev) => {
+    if (!mineN(ent(ev.kingId).nation)) return;
+    const d = ent(ev.doubleId);
+    log.add(`【作戦】影武者：${state.humanNames[d.id] ?? nameOf(d.id)}（${roleName(d.role)}）が30秒間、王の身代わりになる。護衛は影武者に付き、敵の目も影武者に向く`);
+    hud.banner(`影武者：${state.humanNames[d.id] ?? nameOf(d.id)}が王の身代わりに（30秒）`, 2400);
+  });
+  bus.on('DECOY_FAILED', (ev) => { if (ent(ev.kingId).isPlayer) log.add('影武者：近く（約30m以内）に身代わりになれる味方がいない。'); });
   bus.on('NIGHTFALL', () => {
     log.add('【夜】日が沈んできた。遠くが見えにくくなる — 街灯の光の下にいる人だけは遠くからでも見える');
     hud.banner('日が沈む — 街灯の下は目立つ', 2400);

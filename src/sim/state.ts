@@ -47,6 +47,8 @@ export type Command = (
   | { type: 'special' }
   /** Light up the enemy kings from the tower (its holder, last third of the match). */
   | { type: 'beacon' }
+  /** The king names a double (影武者). */
+  | { type: 'decoy' }
   /** A ping (合図) to your own nation. */
   | { type: 'ping'; kind: PingKind }
   /** Turn the player in place toward a world-space direction (振り向き). */
@@ -92,6 +94,9 @@ export interface GameState {
   radarAll: number;
   /** Until when each nation sees the enemy kings lit up (tower, last third of the match). */
   kingBeacon: PerNation<number>;
+  /** The king's double (影武者), per nation, and whether it has been used this match. */
+  decoy: PerNation<{ id: number; until: number } | null>;
+  decoyUsed: PerNation<boolean>;
   /** Pings (合図) up right now, all nations (each nation sees only its own). */
   pings: Ping[];
   /** When the AI last looked for something to ping, per nation. */
@@ -200,6 +205,8 @@ export function createGameState(
     radarAll: 0,
     kingBeacon: perNation(() => 0),
     pings: [],
+    decoy: perNation<{ id: number; until: number } | null>(() => null),
+    decoyUsed: perNation(() => false),
     lastAiPingCheck: perNation(() => 0),
     beaconReadyAt: perNation(() => 0),
     rescueUntil: perNation(() => 0),

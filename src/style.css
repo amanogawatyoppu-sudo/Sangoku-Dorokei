@@ -452,3 +452,7 @@ details#hint[open] summary::before{content:'▾ ';}
   border-top:5px solid rgba(255,120,90,.9);filter:drop-shadow(0 0 6px rgba(255,90,60,.8));animation:stepPulse .5s ease-in-out infinite alternate}
 @keyframes stepPulse{to{transform:translateY(-6px)}}
 @media (prefers-reduced-motion:reduce){.steparc::before{animation:none}}
+
+#btnDecoy{background:linear-gradient(#5a3a6e,#3e2650);border-color:#a986c4!important}
+#btnDecoy:disabled{opacity:.5}
+#btnDecoy.lit{background:linear-gradient(#a986c4,#6e4a8e);animation:rbPulse .8s ease-in-out infinite}

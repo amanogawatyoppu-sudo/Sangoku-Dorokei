@@ -11,6 +11,7 @@ import { attemptCapture, captureCandidate } from '../sim/systems/capture';
 import { SAME_LEVEL, dist, dist3 } from '../sim/systems/collision';
 import { accelerate, moveToward, turnBy, turnToward } from '../sim/systems/movement';
 import { lastStanding, tryStartRescue } from '../sim/systems/rescue';
+import { canUseDecoy, decoyOf, useDecoy } from '../sim/decoy';
 import { blocked, canWalk } from '../sim/systems/world';
 import type { AiState, Sighting, Waypoint } from './memory';
 import { chokePoints, navGraph, planPath, randomNodeNear } from './nav';
@@ -382,7 +383,8 @@ function hunterThink(state: GameState, e: Entity, aggro: number): void {
       return;
     }
     case 'escortKing': {
-      const king = kingOf(state, e.nation);
+      // While the king's double stands in, the screen goes with the double.
+      const king = decoyOf(state, e.nation) ?? kingOf(state, e.nation);
       if (king && engage(state, e, 230, king)) return;
       // Still on the way back to a distant king: deal with enemies met en route.
       if (king && dist(e, king) > 400 && engage(state, e, 260, e)) return;
@@ -552,6 +554,8 @@ function tryStartRescueQuiet(state: GameState, e: Entity): void {
 function kingThink(state: GameState, e: Entity): void {
   const persona = e.kingPersona ?? 'cautious';
   const threat = nearestVisible(state, e, persona === 'aggressive' ? 110 : 240);
+  // Chased: stand a double in (once a match) and slip away.
+  if (threat && dist(e, threat) < 200 && canUseDecoy(state, e) && state.rng() < 0.3) useDecoy(state, e);
   if (threat) {
     if (persona === 'aggressive' && dist(e, threat) < CAP_RANGE && state.rng() < 0.3) attemptCapture(state, e);
     if (persona !== 'aggressive' || dist(e, threat) < 70) { flee(state, e, threat); return; }

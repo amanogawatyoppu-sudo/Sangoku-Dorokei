@@ -13,6 +13,7 @@ import { jailDuration } from '../sim/systems/jail';
 import { dist } from '../sim/systems/collision';
 import { canRescue, rescueTargetNear } from '../sim/systems/rescue';
 import { canLightKings } from '../sim/systems/tower';
+import { canUseDecoy, decoyOf } from '../sim/decoy';
 import { sniperTarget } from '../sim/systems/abilities';
 import { visibleTo } from '../sim/systems/vision';
 import { SECTORS, held, sectorOf } from '../sim/war';
@@ -46,7 +47,7 @@ export class Hud {
     tbTower: $('tbTower'), tbTime: $('tbTime'), tbMeet: $('tbMeet'), btnMeeting: $('btnMeeting') as HTMLButtonElement, mtLeft: $('mtLeft'),
     fillCap: $('fillCap'), fillSpec: $('fillSpec'), btnSpecial: $('btnSpecial') as HTMLButtonElement, specialDesc: $('specialDesc'),
     stamBar: $('stamBar'), hintText: $('hintText'), roster: $('roster'), casualties: $('casualties'), vignette: $('vignette'),
-    rescueBadge: $('rescueBadge'), toasts: $('toasts'), btnBeacon: $('btnBeacon') as HTMLButtonElement,
+    rescueBadge: $('rescueBadge'), toasts: $('toasts'), btnBeacon: $('btnBeacon') as HTMLButtonElement, btnDecoy: $('btnDecoy') as HTMLButtonElement,
     banner: $('banner'), progText: $('progText'),
     btnCapture: $('btnCapture'), mCap: $('mCap'), mSpec: $('mSpec') as HTMLButtonElement, mFace: $('mFace') as HTMLButtonElement,
     mDash: $('mDash'), mStam: $('mStam'), statusBadge: $('statusBadge'),
@@ -167,6 +168,7 @@ export class Hud {
     this.updateRoster(state);
     this.updateRescue(state);
     this.updateBeacon(state);
+    this.updateDecoy(state);
     if (p.channeling) {
       el.progText.style.opacity = '1';
       el.progText.textContent = '救出詠唱 [' + Math.round((p.channeling.prog / p.channeling.need) * 100) + '%]';
@@ -282,6 +284,17 @@ export class Hud {
       const label = target ? '救出' : '特殊';
       if (this.el.mSpec.textContent !== label) this.el.mSpec.textContent = label;
     }
+  }
+
+  /** 影武者: the king's once-a-match button (shows who stands in while it lasts). */
+  private updateDecoy(state: GameState): void {
+    const p = state.player, btn = this.el.btnDecoy;
+    const d = decoyOf(state, p.nation);
+    btn.hidden = p.role !== 'king' || !p.alive || (state.decoyUsed[p.nation] && !d);
+    if (btn.hidden) return;
+    btn.disabled = !canUseDecoy(state, p);
+    btn.textContent = d ? `影武者:${nameOf(d.id)} ${Math.ceil((state.decoy[p.nation]!.until - state.time) / 1000)}s` : '影武者(F)';
+    btn.classList.toggle('lit', !!d);
   }
 
   /** The tower's "light the kings" button: shown to the holder; usable in the last third. */
