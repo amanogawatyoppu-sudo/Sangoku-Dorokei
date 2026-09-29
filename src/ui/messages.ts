@@ -1,6 +1,7 @@
 import { NATIONS } from '../config/nations';
 import { roleName } from '../config/roles';
 import { nameOf } from '../config/names';
+import { PING_LABEL } from '../sim/ping';
 import type { EventBus } from '../core/events';
 import type { GameEvent } from '../sim/events';
 import type { GameState } from '../sim/state';
@@ -64,6 +65,14 @@ export function bindMessages(bus: EventBus<GameEvent>, state: GameState, log: Lo
     hud.addCasualty(text, 'rescue', mineN(t.nation));
     if (mineN(t.nation) && !t.isPlayer) hud.toast(`${nameOf(ev.rescuerId)}が${nameOf(t.id)}を救出！`, 'rescue');
     if (t.isPlayer) hud.banner(`${nameOf(ev.rescuerId)}に救出された！`, 2000);
+  });
+  bus.on('PING', (ev) => {
+    const p = state.pings.find((q) => q.id === ev.pingId);
+    if (!p || p.nation !== state.player.nation) return;
+    const who = ent(ev.by);
+    const name = who.isPlayer ? 'あなた' : state.humanNames[who.id] ?? nameOf(who.id);
+    log.add(`【合図】${name}：${PING_LABEL[ev.kind]}`);
+    if (!who.isPlayer) hud.toast(`${name}：${PING_LABEL[ev.kind]}`, ev.kind === 'king' ? 'rescue' : 'cap');
   });
   bus.on('BEACON_PHASE', () => {
     log.add('【管制塔】残り時間が3分の1を切った。管制塔を持つ国は敵国の王の位置を照らせる（B / 上部の「王を照らす」）');

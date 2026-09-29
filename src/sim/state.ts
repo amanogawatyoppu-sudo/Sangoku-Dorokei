@@ -1,3 +1,4 @@
+import type { Ping, PingKind } from './ping';
 import type { NationId, Point } from '../config/nations';
 import { NATION_IDS } from '../config/nations';
 import type { RoleId } from '../config/roles';
@@ -46,6 +47,8 @@ export type Command = (
   | { type: 'special' }
   /** Light up the enemy kings from the tower (its holder, last third of the match). */
   | { type: 'beacon' }
+  /** A ping (合図) to your own nation. */
+  | { type: 'ping'; kind: PingKind }
   /** Turn the player in place toward a world-space direction (振り向き). */
   | { type: 'face'; x: number; z: number }
 ) & {
@@ -89,6 +92,10 @@ export interface GameState {
   radarAll: number;
   /** Until when each nation sees the enemy kings lit up (tower, last third of the match). */
   kingBeacon: PerNation<number>;
+  /** Pings (合図) up right now, all nations (each nation sees only its own). */
+  pings: Ping[];
+  /** When the AI last looked for something to ping, per nation. */
+  lastAiPingCheck: PerNation<number>;
   /** When each nation may light the kings again. */
   beaconReadyAt: PerNation<number>;
   rescueUntil: PerNation<number>;
@@ -192,6 +199,8 @@ export function createGameState(
     radar: perNation(() => 0),
     radarAll: 0,
     kingBeacon: perNation(() => 0),
+    pings: [],
+    lastAiPingCheck: perNation(() => 0),
     beaconReadyAt: perNation(() => 0),
     rescueUntil: perNation(() => 0),
     terminalActive: perNation(() => 0),

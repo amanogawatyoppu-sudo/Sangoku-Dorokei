@@ -1,3 +1,4 @@
+import { PING_KINDS } from '../sim/ping';
 import type { NationId } from '../config/nations';
 import { NATION_IDS } from '../config/nations';
 import type { AiState } from '../ai/memory';
@@ -51,6 +52,8 @@ export interface Snapshot {
   ev: NetEvent[];
   /** The war: per sector [owner, capturer, gauge %, contested, sun, moon, star on the point]; ceasefires [a, b, until]; ceasefires held. */
   w?: { s: number[][]; t: [number, number, number][]; n: number };
+  /** Pings: [id, nation, by, kind, x, y, z, placed at]. */
+  pg?: number[][];
   /** Open meeting: its kind (0 emergency, 1 scheduled) and each nation's view. */
   m?: { k: number; n: Partial<Record<NationId, NetMeeting>> };
 }
@@ -167,6 +170,7 @@ export function encodeSnapshot(state: GameState, events: NetEvent[]): Snapshot {
     t: state.war.truces.map((t) => [nIdx(t.a), nIdx(t.b), Math.round(t.until)]),
     n: state.war.trucesHeld,
   };
+  if (state.pings.length) snap.pg = state.pings.map((p) => [p.id, nIdx(p.nation), p.by, PING_KINDS.indexOf(p.kind), Math.round(p.x), Math.round(p.y), Math.round(p.z), Math.round(p.t)]);
   return snap;
 }
 
@@ -223,6 +227,10 @@ export class Mirror {
     this.applyHumans(state, Array.isArray(snap.h) ? snap.h : []);
     this.applyMeeting(state, snap.m);
     this.applyWar(state, snap.w);
+    state.pings = (snap.pg ?? []).flatMap((r) => {
+      const nation = nAt(num(r[1], -1)), kind = PING_KINDS[num(r[3], -1)];
+      return nation && kind ? [{ id: num(r[0], 0), nation, by: num(r[2], 0), kind, x: num(r[4], 0), y: num(r[5], 0), z: num(r[6], 0), t: num(r[7], 0) }] : [];
+    });
     const events: GameEvent[] = [];
     for (const ev of Array.isArray(snap.ev) ? snap.ev : []) {
       if (num(ev?.s, -1) <= this.lastEventSeq || !ev.e || typeof ev.e.type !== 'string') continue;

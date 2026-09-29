@@ -23,6 +23,7 @@ export class LogPanel {
         else if (t.startsWith('【処刑】')) d.className = 'exec';
         else if (t.startsWith('【救出】')) d.className = 'rescue';
         else if (t.startsWith('【管制塔】')) d.className = 'tower';
+        else if (t.startsWith('【合図】')) d.className = 'ping';
         return d;
       }),
     );

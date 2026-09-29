@@ -38,6 +38,8 @@ import { NameTags } from './render/nameTags';
 import { Ghost } from './render/ghost';
 import { WarView } from './render/warView';
 import { ObjectiveMarkers } from './ui/objectiveMarkers';
+import { PingView } from './render/pingView';
+import { PingMarkers } from './ui/pingMarkers';
 import { SECTORS, TRUCE_MS, answerTruce, proposeTruce, sectorPoint, strength, trucesLeft } from './sim/war';
 import { NATION_IDS } from './config/nations';
 import { kingOf } from './sim/state';
@@ -78,6 +80,8 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
   const effects = new Effects(refs.scene, entityView);
   const warView = new WarView(refs.scene);
   const objectives = new ObjectiveMarkers($('objMarkers'));
+  const pingView = new PingView(refs.scene);
+  const pingMarkers = new PingMarkers($('pingMarkers'));
   const clock = new FixedStepClock();
 
   bindMessages(bus, state, log, hud);
@@ -121,6 +125,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
       queueCommand(state, { type: 'squad', order: next });
     },
     onBeacon: () => { if (state.tower.owner === state.player.nation) queueCommand(state, { type: 'beacon' }); },
+    onPing: (kind) => { queueCommand(state, { type: 'ping', kind }); },
   });
   $('btnMeeting').onclick = () => { openMeeting(state); flush(); };
   $('btnBeacon').onclick = () => queueCommand(state, { type: 'beacon' });
@@ -147,7 +152,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
   if (online) {
     log.add(`オンライン対戦：部屋 ${online.lobby.code}・${online.info.seats.length}人。同じ国は味方、ほかの国は敵。`);
     if (host) log.add('あなたがホストです。このタブを閉じると試合が終わります。');
-  } else log.add('v7.19: 王と「最後の一人」も救出できる（牢屋の仲間のそばでZ）。終盤は管制塔で敵の王を照らせる（B）。味方の頭上に名前と役職。東京は9つの戦区。画面の紋章マーカーが戦略拠点（輪が制圧ゲージ）、街の幟の色がその戦区の支配国。拠点に立ち続けると制圧。ミニマップに勢力と前線。↑↓で前後、←→で旋回、Shiftで加速、Spaceで捕獲、Zで特殊、Qで振り向き。分隊はX 付いてこい・C 周りを警戒・V ここを守れ。');
+  } else log.add('v7.20: 1〜4キー（スマホは「合図」）で味方に合図：王・助けて・集合・敵多数。王と「最後の一人」も救出できる（牢屋の仲間のそばでZ）。終盤は管制塔で敵の王を照らせる（B）。味方の頭上に名前と役職。東京は9つの戦区。画面の紋章マーカーが戦略拠点（輪が制圧ゲージ）、街の幟の色がその戦区の支配国。拠点に立ち続けると制圧。ミニマップに勢力と前線。↑↓で前後、←→で旋回、Shiftで加速、Spaceで捕獲、Zで特殊、Qで振り向き。分隊はX 付いてこい・C 周りを警戒・V ここを守れ。');
   hud.banner('三国ドロケイ 開始　' + NATIONS[me.nation].name + 'の' + roleName(me.role), 2200);
   const tags = new NameTags($('nametags'), state, names);
   resizeRenderer(refs, canvas);
@@ -194,6 +199,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
     for (const c of state.commands) {
       if (c.type === 'face') state.playerFaceTarget = { x: c.x, z: c.z };
       else if (c.type === 'squad') { state.squadOrder = c.order; link.command('squad', c.order); }
+      else if (c.type === 'ping') link.command('ping', c.kind);
       else link.command(c.type);
     }
     state.commands = [];
@@ -239,6 +245,8 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
     effects.sync(state, frameMs / 1000);
     warView.sync(state);
     objectives.sync(state, refs.camera, !!state.meeting || state.over);
+    pingView.sync(state, state.player.nation);
+    pingMarkers.sync(state, refs.camera, names, !!state.meeting || state.over);
     tags.sync(state, entityView, refs.camera, clock.alpha);
   });
   // A hidden tab gets no animation frames: the host keeps the match running anyway (browsers

@@ -7,6 +7,8 @@ export interface InputHandlers {
   onSquad: (order: 'follow' | 'spread' | 'hold' | 'next') => void;
   /** B: light the enemy kings from the tower. */
   onBeacon?: () => void;
+  /** 1–4 / 合図: a ping to your nation. */
+  onPing?: (kind: 'king' | 'help' | 'gather' | 'danger') => void;
   /** Actions are ignored while this returns true (meeting open, game over). */
   isBlocked: () => boolean;
 }
@@ -60,6 +62,7 @@ export class InputManager {
       if (k === 'z' && !e.repeat) handlers.onSpecial();
       if (k === 'q' && !e.repeat) handlers.onFace();
       if (k === 'b' && !e.repeat) handlers.onBeacon?.();
+      if (!e.repeat && k >= '1' && k <= '4') handlers.onPing?.((['king', 'help', 'gather', 'danger'] as const)[Number(k) - 1]);
       if (!e.repeat && (k === 'x' || k === 'c' || k === 'v')) handlers.onSquad(k === 'x' ? 'follow' : k === 'c' ? 'spread' : 'hold');
       if (k.startsWith('arrow')) e.preventDefault(); // don't scroll the page
     });
@@ -75,6 +78,14 @@ export class InputManager {
     this.pressButton(byId('mSpec'), action(handlers.onSpecial));
     this.pressButton(byId('mFace'), action(handlers.onFace));
     this.pressButton(byId('mSquad'), action(() => handlers.onSquad('next')));
+    // 合図: a small menu on phones, buttons in the side panel on PCs.
+    const menu = byId('pingMenu');
+    this.pressButton(byId('mPing'), action(() => { menu.hidden = !menu.hidden; }));
+    for (const b of Array.from(document.querySelectorAll<HTMLButtonElement>('[data-ping]'))) {
+      const fire = action(() => { handlers.onPing?.(b.dataset.ping as 'king' | 'help' | 'gather' | 'danger'); menu.hidden = true; });
+      if (b.closest('#pingMenu')) this.pressButton(b, fire);
+      else b.addEventListener('click', fire);
+    }
     for (const b of Array.from(document.querySelectorAll<HTMLButtonElement>('#squadBox [data-order]'))) {
       b.addEventListener('click', action(() => handlers.onSquad(b.dataset.order as 'follow' | 'spread' | 'hold')));
     }

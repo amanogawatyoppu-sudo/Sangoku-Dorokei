@@ -6,6 +6,8 @@ import type { NationId } from '../config/nations';
 import { SECTORS, sectorAt, sectorOf, sectorPoint } from '../sim/war';
 import { effNation, visibleTo } from '../sim/systems/vision';
 import { kingLit } from '../sim/systems/tower';
+import { PING_ICON } from '../sim/ping';
+import { PING_COLOR } from '../render/pingView';
 import { $ } from './dom';
 
 /** Canvas pixels (2x the CSS size). The Yamanote loop is tall, so the map is portrait. */
@@ -294,6 +296,23 @@ export class Minimap {
         g.arc(mx(e.x), my(e.z), 7.5, 0, Math.PI * 2);
         g.stroke();
       }
+    }
+    // Your nation's pings: a pulsing ring and the icon.
+    for (const q of state.pings) {
+      if (q.nation !== p.nation) continue;
+      const col = '#' + PING_COLOR[q.kind].toString(16).padStart(6, '0');
+      const r = 8 + 4 * (((state.time - q.t) / 700) % 1);
+      g.strokeStyle = col;
+      g.lineWidth = 2;
+      g.beginPath();
+      g.arc(mx(q.x), my(q.z), r, 0, Math.PI * 2);
+      g.stroke();
+      g.fillStyle = col;
+      g.font = '700 11px sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText(PING_ICON[q.kind], mx(q.x), my(q.z));
+      g.textBaseline = 'alphabetic';
     }
     if (p.alive) {
       const a = Math.atan2(p.dirZ * SZ, p.dirX * SX);

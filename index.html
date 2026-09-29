@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>三国ドロケイ v7.19 3D</title>
+<title>三国ドロケイ v7.20 3D</title>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -31,6 +31,7 @@
       <canvas id="game3d"></canvas>
       <div id="nametags"></div>
       <div id="objMarkers" aria-hidden="true"></div>
+      <div id="pingMarkers" aria-hidden="true"></div>
       <div id="vignette"></div>
       <div id="banner"></div>
       <div id="progText"></div>
@@ -40,12 +41,13 @@
       <div id="truceBox" hidden><div id="truceText"></div><div class="truce-btns"><button id="truceYes">承諾</button><button id="truceNo">拒否</button></div></div>
       <div id="mctrl">
         <div id="joyBase"><div id="joyStick"></div></div>
-        <div id="mbtns"><div id="mStamWrap"><div id="mStam"></div></div><button id="mFace">振向</button><button id="mSpec">特殊</button><button id="mDash">ダッシュ</button><button id="mCap">捕獲</button><button id="mSquad">分隊<br><small>付いて</small></button></div>
+        <div id="mbtns"><div id="mStamWrap"><div id="mStam"></div></div><button id="mFace">振向</button><button id="mSpec">特殊</button><button id="mDash">ダッシュ</button><button id="mCap">捕獲</button><button id="mSquad">分隊<br><small>付いて</small></button><button id="mPing">合図</button></div>
+        <div id="pingMenu" hidden><button data-ping="king">♛ ここに王！</button><button data-ping="help">! 助けて！</button><button data-ping="gather">⚑ ここに集合</button><button data-ping="danger">⚠ 敵多数！</button></div>
       </div>
       <div id="setup">
         <canvas id="setupMap" aria-hidden="true"></canvas>
         <div class="setup-inner">
-        <div class="logo"><h1><span class="logo-a">三国</span><span class="logo-b">ドロケイ</span></h1><span class="seal ver">v7.19</span></div>
+        <div class="logo"><h1><span class="logo-a">三国</span><span class="logo-b">ドロケイ</span></h1><span class="seal ver">v7.20</span></div>
         <div class="logo-sub">TOKYO THREE KINGDOMS</div>
         <p class="tagline">東京を駆け、奪い、捕らえろ。<br><span>太陽・月・星 ― 前線の向こうに隠れた敵国の王を探し出せ。</span></p>
         <div class="setup-panel">
@@ -72,7 +74,7 @@
           <p id="netNote"></p>
         </div>
         </div>
-        <p class="controls-note">前進/後退:↑・↓　旋回:←・→　加速:Shift　捕獲:Space　特殊:Z　振り向き:Q<br>分隊:X 付いてこい　C 周りを警戒しろ　V ここを守れ　管制塔で王を照らす:B　カメラの上下:ドラッグ/スワイプ（距離:ホイール）<br>カメラは常にキャラクターの背後。背中は見えないので、気配と足音に注意。</p>
+        <p class="controls-note">前進/後退:↑・↓　旋回:←・→　加速:Shift　捕獲:Space　特殊:Z　振り向き:Q<br>分隊:X 付いてこい　C 周りを警戒しろ　V ここを守れ　合図:1 王 2 助けて 3 集合 4 敵多数　管制塔で王を照らす:B　カメラの上下:ドラッグ/スワイプ（距離:ホイール）<br>カメラは常にキャラクターの背後。背中は見えないので、気配と足音に注意。</p>
         </div>
       </div>
       <div id="overlay">
@@ -95,6 +97,9 @@
       <div><b>捕縛・救出・処刑</b><div id="casualties"><div class="cz-none">まだ誰も捕まっていない</div></div></div>
       <div id="squadBox"><b>分隊</b><div id="squadList"></div>
         <div class="squad-orders"><button data-order="follow" title="付いてこい（後ろに付いて来る）">付いてこい<small>X</small></button><button data-order="spread" title="周りを警戒しろ（あなたを囲んで外側を見張る）">警戒<small>C</small></button><button data-order="hold" title="ここを守れ">守れ<small>V</small></button></div>
+      </div>
+      <div id="pingBox"><b>合図（味方に知らせる）</b>
+        <div class="ping-btns"><button data-ping="king">♛ 王<small>1</small></button><button data-ping="help">! 助けて<small>2</small></button><button data-ping="gather">⚑ 集合<small>3</small></button><button data-ping="danger">⚠ 敵多数<small>4</small></button></div>
       </div>
       <div id="abilities">
         <button id="btnCapture"><span class="fill" id="fillCap"></span>捕獲(Space)</button>
