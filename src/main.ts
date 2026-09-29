@@ -43,6 +43,7 @@ import { WarView } from './render/warView';
 import { ObjectiveMarkers } from './ui/objectiveMarkers';
 import { PingView } from './render/pingView';
 import { PingMarkers } from './ui/pingMarkers';
+import { Footprints } from './render/footprints';
 import { SECTORS, TRUCE_MS, answerTruce, proposeTruce, sectorPoint, strength, trucesLeft } from './sim/war';
 import { NATION_IDS } from './config/nations';
 import { kingOf } from './sim/state';
@@ -86,6 +87,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
   const objectives = new ObjectiveMarkers($('objMarkers'));
   const pingView = new PingView(refs.scene);
   const pingMarkers = new PingMarkers($('pingMarkers'));
+  const footprints = new Footprints(refs.scene, $('pingMarkers'));
   const clock = new FixedStepClock();
 
   bindMessages(bus, state, log, hud);
@@ -252,6 +254,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
     objectives.sync(state, refs.camera, !!state.meeting || state.over);
     pingView.sync(state, state.player.nation);
     setNightfall(refs, nightFactor(state));
+    footprints.sync(state, cam.yaw);
     pingMarkers.sync(state, refs.camera, names, !!state.meeting || state.over);
     tags.sync(state, entityView, refs.camera, clock.alpha);
   });
@@ -337,6 +340,8 @@ function exposeDebug(state: GameState, cam: CameraController): void {
     ghost: () => ({ x: refs.camera.position.x, y: refs.camera.position.y, z: refs.camera.position.z }),
     jailAllies: (by: NationId, keep = 0) => { const mine = state.entities.filter((e) => e.nation === state.player.nation && !e.isPlayer && e.alive && !e.jailed); for (const e of mine.slice(0, mine.length - keep)) sendToJail(state, e, by, null); },
     setTime: (ms: number) => { state.time = ms; },
+    /** Puts an enemy of `nation` at an offset from the player, running across (for footprint/footstep checks). */
+    runner: (nation: NationId, dx: number, dz: number) => { const e = state.entities.find((o) => o.nation === nation && o.role === 'soldier' && o.alive && !o.jailed)!; teleport(e, state.player.x + dx, state.player.z + dz); e.dashing = true; e.ai.goal = { x: state.player.x + dx, y: 0, z: state.player.z - dz * 3 }; return e.id; },
     giveTower: (n: NationId) => { state.tower.owner = n; },
     captureKing: (nation: NationId, by: NationId) => { const k = state.entities.find((e) => e.nation === nation && e.role === 'king')!; sendToJail(state, k, by, null); },
     camera: () => ({ yaw: cam.yaw, pitch: cam.pitch, distance: cam.distance }),
