@@ -2,7 +2,6 @@ import type { NationId } from '../../config/nations';
 import { NATION_IDS } from '../../config/nations';
 import type { GameState } from '../state';
 import { emit } from '../state';
-import { held } from '../war';
 
 function aliveKingNations(state: GameState): NationId[] {
   return NATION_IDS.filter((n) => state.entities.some((e) => e.nation === n && e.role === 'king' && e.alive));
@@ -23,9 +22,8 @@ export function checkWin(state: GameState): void {
 /**
  * War score for a time-up finish (v7.20). The whole war counts, not only the tower:
  * v7.19's score gave the tower 1 point a second, so whoever held it late won 11 of 12
- * simulated matches.
+ * simulated matches. Sectors never count (territory does not decide the match, v7.13).
  * - captures ×3, rescues ×3, hits on a king ×2
- * - sectors held at the end ×4
  * - people still free at the end ×2; a king still in a jail −10
  * - the tower: 1 point per 15 s held
  */
@@ -37,7 +35,6 @@ export function scoreBreakdown(state: GameState, n: NationId): { label: string; 
     { label: '捕獲', pts: s.cap * 3 },
     { label: '救出', pts: s.res * 3 },
     { label: '王への攻撃', pts: s.hit * 2 },
-    { label: '戦区', pts: held(state, n).length * 4 },
     { label: '生存', pts: free * 2 },
     { label: '管制塔', pts: Math.floor(s.tower / 15) },
     { label: '王が牢屋', pts: kingJailed ? -10 : 0 },

@@ -32,25 +32,24 @@ describe('win condition', () => {
     expect(state.winner).toBe('moon');
   });
 
-  it('the tower no longer decides it alone: 100 s in the tower is worth less than a few captures and a sector', () => {
+  it('the tower no longer decides it alone: 100 s in the tower is worth less than a few captures', () => {
     const state = newGame();
     even(state);
     state.natStats.moon.tower = 100;
-    state.natStats.star.cap = 2;
-    state.war.sectors[0].owner = 'star';
+    state.natStats.star.cap = 3;
     forceEndByTime(state);
     expect(state.winner).toBe('star');
   });
 
-  it('a king still in a jail at time-up costs points; sectors and free people count', () => {
+  it('a king still in a jail at time-up costs points; free people count; sectors do not', () => {
     const state = newGame();
     even(state);
     const s0 = nationScore(state, 'sun');
     state.war.sectors[0].owner = 'sun';
-    expect(nationScore(state, 'sun') - s0).toBe(4);
+    expect(nationScore(state, 'sun')).toBe(s0);
     const k = find(state, 'sun', 'king');
     k.jailed = true;
-    expect(nationScore(state, 'sun') - s0).toBe(4 - 10 - 2);
+    expect(nationScore(state, 'sun') - s0).toBe(-10 - 2);
   });
 
   it('time-up with tied scores is a draw', () => {
