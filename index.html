@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>三国ドロケイ v7.22 3D</title>
+<title>三国ドロケイ v7.23 3D</title>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -46,48 +46,79 @@
         <div id="mbtns"><div id="mStamWrap"><div id="mStam"></div></div><button id="mFace">振向</button><button id="mSpec">特殊</button><button id="mDash">ダッシュ</button><button id="mCap">捕獲</button><button id="mSquad">分隊<br><small>付いて</small></button><button id="mPing">合図</button></div>
         <div id="pingMenu" hidden><button data-ping="king">♛ ここに王！</button><button data-ping="help">! 助けて！</button><button data-ping="gather">⚑ ここに集合</button><button data-ping="danger">⚠ 敵多数！</button></div>
       </div>
-      <div id="setup">
+      <div id="setup" data-screen="TITLE">
         <canvas id="setupMap" aria-hidden="true"></canvas>
-        <div class="setup-inner">
-        <div class="logo"><h1><span class="logo-a">三国</span><span class="logo-b">ドロケイ</span></h1><span class="seal ver">v7.22</span></div>
-        <div class="logo-sub">TOKYO THREE KINGDOMS</div>
-        <p class="tagline">東京を駆け、奪い、捕らえろ。<br><span>太陽・月・星 ― 前線の向こうに隠れた敵国の王を探し出せ。</span></p>
-        <div class="setup-panel">
-        <div class="step-label">所属国</div><div class="pickrow" id="pickNation"></div>
-        <div class="step-label">役職</div><div class="pickrow" id="pickRole"></div>
-        <div id="roleDesc">役職を選ぶと詳細が表示されます。</div>
-        <div class="step-label">人数（各国）</div><div class="pickrow" id="pickSize"></div>
-        <div class="pickrow">
-          <button class="pickbtn" id="btnRandom">ランダム(国+役職をおまかせ)</button>
-          <button class="go" id="btnStart">ゲーム開始</button>
-          <button class="pickbtn" id="btnPractice" title="捕まらない状態で基本操作を試す">練習モード</button>
-        </div>
-        <div id="netBox">
-          <div class="step-label">友達と遊ぶ（オンライン）</div>
-          <div id="netEntry" class="netrow">
-            <input id="netNick" maxlength="12" placeholder="ニックネーム" aria-label="ニックネーム">
-            <button class="pickbtn" id="btnHost">部屋を作る</button>
-            <input id="netCode" maxlength="12" placeholder="部屋コード" aria-label="部屋コード" autocapitalize="off" autocomplete="off">
-            <button class="pickbtn" id="btnJoin">参加</button>
+        <section id="titleScreen" class="title-screen">
+          <div class="title-inner">
+            <div class="logo"><h1><span class="logo-a">三国</span><span class="logo-b">ドロケイ</span></h1><span class="seal ver">v7.23</span></div>
+            <div class="logo-sub">TOKYO THREE KINGDOMS</div>
+            <p class="tagline">東京を駆け、奪い、捕らえろ。<br><span>太陽・月・星 ― 前線の向こうに隠れた敵国の王を探し出せ。</span></p>
+            <div class="title-menu">
+              <button class="menu-btn primary" id="btnPlay"><b>プレイする</b><small>設定を選んで試合へ</small></button>
+              <button class="menu-btn" id="btnTutorial"><b>チュートリアルを行う</b><small>操作しながら基本を覚える（約5分）</small></button>
+            </div>
+            <p id="recordLine"></p>
           </div>
-          <div id="netRoom" hidden>
-            <div class="netrow">部屋コード <b id="netCodeShow"></b><button class="pickbtn" id="btnLeave">部屋を出る</button></div>
-            <ul id="netMembers"></ul>
+        </section>
+        <section id="setupScreen" class="setup-screen" hidden>
+          <div class="setup-inner">
+            <div class="setup-head"><button class="back-btn" id="btnSetupBack">← タイトル</button><h2>ゲーム設定</h2></div>
+            <div class="setup-panel">
+              <div class="step-label">1 所属する国</div><div class="pickrow" id="pickNation"></div>
+              <div class="step-label">2 役職</div><div class="pickrow" id="pickRole"></div>
+              <div id="roleDesc">役職を選ぶと詳細が表示されます。</div>
+              <div class="step-label">3 プレイ人数（各国）</div><div class="pickrow" id="pickSize"></div>
+              <div class="step-label">4 CPUレベル</div><div class="pickrow" id="pickCpu"></div>
+              <div id="cpuDesc"></div>
+              <div class="step-label">5 CPU戦 / 対人戦</div><div class="pickrow" id="pickMode"></div>
+              <div id="netBox" hidden>
+                <div id="netEntry" class="netrow">
+                  <input id="netNick" maxlength="12" placeholder="ニックネーム" aria-label="ニックネーム">
+                  <button class="pickbtn" id="btnHost">部屋を作る</button>
+                  <input id="netCode" maxlength="12" placeholder="部屋コード" aria-label="部屋コード" autocapitalize="off" autocomplete="off">
+                  <button class="pickbtn" id="btnJoin">部屋に参加する</button>
+                </div>
+                <div id="netRoom" hidden>
+                  <div class="netrow">部屋コード <b id="netCodeShow"></b><button class="pickbtn" id="btnLeave">部屋を出る</button></div>
+                  <ul id="netMembers"></ul>
+                </div>
+                <p id="netNote"></p>
+              </div>
+            </div>
+            <div class="setup-foot">
+              <div id="setupSummary" aria-live="polite"></div>
+              <div class="setup-go"><button class="pickbtn" id="btnRandom">おまかせ</button><button class="go" id="btnStart" disabled>ゲームスタート！</button></div>
+              <p id="setupMissing"></p>
+            </div>
+            <p class="controls-note">前進/後退:↑・↓　旋回:←・→　加速:Shift　捕獲:Space　特殊:Z　振り向き:Q<br>分隊:X 付いてこい　C 周りを警戒しろ　V ここを守れ　合図:1 王 2 助けて 3 集合 4 敵多数　管制塔で王を照らす:B　影武者（王）:F<br>カメラは常にキャラクターの背後。背中は見えないので、気配と足音に注意。</p>
           </div>
-          <p id="netNote"></p>
-        </div>
-        </div>
-        <p id="recordLine"></p>
-        <p class="controls-note">前進/後退:↑・↓　旋回:←・→　加速:Shift　捕獲:Space　特殊:Z　振り向き:Q<br>分隊:X 付いてこい　C 周りを警戒しろ　V ここを守れ　合図:1 王 2 助けて 3 集合 4 敵多数　管制塔で王を照らす:B　影武者（王）:F　カメラの上下:ドラッグ/スワイプ（距離:ホイール）<br>カメラは常にキャラクターの背後。背中は見えないので、気配と足音に注意。</p>
-        </div>
+        </section>
       </div>
       <div id="overlay">
-        <h1 id="ovTitle">勝敗</h1><p id="ovDesc"></p>
-        <p id="ovStats" style="font-size:11.5px;opacity:.9;white-space:pre-line"></p>
-        <div id="ovRecap"></div>
-        <p id="ovRecord"></p>
-        <button id="btnRetry">もう一度プレイ</button>
+        <div class="result">
+          <header class="res-head"><h1 id="ovTitle">勝敗</h1><p id="ovDesc"></p></header>
+          <section class="res-me">
+            <div class="res-me-main">
+              <small class="res-label">YOUR RESULT あなたの戦績</small>
+              <div id="resWho"></div>
+              <div id="resTitle"></div>
+              <div class="res-score"><span id="resScore">0</span><small>pt 貢献度</small></div>
+              <div class="res-ranks"><div><small>総合順位</small><b id="resRank">-</b></div><div><small>自国内順位</small><b id="resNationRank">-</b></div></div>
+            </div>
+            <div class="res-me-side">
+              <h3>詳細戦績</h3><dl id="resStats"></dl>
+              <h3>貢献度の内訳</h3><ul id="resBreakdown"></ul>
+            </div>
+          </section>
+          <section class="res-rank"><h3>試合貢献度ランキング</h3><ol id="resRanking"></ol></section>
+          <section class="res-nations"><h3>各国の戦績</h3><div id="resNations"></div></section>
+          <p id="ovStats" hidden></p>
+          <details class="res-recap"><summary>試合の流れ・活躍</summary><div id="ovRecap"></div></details>
+          <p id="ovRecord"></p>
+          <div class="res-actions"><button class="go" id="btnRetry">もう一度遊ぶ</button><button class="pickbtn" id="btnResSetup">設定を変更</button><button class="pickbtn" id="btnResTitle">タイトルへ戻る</button></div>
+        </div>
       </div>
+      <div id="tutorialCard" hidden><div class="tut-progress" id="tutProgress"></div><h3 id="tutTitle"></h3><p id="tutText"></p><div class="tut-actions" id="tutActions"></div></div>
       <div id="meetingOverlay">
         <h1 id="meetingTitle">緊急会議</h1>
         <div id="meetingLog"></div>

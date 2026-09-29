@@ -1,55 +1,210 @@
-import { NATIONS, NATION_IDS } from '../config/nations';
-import type { Entity } from '../sim/entity';
+import { NATIONS, NATION_IDS, nationCss } from '../config/nations';
+import { nameOf } from '../config/names';
+import type { RoleId } from '../config/roles';
+import { roleName } from '../config/roles';
+import type { Contrib } from '../sim/contrib';
+import { contribution, ranking, titleFor } from '../sim/contrib';
 import type { GameState } from '../sim/state';
-import { elapsedSec } from '../sim/state';
-import { GAME_TIME, MEETINGS_PER_GAME } from '../config/constants';
-import { nationScore, scoreBreakdown } from '../sim/systems/winCondition';
+import { elapsedSec, kingOf } from '../sim/state';
+import { GAME_TIME } from '../config/constants';
+import { nationScore } from '../sim/systems/winCondition';
 import { $ } from './dom';
 import type { Recap } from './recap';
 import { recordLine, recordMatch } from './records';
 
-function roleComment(p: Entity): string {
-  if (p.role === 'king') return p.alive ? '最後まで正体を隠し切った策士' : '見破られてしまったようだ';
-  if (p.role === 'soldier') return p.capturesMade >= 3 ? '前線突破型の武闘派' : '手堅く連携するサポート型';
-  if (p.role === 'sniper') return p.capturesMade >= 2 ? '狙撃の名手' : '支援に徹した堅実プレイ';
-  if (p.role === 'communicator') return p.towerTime >= 25 ? '情報戦を制した要' : '塔の確保に苦労した様子';
-  if (p.role === 'keyholder') return p.rescuesMade >= 2 ? '救出のスペシャリスト' : '慎重な立ち回りだった';
-  return '潜入と攪乱で戦況をかき乱した詐欺師';
+export interface ResultActions {
+  retry(): void;
+  settings(): void;
+  title(): void;
 }
 
-export function initResultView(): void {
-  $('btnRetry').onclick = () => location.reload();
+/** The three buttons under the result (what they do is the screen flow's business). */
+export function initResultView(actions: ResultActions): void {
+  const once = (f: () => void) => () => {
+    for (const id of ['btnRetry', 'btnResSetup', 'btnResTitle']) ($(id) as HTMLButtonElement).disabled = true;
+    $('overlay').classList.add('leaving');
+    setTimeout(f, 180);
+  };
+  $('btnRetry').onclick = once(actions.retry);
+  $('btnResSetup').onclick = once(actions.settings);
+  $('btnResTitle').onclick = once(actions.title);
 }
+
+/** Detailed stats, the ones that matter most for your role first. */
+type StatKey = 'cap' | 'res' | 'kingHit' | 'kingCap' | 'kingRes' | 'sector' | 'tower' | 'survive' | 'dash' | 'snipe' | 'escort';
+const ORDER: Record<RoleId, StatKey[]> = {
+  king: ['survive', 'cap', 'kingHit', 'res', 'sector', 'tower', 'kingCap', 'kingRes', 'dash'],
+  soldier: ['cap', 'escort', 'kingHit', 'kingCap', 'sector', 'res', 'tower', 'survive', 'dash'],
+  ranger: ['cap', 'sector', 'kingHit', 'kingCap', 'res', 'dash', 'tower', 'kingRes', 'survive'],
+  sniper: ['snipe', 'cap', 'kingHit', 'kingCap', 'sector', 'res', 'tower', 'survive', 'dash'],
+  communicator: ['tower', 'sector', 'cap', 'kingHit', 'kingCap', 'res', 'kingRes', 'survive', 'dash'],
+  keyholder: ['res', 'kingRes', 'cap', 'kingHit', 'kingCap', 'sector', 'tower', 'survive', 'dash'],
+};
+
+function statLine(k: StatKey, r: Contrib, survive: number, dash: number): [string, string] {
+  switch (k) {
+    case 'cap': return ['捕獲数', `${r.cap}`];
+    case 'res': return ['救出数', `${r.res}`];
+    case 'kingHit': return ['王への攻撃', `${r.kingHit}`];
+    case 'kingCap': return ['王捕獲', `${r.kingCap}`];
+    case 'kingRes': return ['王救出', `${r.kingRes}`];
+    case 'sector': return ['戦区制圧貢献', `参加${r.secJoin}・奪取${r.secSteal}`];
+    case 'tower': return ['管制塔貢献', `占領${r.towerCap}・${Math.round(r.towerSec)}秒`];
+    case 'survive': return ['生存時間', fmtTime(survive)];
+    case 'dash': return ['ダッシュ距離', `${Math.round(dash / 25)}m`];
+    case 'snipe': return ['狙撃命中', `${r.snipeHit}（援護${r.snipeAssist}）`];
+    case 'escort': return ['王の護衛', `${Math.round(r.escortSec)}秒`];
+  }
+}
+
+const fmtTime = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec) % 60).padStart(2, '0')}`;
 
 let recorded = false;
 
 export function showResult(state: GameState, recap?: Recap): void {
   const p = state.player, winner = state.winner;
+  document.body.dataset.screen = 'RESULT';
+  const ov = $('overlay');
+  ov.style.display = 'flex';
+  ov.classList.remove('leaving');
+  ov.scrollTop = 0;
+  const timeUp = elapsedSec(state) >= GAME_TIME - 0.5;
+  const kings = NATION_IDS.filter((n) => kingOf(state, n)?.alive);
+  // Header: who won.
+  const head = ov.querySelector('.res-head') as HTMLElement;
+  if (winner === 'draw' || !winner) {
+    $('ovTitle').textContent = '引き分け';
+    head.style.setProperty('--wc', '#e0b456');
+    $('ovDesc').textContent = timeUp ? '時間切れ ― 戦功ポイントが同点だった。' : 'すべての王が処刑された。';
+  } else {
+    $('ovTitle').textContent = NATIONS[winner].name + '国 勝利！';
+    head.style.setProperty('--wc', nationCss(winner));
+    $('ovDesc').textContent = (winner === p.nation ? 'あなたの国が勝利しました！' : 'あなたの国は敗北しました。')
+      + (timeUp && kings.length > 1 ? `（時間切れ・戦功ポイント判定：${kings.map((n) => `${NATIONS[n].name} ${nationScore(state, n)}`).join(' / ')}）` : '');
+  }
+  // You.
+  const ranks = ranking(state);
+  const mine = ranks.find((r) => r.id === p.id)!;
+  const sameNation = ranks.filter((r) => state.entities[r.id].nation === p.nation).length;
+  const c = contribution(state, p);
+  const total = state.contrib.totals?.[p.id] ?? c.total;
+  const r = state.contrib.table[p.id];
+  const who = $('resWho');
+  who.replaceChildren();
+  const crest = document.createElement('span');
+  crest.className = 'res-crest';
+  crest.style.setProperty('--nc', nationCss(p.nation));
+  crest.textContent = NATIONS[p.nation].emblem;
+  const wt = document.createElement('span');
+  wt.textContent = `${NATIONS[p.nation].name}国・${roleName(p.role)}`;
+  who.append(crest, wt);
+  $('resTitle').textContent = `称号「${titleFor(state, p)}」`;
+  countUp($('resScore'), total);
+  $('resRank').textContent = `${mine.rank}位 / ${ranks.length}人`;
+  $('resNationRank').textContent = `${mine.nationRank}位 / ${sameNation}人`;
+  const survive = p.eliminatedAt != null ? p.eliminatedAt : Math.max(r.survivedSec, elapsedSec(state));
+  const dl = $('resStats');
+  dl.replaceChildren();
+  for (const k of ORDER[p.role]) {
+    const [label, value] = statLine(k, r, survive, Math.max(r.dash, p.dashDistance));
+    const dt = document.createElement('dt'), dd = document.createElement('dd');
+    dt.textContent = label;
+    dd.textContent = value;
+    dl.append(dt, dd);
+  }
+  const ul = $('resBreakdown');
+  ul.replaceChildren();
+  const lines = [...c.base, ...c.role.map((l) => ({ ...l, role: true }))];
+  if (!lines.length) {
+    const li = document.createElement('li');
+    li.className = 'none';
+    li.textContent = '今回は得点なし';
+    ul.append(li);
+  }
+  for (const l of lines) {
+    const li = document.createElement('li');
+    if ('role' in l) li.className = 'role';
+    const a = document.createElement('span'), b = document.createElement('b');
+    a.textContent = l.label;
+    b.textContent = `+${l.pts}`;
+    li.append(a, b);
+    ul.append(li);
+  }
+  // Everyone.
+  const ol = $('resRanking');
+  ol.replaceChildren();
+  ranks.forEach((row, i) => {
+    const e = state.entities[row.id];
+    const li = document.createElement('li');
+    li.className = 'rk-row' + (e.id === p.id ? ' me' : '') + (state.winner === e.nation ? ' won' : '');
+    li.style.setProperty('--nc', nationCss(e.nation));
+    li.style.animationDelay = `${Math.min(i, 30) * 35}ms`;
+    const rank = document.createElement('span');
+    rank.className = 'rk-rank';
+    rank.textContent = String(row.rank);
+    const em = document.createElement('span');
+    em.className = 'rk-crest';
+    em.textContent = NATIONS[e.nation].emblem;
+    const name = document.createElement('span');
+    name.className = 'rk-name';
+    const nick = state.humanNames[e.id];
+    name.textContent = e.id === p.id ? (nick ?? nameOf(e.id)) + '（あなた）' : nick ?? nameOf(e.id);
+    const role = document.createElement('span');
+    role.className = 'rk-role';
+    role.textContent = roleName(e.role) + (e.role === 'king' ? (e.alive ? '' : '・処刑') : !e.alive ? '・処刑' : '');
+    const pts = document.createElement('b');
+    pts.className = 'rk-pts';
+    pts.textContent = `${row.total}`;
+    li.append(rank, em, name, role, pts);
+    ol.append(li);
+  });
+  requestAnimationFrame(() => {
+    const meRow = ol.querySelector('.me') as HTMLElement | null;
+    if (!meRow) return;
+    // Bring your own row into the list's view (only the list scrolls, not the page).
+    const top = meRow.getBoundingClientRect().top - ol.getBoundingClientRect().top + ol.scrollTop;
+    if (top + meRow.offsetHeight > ol.clientHeight) ol.scrollTop = top - ol.clientHeight / 2;
+  });
+  // Nations.
+  const nat = $('resNations');
+  nat.replaceChildren();
+  for (const n of NATION_IDS) {
+    const k = kingOf(state, n);
+    const card = document.createElement('div');
+    card.className = 'rn-card' + (winner === n ? ' won' : '');
+    card.style.setProperty('--nc', nationCss(n));
+    const h = document.createElement('div');
+    h.className = 'rn-head';
+    h.textContent = `${NATIONS[n].emblem} ${NATIONS[n].name}国${winner === n ? '　勝利' : ''}`;
+    const s = state.natStats[n];
+    const sectors = state.war.sectors.filter((x) => x.owner === n).length;
+    const kingState = !k ? '―' : !k.alive ? '処刑' : k.jailed ? '捕縛中' : '生存';
+    const body = document.createElement('dl');
+    for (const [a, b] of [['捕獲', `${s.cap}`], ['救出', `${s.res}`], ['戦区', `${sectors}`], ['王', kingState]]) {
+      const dt = document.createElement('dt'), dd = document.createElement('dd');
+      dt.textContent = a;
+      dd.textContent = b;
+      if (a === '王') dd.className = kingState === '生存' ? 'ok' : 'ng';
+      body.append(dt, dd);
+    }
+    card.append(h, body);
+    nat.append(card);
+  }
   if (recap) $('ovRecap').replaceChildren(recap.render());
   if (!recorded) {
     recorded = true;
     $('ovRecord').textContent = recordLine(recordMatch(p.role, p.nation, winner, p.capturesMade, p.rescuesMade), p.role);
   }
-  $('overlay').style.display = 'flex';
-  const timeUp = elapsedSec(state) >= GAME_TIME - 0.5;
-  const kings = NATION_IDS.filter((n) => state.entities.some((e) => e.nation === n && e.role === 'king' && e.alive));
-  if (winner === 'draw' || !winner) {
-    $('ovTitle').textContent = '引き分け';
-    $('ovDesc').textContent = timeUp ? '時間切れ。戦功ポイントが同点だった。' : '全ての王が処刑された。';
-  } else {
-    $('ovTitle').textContent = NATIONS[winner].name + '国の勝利！';
-    $('ovDesc').textContent = (winner === p.nation ? 'あなたの国が勝利しました！' : 'あなたの国は敗北しました。')
-      + (timeUp && kings.length > 1 ? '（時間切れ・戦功ポイントで判定）' : '');
-  }
-  // Time-up between several kingdoms: show how the score was made up.
-  const scores = timeUp && kings.length > 1
-    ? kings.map((n) => `${NATIONS[n].name} ${nationScore(state, n)}点（` + scoreBreakdown(state, n).filter((b) => b.pts).map((b) => `${b.label}${b.pts > 0 ? '+' : ''}${b.pts}`).join(' ') + '）').join('\n') + '\n\n'
-    : '';
-  const survive = p.eliminatedAt != null ? p.eliminatedAt : elapsedSec(state);
-  $('ovStats').textContent = scores +
-    '捕獲数:' + p.capturesMade + '　救出数:' + p.rescuesMade + '　王への攻撃:' + p.kingHits +
-    '\n王の捕獲貢献:' + p.kingCaptures + '　王の救出貢献:' + p.kingRescues +
-    '\n管制塔滞在:' + Math.round(p.towerTime) + '秒　敵発見数:' + p.enemiesSeen.size +
-    '\nダッシュ距離:' + Math.round(p.dashDistance) + '　生存時間:' + Math.round(survive) + '秒　会議:' + state.meetingsHeld + '回（うち緊急' + (MEETINGS_PER_GAME - p.meetingsLeft) + '回）' +
-    '\n評価: ' + roleComment(p);
+}
+
+/** The score rolls up to its value (light, skipped when motion is reduced). */
+function countUp(el: HTMLElement, to: number): void {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches || to <= 0) { el.textContent = String(to); return; }
+  const t0 = performance.now(), dur = 900;
+  const tick = () => {
+    const k = Math.min(1, (performance.now() - t0) / dur);
+    el.textContent = String(Math.round(to * (1 - Math.pow(1 - k, 3))));
+    if (k < 1) requestAnimationFrame(tick);
+  };
+  tick();
 }

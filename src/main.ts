@@ -32,8 +32,10 @@ import { bindMessages } from './ui/messages';
 import { Minimap } from './ui/minimap';
 import { initResultView, showResult } from './ui/resultView';
 import { Recap } from './ui/recap';
-import { PracticeGuide } from './ui/practice';
-import { canRescue } from './sim/systems/rescue';
+import { TutorialGuide } from './ui/tutorial';
+import type { AppScreen, Settings } from './ui/flow';
+import { bootScreen, loadSettings, next, saveSettings, setIntent, takeIntent } from './ui/flow';
+import type { CpuLevel } from './ai/difficulty';
 import { loadRecords, recordLine } from './ui/records';
 import { initSetupScreen } from './ui/setupScreen';
 import type { OnlineStart } from './ui/onlineLobby';
@@ -62,7 +64,21 @@ const hud = new Hud();
 const log = new LogPanel();
 const minimap = new Minimap();
 const meetingView = new MeetingView();
-initResultView();
+/** Browser storage, if this browser allows it (private windows may not). */
+const store = (k: 'localStorage' | 'sessionStorage'): Storage | null => { try { return window[k]; } catch { return null; } };
+let settings: Settings = loadSettings(store('localStorage'));
+let screen: AppScreen = 'TITLE';
+/** Leaves this page for another screen: the 3D city is built once per page, so a new match is a fresh page. */
+const goVia = (to: AppScreen) => {
+  setIntent(store('sessionStorage'), to);
+  document.body.classList.add('leaving');
+  setTimeout(() => location.reload(), 160);
+};
+initResultView({
+  retry: () => goVia(next('RESULT', { type: 'RETRY' }, settings).screen),
+  settings: () => goVia(next('RESULT', { type: 'CHANGE_SETTINGS' }, settings).screen),
+  title: () => goVia(next('RESULT', { type: 'TITLE' }, settings).screen),
+});
 $('recordLine').textContent = recordLine(loadRecords());
 initDrawers(canvas);
 watchCanvasSize();
@@ -88,11 +104,32 @@ musicBtn.onclick = () => {
   showMusic();
 };
 
-function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode = { kind: 'solo' }): void {
+/** Shows one screen of the flow (the match screens hide the title / settings). */
+function showScreen(to: AppScreen): void {
+  screen = to;
+  document.body.dataset.screen = to;
+  const menu = to === 'TITLE' || to === 'SETUP';
+  $('setup').style.display = menu ? '' : 'none';
+  $('titleScreen').hidden = to !== 'TITLE';
+  $('setupScreen').hidden = to !== 'SETUP';
+  if (menu) {
+    const shown = $(to === 'TITLE' ? 'titleScreen' : 'setupScreen');
+    shown.classList.remove('enter');
+    void shown.offsetWidth;
+    shown.classList.add('enter');
+    $('setup').scrollTop = 0;
+  }
+}
+
+function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode = { kind: 'solo' }, opts: { cpu?: CpuLevel; tutorial?: boolean } = {}): void {
   const online = mode.kind === 'solo' ? undefined : mode.start;
+  showScreen(opts.tutorial ? 'TUTORIAL' : 'PLAYING');
   const state = online
     ? createGameState(nation, role, createRng(online.info.seed), size, { seats: seatsOf(online.info), me: online.me })
     : createGameState(nation, role, undefined, size);
+  // Only the host (or a single player) runs the AI, so only its level counts.
+  state.cpuLevel = opts.cpu ?? 'normal';
+  if (opts.tutorial) state.tutorial = state.practice = true;
   const host = mode.kind === 'host' ? new HostLink(mode.start.lobby.room, mode.start.info, state.humans) : null;
   const client = mode.kind === 'client' ? new ClientLink(mode.start.lobby.room, mode.start.info.seats[0][0], performance.now()) : null;
   const names = new Map<number, string>(online ? online.info.seats.map((s, i) => [state.humans[i], s[3]]) : []);
@@ -112,16 +149,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
   bindMessages(bus, state, log, hud);
   bindSfx(bus, state);
   const recap = new Recap(bus, state);
-  const practice = mode.kind === 'solo' && practiceNext ? new PracticeGuide(bus, state, hud) : null;
-  if (practice) {
-    state.practice = true;
-    // One friend waits in an enemy jail, to practise a rescue.
-    if (canRescue(state, state.player)) {
-      const pal = state.entities.find((e) => e.nation === state.player.nation && !e.isPlayer && e.role === 'soldier');
-      if (pal) sendToJail(state, pal, NATION_IDS.find((n) => n !== state.player.nation)!, null);
-    }
-  }
-  bus.on('GAME_OVER', () => showResult(state, recap));
+  bus.on('GAME_OVER', () => { if (!state.tutorial) showResult(state, recap); });
   bus.on('ELIMINATED', (ev) => { if (state.entities[ev.entityId].nation === state.player.nation) music.gong(); });
   bus.on('RESCUED', (ev) => { if (state.entities[ev.targetId].nation === state.player.nation) music.chime(); });
   bus.on('MEETING_OPENED', () => {
@@ -187,16 +215,22 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
   if (online) $('btnMeeting').style.display = 'none'; // no emergency meetings online (the whole match would stop)
 
   hud.initFor(state);
+  const tutorial = opts.tutorial ? new TutorialGuide(bus, state, hud, {
+    title: () => goVia(next('TUTORIAL', { type: 'TITLE' }, settings).screen),
+    play: () => goVia(next('TUTORIAL', { type: 'TUTORIAL_PLAY' }, settings).screen),
+  }) : null;
   const me = state.player;
   if (online) {
     log.add(`オンライン対戦：部屋 ${online.lobby.code}・${online.info.seats.length}人。同じ国は味方、ほかの国は敵。`);
     if (host) log.add('あなたがホストです。このタブを閉じると試合が終わります。');
-  } else log.add('v7.22: 王は1回だけ影武者を立てられる（F）。走る敵の足跡・聞こえる足音の向き・BGM（♪でオンオフ）。試合が進むと夜になる（街灯の下は遠くからでも見える）。1〜4キー（スマホは「合図」）で味方に合図：王・助けて・集合・敵多数。王と「最後の一人」も救出できる（牢屋の仲間のそばでZ）。終盤は管制塔で敵の王を照らせる（B）。味方の頭上に名前と役職。東京は9つの戦区。画面の紋章マーカーが戦略拠点（輪が制圧ゲージ）、街の幟の色がその戦区の支配国。拠点に立ち続けると制圧。ミニマップに勢力と前線。↑↓で前後、←→で旋回、Shiftで加速、Spaceで捕獲、Zで特殊、Qで振り向き。分隊はX 付いてこい・C 周りを警戒・V ここを守れ。');
-  hud.banner('三国ドロケイ 開始　' + NATIONS[me.nation].name + 'の' + roleName(me.role), 2200);
+  } else if (tutorial) log.add('チュートリアル：CPUは止まっていて、あなたは捕まらない。上のカードの指示に従って操作してみよう。');
+  else log.add('v7.23: 王は1回だけ影武者を立てられる（F）。走る敵の足跡・聞こえる足音の向き・BGM（♪でオンオフ）。試合が進むと夜になる（街灯の下は遠くからでも見える）。1〜4キー（スマホは「合図」）で味方に合図：王・助けて・集合・敵多数。王と「最後の一人」も救出できる（牢屋の仲間のそばでZ）。終盤は管制塔で敵の王を照らせる（B）。味方の頭上に名前と役職。東京は9つの戦区。画面の紋章マーカーが戦略拠点（輪が制圧ゲージ）、街の幟の色がその戦区の支配国。拠点に立ち続けると制圧。ミニマップに勢力と前線。↑↓で前後、←→で旋回、Shiftで加速、Spaceで捕獲、Zで特殊、Qで振り向き。分隊はX 付いてこい・C 周りを警戒・V ここを守れ。');
+  if (!tutorial) hud.banner('三国ドロケイ 開始　' + NATIONS[me.nation].name + 'の' + roleName(me.role), 2200);
   const tags = new NameTags($('nametags'), state, names);
   resizeRenderer(refs, canvas);
   cam.snap(Math.atan2(state.player.dirX, state.player.dirZ));
-  if (new URLSearchParams(location.search).has('debug')) exposeDebug(state, cam);
+  if (tutorial) tutorial.onFace = (dx, dz) => cam.snap(Math.atan2(dx, dz));
+  if (new URLSearchParams(location.search).has('debug')) exposeDebug(state, cam, tutorial);
 
   /** The host's frame: friends' input in, simulation, snapshot out. */
   const simulate = (frameMs: number) => {
@@ -287,7 +321,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
     pingView.sync(state, state.player.nation);
     setNightfall(refs, nightFactor(state));
     footprints.sync(state, cam.yaw);
-    practice?.sync();
+    tutorial?.sync();
     music.setTension(tensionOf(state));
     pingMarkers.sync(state, refs.camera, names, !!state.meeting || state.over);
     tags.sync(state, entityView, refs.camera, clock.alpha);
@@ -352,8 +386,11 @@ function watchCanvasSize(): void {
 }
 
 /** Read-only hooks for automated browser checks (`?debug`). */
-function exposeDebug(state: GameState, cam: CameraController): void {
+function exposeDebug(state: GameState, cam: CameraController, tutorial: TutorialGuide | null): void {
   (window as unknown as { __sangoku: unknown }).__sangoku = {
+    screen: () => screen,
+    tutorialStep: () => tutorial?.step ?? null,
+    cpuLevel: () => state.cpuLevel,
     humans: () => state.humans,
     online: () => ({ me: state.player.id, humans: state.humans, remote: state.entities.filter((e) => e.remote).map((e) => e.id), meetingReady: state.meeting?.ready ?? null }),
     player: () => ({ x: state.player.x, y: state.player.y, z: state.player.z, dirX: state.player.dirX, dirZ: state.player.dirZ, capCd: state.player.cd.capture, jailed: state.player.jailed }),
@@ -388,12 +425,21 @@ function exposeDebug(state: GameState, cam: CameraController): void {
   };
 }
 
-let practiceNext = false;
-const setup = initSetupScreen(startGame, () => { practiceNext = true; });
+const setup = initSetupScreen(settings,
+  (s) => { if (next(screen, { type: 'START' }, s).effect === 'startMatch') startGame(s.nation!, s.role!, s.size, { kind: 'solo' }, { cpu: s.cpu }); },
+  (s) => { settings = s; saveSettings(store('localStorage'), s); });
 initOnlineLobby(setup, (start) => {
-  $('setup').style.display = 'none';
   const seat = start.info.seats[start.me];
-  startGame(seat[1], seat[2], start.info.size, { kind: start.me === 0 ? 'host' : 'client', start });
+  startGame(seat[1], seat[2], start.info.size, { kind: start.me === 0 ? 'host' : 'client', start }, { cpu: settings.cpu });
 });
+const startTutorial = () => startGame('sun', 'keyholder', 6, { kind: 'solo' }, { tutorial: true });
+$('btnPlay').onclick = () => showScreen(next(screen, { type: 'PLAY' }, settings).screen);
+$('btnTutorial').onclick = () => { if (next(screen, { type: 'TUTORIAL' }, settings).effect === 'startTutorial') startTutorial(); };
+$('btnSetupBack').onclick = () => showScreen(next(screen, { type: 'TITLE' }, settings).screen);
+// Start-up: the title, or where the last page asked to land (もう一度遊ぶ / 設定を変更 / そのままプレイ).
+const first = bootScreen(takeIntent(store('sessionStorage')), settings);
+if (first === 'PLAYING') startGame(settings.nation!, settings.role!, settings.size, { kind: 'solo' }, { cpu: settings.cpu });
+else if (first === 'TUTORIAL') startTutorial();
+else showScreen(first);
 // Build the AI's navigation graph while the player is still on the start screen.
 setTimeout(() => navGraph(), 300);

@@ -20,6 +20,7 @@ const smooth = (a: number, b: number, x: number) => {
 
 /** 0 at dusk … 1 at full night. */
 export function nightFactor(state: GameState): number {
+  if (state.tutorial) return 0;
   return smooth(NIGHT_START, 1, elapsedSec(state) / GAME_TIME);
 }
 

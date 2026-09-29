@@ -101,6 +101,8 @@ export interface GameState {
   practice: boolean;
   /** 貢献度: what each person did, for the result screen (same rules for CPUs and people). */
   contrib: ContribState;
+  /** チュートリアル: the CPUs stand by, no time limit, meetings, events, night or executions. */
+  tutorial: boolean;
   /** CPUレベル: how the AI decides (never its speed, reach or toughness). */
   cpuLevel: CpuLevel;
   /** The king's double (影武者), per nation, and whether it has been used this match. */
@@ -216,6 +218,7 @@ export function createGameState(
     pings: [],
     practice: false,
     cpuLevel: 'normal',
+    tutorial: false,
     contrib: createContrib(entities.length),
     decoy: perNation<{ id: number; until: number } | null>(() => null),
     decoyUsed: perNation(() => false),

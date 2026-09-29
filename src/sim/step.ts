@@ -80,25 +80,25 @@ export function stepSimulation(state: GameState, dt: number): void {
   const firstEvent = state.events.length;
   for (const e of state.entities) { e.prevX = e.x; e.prevY = e.y; e.prevZ = e.z; }
   state.time += dt * 1000;
-  if (timeLeftSec(state) <= 0) forceEndByTime(state);
+  // チュートリアル: no time limit, the CPUs stand by, nothing is scheduled, nobody is executed.
+  const tut = state.tutorial;
+  if (!tut && timeLeftSec(state) <= 0) forceEndByTime(state);
   runPlayerCommands(state);
   updatePlayerMovement(state, dt);
   applyRemotePoses(state, dt);
   factionTick(state);
   const aggro = aggroFor(state);
-  for (const e of state.entities) if (!isHuman(e)) aiTick(state, e, dt, aggro);
+  if (!tut) for (const e of state.entities) if (!isHuman(e)) aiTick(state, e, dt, aggro);
   separate(state);
   settleAll(state, dt);
   for (const e of state.entities) { updateRescue(state, e, dt); updateSuspicion(state, e, dt); }
   tickCooldowns(state, dt);
-  updateJailTimers(state);
+  if (!tut) updateJailTimers(state);
   updateEnemiesSeen(state);
   towerTick(state, dt);
   pingTick(state);
-  nightTick(state, dt);
-  aiPings(state);
+  if (!tut) { nightTick(state, dt); aiPings(state); }
   warTick(state, dt);
-  eventTick(state);
-  scheduledMeetingTick(state);
+  if (!tut) { eventTick(state); scheduledMeetingTick(state); }
   contribTick(state, firstEvent, dt);
 }
