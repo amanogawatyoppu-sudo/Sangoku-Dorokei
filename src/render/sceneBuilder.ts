@@ -666,7 +666,7 @@ const DUSK = {
 };
 const NIGHT = {
   top: new THREE.Color(0x05081a), mid: new THREE.Color(0x141a36), horizon: new THREE.Color(0x3a2440), fog: new THREE.Color(0x1a1c2c),
-  sun: new THREE.Color(0x8c96d0), hemiSky: new THREE.Color(0x4a5688), hemiGround: new THREE.Color(0x221c26),
+  sun: new THREE.Color(0x9aa6dc), hemiSky: new THREE.Color(0x6474a8), hemiGround: new THREE.Color(0x2c2632),
 };
 
 /**
@@ -684,13 +684,13 @@ export function setNightfall(refs: SceneRefs, k: number): void {
   const fog = refs.scene.fog as THREE.Fog;
   mix(DUSK.fog, NIGHT.fog, fog.color);
   (refs.scene.background as THREE.Color).copy(fog.color);
-  fog.far = FOG_FAR - 4000 * k;
+  fog.far = FOG_FAR - 3000 * k;
   mix(DUSK.sun, NIGHT.sun, refs.sun.color);
-  refs.sun.intensity = (1.0 - 0.8 * k) * L;
+  refs.sun.intensity = (1.0 - 0.62 * k) * L;
   mix(DUSK.hemiSky, NIGHT.hemiSky, n.hemi.color);
   mix(DUSK.hemiGround, NIGHT.hemiGround, n.hemi.groundColor);
-  n.hemi.intensity = (0.72 - 0.38 * k) * L;
-  n.amb.intensity = (0.12 - 0.04 * k) * L;
+  n.hemi.intensity = (0.72 - 0.22 * k) * L;
+  n.amb.intensity = (0.12 - 0.01 * k) * L;
   for (const g of NIGHT_GLOW) g.set(k);
 }
 

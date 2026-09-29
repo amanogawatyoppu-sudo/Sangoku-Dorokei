@@ -355,9 +355,9 @@ export function buildCity(scene: THREE.Scene): void {
   }
   for (const k of ['glass', 'concrete', 'tileA', 'tileB', 'apartment', 'house', 'shop']) groundGrime(mats[k]);
   // After dark the windows, shops and signs carry the city.
-  for (const k of ['glass', 'concrete', 'tileA', 'tileB', 'apartment', 'house']) glowAtNight(mats[k] as THREE.MeshStandardMaterial, 0.45, 1.0);
-  glowAtNight(mats.shop as THREE.MeshStandardMaterial, 0.42, 0.85);
-  glowAtNight(mats.sign as THREE.MeshStandardMaterial, 0.55, 1.1);
+  for (const k of ['glass', 'concrete', 'tileA', 'tileB', 'apartment', 'house']) glowAtNight(mats[k] as THREE.MeshStandardMaterial, 0.45, 0.75);
+  glowAtNight(mats.shop as THREE.MeshStandardMaterial, 0.42, 0.7);
+  glowAtNight(mats.sign as THREE.MeshStandardMaterial, 0.55, 0.95);
   for (const m of [mats.zebra, mats.lines, mats.tactile, mats.asphalt]) {
     (m as THREE.MeshStandardMaterial).polygonOffset = true;
     (m as THREE.MeshStandardMaterial).polygonOffsetFactor = -1;
