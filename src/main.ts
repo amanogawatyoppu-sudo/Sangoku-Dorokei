@@ -13,7 +13,8 @@ import { CameraController } from './render/cameraController';
 import { EntityView, lerp } from './render/entityView';
 import { Indicators } from './render/indicators';
 import { Effects } from './render/effects';
-import { buildScene, followSun, resizeRenderer, updateTrain } from './render/sceneBuilder';
+import { buildScene, followSun, resizeRenderer, setNightfall, updateTrain } from './render/sceneBuilder';
+import { nightFactor } from './sim/night';
 import { navGraph } from './ai/nav';
 import type { GameEvent } from './sim/events';
 import { advanceFrame } from './sim/game';
@@ -246,6 +247,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
     warView.sync(state);
     objectives.sync(state, refs.camera, !!state.meeting || state.over);
     pingView.sync(state, state.player.nation);
+    setNightfall(refs, nightFactor(state));
     pingMarkers.sync(state, refs.camera, names, !!state.meeting || state.over);
     tags.sync(state, entityView, refs.camera, clock.alpha);
   });

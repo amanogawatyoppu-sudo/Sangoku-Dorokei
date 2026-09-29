@@ -24,7 +24,7 @@ export function towerTick(state: GameState, dt: number): void {
     } else if (!inside[n]) state.tower.channel[n] = Math.max(0, state.tower.channel[n] - dt * 500);
   }
   const left = timeLeftSec(state);
-  if (left <= GAME_TIME / 3 && left + dt > GAME_TIME / 3) emit(state, { type: 'BEACON_PHASE' });
+  if (left <= GAME_TIME / 3 + 1e-6 && left + dt > GAME_TIME / 3 + 1e-6) emit(state, { type: 'BEACON_PHASE' });
   // Commanders of a nation without people in it light the kings as soon as they can.
   const o = state.tower.owner;
   if (o && !state.humans.some((id) => state.entities[id].nation === o)) lightKings(state, o);

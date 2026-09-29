@@ -11,6 +11,8 @@ import {
 } from './textures';
 import type { FacadeKind } from './textures';
 import { buildStreetProps } from './streetProps';
+import { NIGHT_GLOW, glowAtNight } from './nightGlow';
+import { LAMP_R } from '../sim/night';
 
 /**
  * The city at street level: buildings with storey-accurate façades, shopfronts
@@ -352,6 +354,10 @@ export function buildCity(scene: THREE.Scene): void {
     m.roughness = 1;
   }
   for (const k of ['glass', 'concrete', 'tileA', 'tileB', 'apartment', 'house', 'shop']) groundGrime(mats[k]);
+  // After dark the windows, shops and signs carry the city.
+  for (const k of ['glass', 'concrete', 'tileA', 'tileB', 'apartment', 'house']) glowAtNight(mats[k] as THREE.MeshStandardMaterial, 0.45, 1.0);
+  glowAtNight(mats.shop as THREE.MeshStandardMaterial, 0.42, 0.85);
+  glowAtNight(mats.sign as THREE.MeshStandardMaterial, 0.55, 1.1);
   for (const m of [mats.zebra, mats.lines, mats.tactile, mats.asphalt]) {
     (m as THREE.MeshStandardMaterial).polygonOffset = true;
     (m as THREE.MeshStandardMaterial).polygonOffsetFactor = -1;
@@ -481,10 +487,16 @@ function buildFurniture(scene: THREE.Scene): void {
   });
   const haloGeo = new THREE.BufferGeometry();
   haloGeo.setAttribute('position', new THREE.BufferAttribute(heads, 3));
-  add(new THREE.Points(haloGeo, new THREE.PointsMaterial({ map: glow, color: 0xffd9a0, size: 95, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending })));
-  const poolMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(170, 170),
+  const haloMat = new THREE.PointsMaterial({ map: glow, color: 0xffd9a0, size: 95, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending });
+  add(new THREE.Points(haloGeo, haloMat));
+  NIGHT_GLOW.push({ set: (k) => { haloMat.size = 95 + 45 * k; haloMat.opacity = 0.8 + 0.2 * k; } });
+  // The pool is the lamp's lit area in the rules (LAMP_R): at night, people in it are seen from afar.
+  const poolMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(LAMP_R * 2, LAMP_R * 2),
     new THREE.MeshBasicMaterial({ map: glow, color: 0x8a6a3a, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }), pools.length);
   pools.forEach((m, i) => poolMesh.setMatrixAt(i, m));
+  // Pools of lamp light read much stronger at night (they are where you can be seen).
+  const poolDusk = new THREE.Color(0x8a6a3a), poolNight = new THREE.Color(0xd8a860);
+  NIGHT_GLOW.push({ set: (k) => { (poolMesh.material as THREE.MeshBasicMaterial).color.copy(poolDusk).lerp(poolNight, k); } });
   poolMesh.renderOrder = 1;
   add(poolMesh);
 

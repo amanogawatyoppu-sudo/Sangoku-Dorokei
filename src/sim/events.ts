@@ -36,6 +36,8 @@ export type GameEvent =
   | { type: 'KING_BEACON'; nation: NationId; untilMs: number }
   /** The last third of the match began: the tower can light the kings from now on. */
   | { type: 'BEACON_PHASE' }
+  /** It is getting dark: vision shrinks except under lamps. */
+  | { type: 'NIGHTFALL' }
   /** Someone pinged (合図) their nation. */
   | { type: 'PING'; pingId: number; by: number; kind: 'king' | 'help' | 'gather' | 'danger' }
   | { type: 'RESCUE_FAILED'; rescuerId: number; targetId: number }

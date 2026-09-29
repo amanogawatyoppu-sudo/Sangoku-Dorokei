@@ -74,6 +74,10 @@ export function bindMessages(bus: EventBus<GameEvent>, state: GameState, log: Lo
     log.add(`【合図】${name}：${PING_LABEL[ev.kind]}`);
     if (!who.isPlayer) hud.toast(`${name}：${PING_LABEL[ev.kind]}`, ev.kind === 'king' ? 'rescue' : 'cap');
   });
+  bus.on('NIGHTFALL', () => {
+    log.add('【夜】日が沈んできた。遠くが見えにくくなる — 街灯の光の下にいる人だけは遠くからでも見える');
+    hud.banner('日が沈む — 街灯の下は目立つ', 2400);
+  });
   bus.on('BEACON_PHASE', () => {
     log.add('【管制塔】残り時間が3分の1を切った。管制塔を持つ国は敵国の王の位置を照らせる（B / 上部の「王を照らす」）');
     hud.banner(state.tower.owner === state.player.nation ? '管制塔：王を照らせるようになった！（B）' : '終盤戦 — 管制塔を取れば敵の王を照らせる', 2600);

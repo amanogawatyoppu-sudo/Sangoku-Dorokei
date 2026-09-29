@@ -6,6 +6,7 @@ import { GROUND, KANDA, LANDMARKS, LOOP, MAST_H, RIVER_WIDTH, STATIONS, STOREY, 
 import { rampHeight } from '../sim/systems/world';
 import { brickFacadeTexture, detailNoise, stoneFacadeTexture, emblemTexture, facadeTexture, groundTexture, latticeTexture, stoneTexture, viaductTexture } from './textures';
 import { buildCity } from './city';
+import { NIGHT_GLOW } from './nightGlow';
 
 export interface SceneRefs {
   renderer: THREE.WebGLRenderer;
@@ -17,6 +18,8 @@ export interface SceneRefs {
   sun: THREE.DirectionalLight;
   /** The Yamanote train running round the loop (animated by `updateTrain`). */
   train: THREE.Group;
+  /** What nightfall changes (see `setNightfall`). */
+  night: { sky: Record<'top' | 'mid' | 'horizon', { value: THREE.Color }> & { glow: { value: number } }; hemi: THREE.HemisphereLight; amb: THREE.AmbientLight; k: number };
 }
 
 /**
@@ -63,7 +66,7 @@ function shadowed<T extends THREE.Object3D>(o: T, cast = true, receive = true): 
 /** Far end of the fog: the skyline fades into haze a few kilometres out. */
 const FOG_NEAR = 1600, FOG_FAR = 10000;
 
-function buildSky(scene: THREE.Scene): void {
+function buildSky(scene: THREE.Scene): SceneRefs['night']['sky'] {
   const sky = new THREE.Mesh(
     new THREE.SphereGeometry(15000, 32, 16),
     new THREE.ShaderMaterial({
@@ -72,16 +75,16 @@ function buildSky(scene: THREE.Scene): void {
       fog: false,
       uniforms: {
         top: { value: new THREE.Color(COLORS.skyTop) }, mid: { value: new THREE.Color(COLORS.skyMid) },
-        horizon: { value: new THREE.Color(COLORS.skyHorizon) }, sunDir: { value: SUN_DIR.clone() },
+        horizon: { value: new THREE.Color(COLORS.skyHorizon) }, sunDir: { value: SUN_DIR.clone() }, glow: { value: 1 },
       },
       vertexShader: 'varying vec3 vPos; void main(){ vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
       // Three-band dusk gradient, a warm glow round the setting sun and a faint band of cloud.
       fragmentShader:
-        'uniform vec3 top; uniform vec3 mid; uniform vec3 horizon; uniform vec3 sunDir; varying vec3 vPos;' +
+        'uniform vec3 top; uniform vec3 mid; uniform vec3 horizon; uniform vec3 sunDir; uniform float glow; varying vec3 vPos;' +
         'void main(){ vec3 d = normalize(vPos); float h = clamp(d.y, 0.0, 1.0);' +
         ' vec3 c = h < 0.18 ? mix(horizon, mid, smoothstep(0.0, 0.18, h)) : mix(mid, top, smoothstep(0.18, 0.75, h));' +
         ' float s = max(dot(d, normalize(sunDir)), 0.0);' +
-        ' c += vec3(1.0, 0.55, 0.25) * (pow(s, 24.0) * 0.9 + pow(s, 4.0) * 0.25);' +
+        ' c += vec3(1.0, 0.55, 0.25) * (pow(s, 24.0) * 0.9 + pow(s, 4.0) * 0.25) * glow;' +
         ' float band = smoothstep(0.05, 0.1, h) * (1.0 - smoothstep(0.1, 0.2, h)) * (0.5 + 0.5 * sin(d.x * 9.0 + d.z * 5.0));' +
         ' c = mix(c, vec3(0.42, 0.28, 0.38), band * 0.35);' +
         ' gl_FragColor = vec4(c, 1.0); }',
@@ -91,16 +94,18 @@ function buildSky(scene: THREE.Scene): void {
   sky.frustumCulled = false;
   sky.onBeforeRender = (_r, _s, cam) => sky.position.copy(cam.position);
   scene.add(sky);
+  return (sky.material as THREE.ShaderMaterial).uniforms as SceneRefs['night']['sky'];
 }
 
 /** Direction to the sun (late afternoon, ~40° up) and how far the shadow camera sits. */
 const SUN_DIR = new THREE.Vector3(-0.62, 0.36, 0.55).normalize();
 const SUN_DIST = 5000;
 
-function buildLights(scene: THREE.Scene): THREE.DirectionalLight {
+function buildLights(scene: THREE.Scene): { sun: THREE.DirectionalLight; hemi: THREE.HemisphereLight; amb: THREE.AmbientLight } {
   // Dusk: a cool blue sky fill, warm low sun (long shadows).
-  scene.add(new THREE.HemisphereLight(0xa6b2de, 0x4a3e44, 0.72 * L));
-  scene.add(new THREE.AmbientLight(0x6a6f96, 0.12 * L));
+  const hemi = new THREE.HemisphereLight(0xa6b2de, 0x4a3e44, 0.72 * L);
+  const amb = new THREE.AmbientLight(0x6a6f96, 0.12 * L);
+  scene.add(hemi, amb);
   const sun = new THREE.DirectionalLight(0xffb27a, 1.0 * L);
   sun.position.copy(SUN_DIR).multiplyScalar(SUN_DIST);
   sun.castShadow = true;
@@ -111,7 +116,7 @@ function buildLights(scene: THREE.Scene): THREE.DirectionalLight {
   sun.shadow.bias = -0.0006;
   sun.shadow.normalBias = 2;
   scene.add(sun, sun.target);
-  return sun;
+  return { sun, hemi, amb };
 }
 
 const waterMat = () => new THREE.MeshStandardMaterial({ color: COLORS.water, roughness: 0.15, metalness: 0.2, transparent: true, opacity: 0.9 });
@@ -642,8 +647,8 @@ export function buildScene(canvas: HTMLCanvasElement): SceneRefs {
   scene.fog = new THREE.Fog(COLORS.fog, FOG_NEAR, FOG_FAR);
   const camera = new THREE.PerspectiveCamera(65, 1, 2, 30000);
 
-  buildSky(scene);
-  const sun = buildLights(scene);
+  const sky = buildSky(scene);
+  const { sun, hemi, amb } = buildLights(scene);
   buildGround(scene);
   buildWorld(scene);
   buildCity(scene);
@@ -652,8 +657,43 @@ export function buildScene(canvas: HTMLCanvasElement): SceneRefs {
   buildBases(scene);
   buildJails(scene);
   const train = buildRailway(scene);
-  return { renderer, scene, camera, towerMesh, sun, train };
+  return { renderer, scene, camera, towerMesh, sun, train, night: { sky, hemi, amb, k: -1 } };
 }
+
+const DUSK = {
+  top: new THREE.Color(COLORS.skyTop), mid: new THREE.Color(COLORS.skyMid), horizon: new THREE.Color(COLORS.skyHorizon), fog: new THREE.Color(COLORS.fog),
+  sun: new THREE.Color(0xffb27a), hemiSky: new THREE.Color(0xa6b2de), hemiGround: new THREE.Color(0x4a3e44),
+};
+const NIGHT = {
+  top: new THREE.Color(0x05081a), mid: new THREE.Color(0x141a36), horizon: new THREE.Color(0x3a2440), fog: new THREE.Color(0x1a1c2c),
+  sun: new THREE.Color(0x8c96d0), hemiSky: new THREE.Color(0x4a5688), hemiGround: new THREE.Color(0x221c26),
+};
+
+/**
+ * Dusk → night (k = 0 … 1): the sky deepens, the low sun gives way to cool moonlight,
+ * the haze darkens and closes in, and the city's lights (windows, signs, lamps) glow brighter.
+ */
+export function setNightfall(refs: SceneRefs, k: number): void {
+  if (Math.abs(k - refs.night.k) < 0.004) return;
+  refs.night.k = k;
+  const n = refs.night, mix = (a: THREE.Color, b: THREE.Color, out: THREE.Color) => out.copy(a).lerp(b, k);
+  mix(DUSK.top, NIGHT.top, n.sky.top.value);
+  mix(DUSK.mid, NIGHT.mid, n.sky.mid.value);
+  mix(DUSK.horizon, NIGHT.horizon, n.sky.horizon.value);
+  n.sky.glow.value = 1 - 0.85 * k;
+  const fog = refs.scene.fog as THREE.Fog;
+  mix(DUSK.fog, NIGHT.fog, fog.color);
+  (refs.scene.background as THREE.Color).copy(fog.color);
+  fog.far = FOG_FAR - 4000 * k;
+  mix(DUSK.sun, NIGHT.sun, refs.sun.color);
+  refs.sun.intensity = (1.0 - 0.8 * k) * L;
+  mix(DUSK.hemiSky, NIGHT.hemiSky, n.hemi.color);
+  mix(DUSK.hemiGround, NIGHT.hemiGround, n.hemi.groundColor);
+  n.hemi.intensity = (0.72 - 0.38 * k) * L;
+  n.amb.intensity = (0.12 - 0.04 * k) * L;
+  for (const g of NIGHT_GLOW) g.set(k);
+}
+
 
 /** Keeps the shadow frustum centred on the player so a big map still gets crisp shadows. */
 export function followSun(refs: SceneRefs, x: number, y: number, z: number): void {

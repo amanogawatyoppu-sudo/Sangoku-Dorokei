@@ -14,6 +14,7 @@ import { updateRescue } from './systems/rescue';
 import { updateSuspicion } from './systems/suspicion';
 import { lightKings, towerTick } from './systems/tower';
 import { aiPings, pingTick, placePing } from './ping';
+import { nightTick } from './night';
 import { updateEnemiesSeen } from './systems/vision';
 import { forceEndByTime } from './systems/winCondition';
 import { scheduledMeetingTick } from '../meeting/meetingSystem';
@@ -90,6 +91,7 @@ export function stepSimulation(state: GameState, dt: number): void {
   updateEnemiesSeen(state);
   towerTick(state, dt);
   pingTick(state);
+  nightTick(state, dt);
   aiPings(state);
   warTick(state, dt);
   eventTick(state);

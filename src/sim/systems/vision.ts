@@ -7,6 +7,7 @@ import type { GameState } from '../state';
 import { dist, dist3 } from './collision';
 import { CHEST_H, EYE_H, lineOfSight } from './world';
 import { kingLit } from './tower';
+import { nightVisionMul } from '../night';
 
 /** Nation `e` appears to belong to when seen by `viewerNation` (impostor disguise). */
 export function effNation(state: GameState, e: Entity, viewerNation: NationId): NationId {
@@ -23,7 +24,8 @@ export function visibleTo(state: GameState, e: Entity, viewer: Entity): boolean 
   if (nearTower(e)) return true;
   if (inRevealedJail(state, e)) return true;
   if (state.terminalActive[e.nation] > now && dist(e, NATIONS[e.nation].base) < 90) return true;
-  const rng = Math.max(e.dashing ? VISION + DASH_VISION_BONUS : VISION, scopeRange(viewer, e));
+  const night = nightVisionMul(state, e.x, e.z);
+  const rng = Math.max((e.dashing ? VISION + DASH_VISION_BONUS : VISION) * night, scopeRange(viewer, e) * night);
   return dist3(e, viewer) < rng && hasLineOfSight(viewer, e);
 }
 
