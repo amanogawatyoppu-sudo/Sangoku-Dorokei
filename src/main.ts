@@ -31,6 +31,8 @@ import { MeetingView } from './ui/meetingView';
 import { bindMessages } from './ui/messages';
 import { Minimap } from './ui/minimap';
 import { initResultView, showResult } from './ui/resultView';
+import { Recap } from './ui/recap';
+import { loadRecords, recordLine } from './ui/records';
 import { initSetupScreen } from './ui/setupScreen';
 import type { OnlineStart } from './ui/onlineLobby';
 import { initOnlineLobby } from './ui/onlineLobby';
@@ -56,6 +58,7 @@ const log = new LogPanel();
 const minimap = new Minimap();
 const meetingView = new MeetingView();
 initResultView();
+$('recordLine').textContent = recordLine(loadRecords());
 initDrawers(canvas);
 watchCanvasSize();
 
@@ -87,7 +90,8 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
 
   bindMessages(bus, state, log, hud);
   bindSfx(bus, state);
-  bus.on('GAME_OVER', () => showResult(state));
+  const recap = new Recap(bus, state);
+  bus.on('GAME_OVER', () => showResult(state, recap));
   bus.on('MEETING_OPENED', () => {
     meetingView.open(state, client ? {
       // Said and voted through the host, which answers with the teammates' replies.

@@ -5,6 +5,8 @@ import { elapsedSec } from '../sim/state';
 import { GAME_TIME, MEETINGS_PER_GAME } from '../config/constants';
 import { nationScore, scoreBreakdown } from '../sim/systems/winCondition';
 import { $ } from './dom';
+import type { Recap } from './recap';
+import { recordLine, recordMatch } from './records';
 
 function roleComment(p: Entity): string {
   if (p.role === 'king') return p.alive ? '最後まで正体を隠し切った策士' : '見破られてしまったようだ';
@@ -19,8 +21,15 @@ export function initResultView(): void {
   $('btnRetry').onclick = () => location.reload();
 }
 
-export function showResult(state: GameState): void {
+let recorded = false;
+
+export function showResult(state: GameState, recap?: Recap): void {
   const p = state.player, winner = state.winner;
+  if (recap) $('ovRecap').replaceChildren(recap.render());
+  if (!recorded) {
+    recorded = true;
+    $('ovRecord').textContent = recordLine(recordMatch(p.role, p.nation, winner, p.capturesMade, p.rescuesMade), p.role);
+  }
   $('overlay').style.display = 'flex';
   const timeUp = elapsedSec(state) >= GAME_TIME - 0.5;
   const kings = NATION_IDS.filter((n) => state.entities.some((e) => e.nation === n && e.role === 'king' && e.alive));
