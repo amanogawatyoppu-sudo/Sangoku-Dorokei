@@ -44,6 +44,8 @@ import { ObjectiveMarkers } from './ui/objectiveMarkers';
 import { PingView } from './render/pingView';
 import { PingMarkers } from './ui/pingMarkers';
 import { Footprints } from './render/footprints';
+import { Music } from './audio/music';
+import { tensionOf } from './audio/tension';
 import { SECTORS, TRUCE_MS, answerTruce, proposeTruce, sectorPoint, strength, trucesLeft } from './sim/war';
 import { NATION_IDS } from './config/nations';
 import { kingOf } from './sim/state';
@@ -68,6 +70,21 @@ type Mode =
   | { kind: 'solo' }
   | { kind: 'host'; start: OnlineStart }
   | { kind: 'client'; start: OnlineStart };
+
+/** Music: starts with the first click or key (browsers keep audio off until then); ♪ mutes, remembered. */
+const music = new Music();
+try { music.muted = localStorage.getItem('sangoku.music') === 'off'; } catch { /* no storage */ }
+const startMusic = () => music.start();
+window.addEventListener('pointerdown', startMusic, { once: true });
+window.addEventListener('keydown', startMusic, { once: true });
+const musicBtn = $('btnMusic');
+const showMusic = () => { musicBtn.textContent = music.muted ? '♪✕' : '♪'; musicBtn.title = music.muted ? '音楽をオンにする' : '音楽をオフにする'; };
+showMusic();
+musicBtn.onclick = () => {
+  music.setMuted(!music.muted);
+  try { localStorage.setItem('sangoku.music', music.muted ? 'off' : 'on'); } catch { /* no storage */ }
+  showMusic();
+};
 
 function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode = { kind: 'solo' }): void {
   const online = mode.kind === 'solo' ? undefined : mode.start;
@@ -94,6 +111,8 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
   bindSfx(bus, state);
   const recap = new Recap(bus, state);
   bus.on('GAME_OVER', () => showResult(state, recap));
+  bus.on('ELIMINATED', (ev) => { if (state.entities[ev.entityId].nation === state.player.nation) music.gong(); });
+  bus.on('RESCUED', (ev) => { if (state.entities[ev.targetId].nation === state.player.nation) music.chime(); });
   bus.on('MEETING_OPENED', () => {
     meetingView.open(state, client ? {
       // Said and voted through the host, which answers with the teammates' replies.
@@ -255,6 +274,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
     pingView.sync(state, state.player.nation);
     setNightfall(refs, nightFactor(state));
     footprints.sync(state, cam.yaw);
+    music.setTension(tensionOf(state));
     pingMarkers.sync(state, refs.camera, names, !!state.meeting || state.over);
     tags.sync(state, entityView, refs.camera, clock.alpha);
   });
