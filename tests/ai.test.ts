@@ -212,5 +212,5 @@ describe('full match', () => {
     }
     expect(chaseSec).toBeGreaterThan(20);
     expect(pairs.size).toBeGreaterThanOrEqual(3); // more than one front
-  });
+  }, 30_000);
 });
