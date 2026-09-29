@@ -579,7 +579,8 @@ body.leaving #app{opacity:0;transition:opacity .16s ease}
 body.tutorial .tb-clock,body.tutorial #btnMeeting,body.tutorial #btnTruce{visibility:hidden}
 body.tutorial #banner{top:auto;bottom:34%}
 #tutorialCard{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:15;width:min(460px,calc(100% - 24px));padding:12px 16px 12px;border-radius:8px;text-align:left;
-  background:linear-gradient(rgba(16,17,24,.94),rgba(10,11,16,.96));border:1px solid rgba(224,180,86,.6);box-shadow:0 14px 40px rgba(0,0,0,.6);animation:screenIn .3s ease both}
+  background:linear-gradient(rgba(16,17,24,.94),rgba(10,11,16,.96));border:1px solid rgba(224,180,86,.6);box-shadow:0 14px 40px rgba(0,0,0,.6);animation:tutIn .3s ease both}
+@keyframes tutIn{from{opacity:0}to{opacity:1}}
 .tut-progress{font-size:11px;letter-spacing:2px;color:#9d937f}
 #tutTitle{margin:2px 0 4px;font-family:'Dela Gothic One',var(--display);font-weight:400;font-size:20px;letter-spacing:2px;color:#fff4e6}
 #tutText{margin:0 0 8px;font-size:13px;line-height:1.7;color:#e8dcc0}
