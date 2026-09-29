@@ -1,8 +1,9 @@
-import { NATIONS } from '../config/nations';
+import { NATIONS, NATION_IDS } from '../config/nations';
 import type { Entity } from '../sim/entity';
 import type { GameState } from '../sim/state';
 import { elapsedSec } from '../sim/state';
-import { MEETINGS_PER_GAME } from '../config/constants';
+import { GAME_TIME, MEETINGS_PER_GAME } from '../config/constants';
+import { nationScore, scoreBreakdown } from '../sim/systems/winCondition';
 import { $ } from './dom';
 
 function roleComment(p: Entity): string {
@@ -21,15 +22,22 @@ export function initResultView(): void {
 export function showResult(state: GameState): void {
   const p = state.player, winner = state.winner;
   $('overlay').style.display = 'flex';
+  const timeUp = elapsedSec(state) >= GAME_TIME - 0.5;
+  const kings = NATION_IDS.filter((n) => state.entities.some((e) => e.nation === n && e.role === 'king' && e.alive));
   if (winner === 'draw' || !winner) {
     $('ovTitle').textContent = '引き分け';
-    $('ovDesc').textContent = '全ての王が処刑された。';
+    $('ovDesc').textContent = timeUp ? '時間切れ。戦功ポイントが同点だった。' : '全ての王が処刑された。';
   } else {
     $('ovTitle').textContent = NATIONS[winner].name + '国の勝利！';
-    $('ovDesc').textContent = winner === p.nation ? 'あなたの国が勝利しました！' : 'あなたの国は敗北しました。';
+    $('ovDesc').textContent = (winner === p.nation ? 'あなたの国が勝利しました！' : 'あなたの国は敗北しました。')
+      + (timeUp && kings.length > 1 ? '（時間切れ・戦功ポイントで判定）' : '');
   }
+  // Time-up between several kingdoms: show how the score was made up.
+  const scores = timeUp && kings.length > 1
+    ? kings.map((n) => `${NATIONS[n].name} ${nationScore(state, n)}点（` + scoreBreakdown(state, n).filter((b) => b.pts).map((b) => `${b.label}${b.pts > 0 ? '+' : ''}${b.pts}`).join(' ') + '）').join('\n') + '\n\n'
+    : '';
   const survive = p.eliminatedAt != null ? p.eliminatedAt : elapsedSec(state);
-  $('ovStats').textContent =
+  $('ovStats').textContent = scores +
     '捕獲数:' + p.capturesMade + '　救出数:' + p.rescuesMade + '　王への攻撃:' + p.kingHits +
     '\n王の捕獲貢献:' + p.kingCaptures + '　王の救出貢献:' + p.kingRescues +
     '\n管制塔滞在:' + Math.round(p.towerTime) + '秒　敵発見数:' + p.enemiesSeen.size +

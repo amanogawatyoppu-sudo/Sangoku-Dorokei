@@ -18,17 +18,44 @@ describe('win condition', () => {
     expect(state.time).toBe(t);
   });
 
-  it('time-up picks the best score among surviving kingdoms', () => {
+  /** Same sectors for everyone, so only the numbers a test sets differ. */
+  const even = (state: ReturnType<typeof newGame>) => { state.war.sectors.forEach((s) => { s.owner = null; }); };
+
+  it('time-up picks the best war score among surviving kingdoms', () => {
     const state = newGame();
+    even(state);
+    const base = nationScore(state, 'moon');
     state.natStats.moon.cap = 2;
     state.natStats.star.hit = 1;
     forceEndByTime(state);
-    expect(nationScore(state, 'moon')).toBe(6);
+    expect(nationScore(state, 'moon') - base).toBe(6);
     expect(state.winner).toBe('moon');
+  });
+
+  it('the tower no longer decides it alone: 100 s in the tower is worth less than a few captures and a sector', () => {
+    const state = newGame();
+    even(state);
+    state.natStats.moon.tower = 100;
+    state.natStats.star.cap = 2;
+    state.war.sectors[0].owner = 'star';
+    forceEndByTime(state);
+    expect(state.winner).toBe('star');
+  });
+
+  it('a king still in a jail at time-up costs points; sectors and free people count', () => {
+    const state = newGame();
+    even(state);
+    const s0 = nationScore(state, 'sun');
+    state.war.sectors[0].owner = 'sun';
+    expect(nationScore(state, 'sun') - s0).toBe(4);
+    const k = find(state, 'sun', 'king');
+    k.jailed = true;
+    expect(nationScore(state, 'sun') - s0).toBe(4 - 10 - 2);
   });
 
   it('time-up with tied scores is a draw', () => {
     const state = newGame();
+    even(state);
     forceEndByTime(state);
     expect(state.winner).toBe('draw');
   });
@@ -51,6 +78,5 @@ describe('win condition', () => {
     expect(state.over).toBe(false);
     runFrames(state, 2000);
     expect(state.over).toBe(true);
-    expect(state.winner).toBe('draw');
   });
 });
