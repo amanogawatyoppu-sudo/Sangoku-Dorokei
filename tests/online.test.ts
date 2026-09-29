@@ -13,6 +13,7 @@ import { teleport } from '../src/sim/entity';
 import { stepSimulation } from '../src/sim/step';
 import { sendToJail } from '../src/sim/systems/jail';
 import { SITES } from '../src/config/map';
+import { contribution, ranking } from '../src/sim/contrib';
 
 const SEATS: HumanSeat[] = [
   { nation: 'sun', role: 'soldier' },
@@ -205,5 +206,22 @@ describe('online matches', () => {
     new Mirror().apply(friend, snap, 0);
     expect(friend.meeting?.kind).toBe('scheduled');
     closeMeeting(host);
+  });
+
+  it('the result (contribution and ranking) reaches friends the same as the host counted it, and fits', () => {
+    const host = match(0), friend = match(1);
+    host.nextMeetingAt = Infinity;
+    for (let i = 0; i < 240; i++) stepSimulation(host, STEP_SEC);
+    host.contrib.table[3].cap = 4;
+    host.contrib.table[friend.player.id].res = 2;
+    host.over = true;
+    host.winner = 'moon';
+    const snap = fitSnapshot(encodeSnapshot(host, []), 3900);
+    expect(new TextEncoder().encode(JSON.stringify(snap)).length).toBeLessThanOrEqual(3900);
+    expect(snap.ct).toBeDefined();
+    new Mirror().apply(friend, snap, 0);
+    expect(ranking(friend).map((r) => [r.id, r.total, r.rank])).toEqual(ranking(host).map((r) => [r.id, r.total, r.rank]));
+    // The friend's own breakdown matches too.
+    expect(contribution(friend, friend.player).total).toBe(contribution(host, host.entities[friend.player.id]).total);
   });
 });

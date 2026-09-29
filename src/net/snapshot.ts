@@ -1,3 +1,4 @@
+import { CONTRIB_KEYS, contribution } from '../sim/contrib';
 import { PING_KINDS } from '../sim/ping';
 import type { NationId } from '../config/nations';
 import { NATION_IDS } from '../config/nations';
@@ -52,6 +53,8 @@ export interface Snapshot {
   ev: NetEvent[];
   /** The war: per sector [owner, capturer, gauge %, contested, sun, moon, star on the point]; ceasefires [a, b, until]; ceasefires held. */
   w?: { s: number[][]; t: [number, number, number][]; n: number };
+  /** 貢献度 at the end of the match: everyone's total, and the full row (CONTRIB_KEYS order, ×10) for each person playing. */
+  ct?: { tot: number[]; rows: Record<number, number[]> };
   /** Pings: [id, nation, by, kind, x, y, z, placed at]. */
   pg?: number[][];
   /** Open meeting: its kind (0 emergency, 1 scheduled) and each nation's view. */
@@ -171,6 +174,14 @@ export function encodeSnapshot(state: GameState, events: NetEvent[]): Snapshot {
     t: state.war.truces.map((t) => [nIdx(t.a), nIdx(t.b), Math.round(t.until)]),
     n: state.war.trucesHeld,
   };
+  if (state.over) {
+    // The match is over: nobody moves, so the character table makes way for the result.
+    snap.e = [];
+    snap.ct = {
+      tot: state.entities.map((e) => contribution(state, e).total),
+      rows: Object.fromEntries(state.humans.map((id) => [id, CONTRIB_KEYS.map((k) => Math.round(state.contrib.table[id][k] * 10))])),
+    };
+  }
   if (state.pings.length) snap.pg = state.pings.map((p) => [p.id, nIdx(p.nation), p.by, PING_KINDS.indexOf(p.kind), Math.round(p.x), Math.round(p.y), Math.round(p.z), Math.round(p.t)]);
   return snap;
 }
@@ -228,6 +239,13 @@ export class Mirror {
     this.applyHumans(state, Array.isArray(snap.h) ? snap.h : []);
     this.applyMeeting(state, snap.m);
     this.applyWar(state, snap.w);
+    if (snap.ct) {
+      state.contrib.totals = snap.ct.tot.map((v) => num(v, 0));
+      for (const [id, row] of Object.entries(snap.ct.rows)) {
+        const r = state.contrib.table[Number(id)];
+        if (r && Array.isArray(row)) CONTRIB_KEYS.forEach((k, i) => { r[k] = num(row[i], 0) / 10; });
+      }
+    }
     state.pings = (snap.pg ?? []).flatMap((r) => {
       const nation = nAt(num(r[1], -1)), kind = PING_KINDS[num(r[3], -1)];
       return nation && kind ? [{ id: num(r[0], 0), nation, by: num(r[2], 0), kind, x: num(r[4], 0), y: num(r[5], 0), z: num(r[6], 0), t: num(r[7], 0) }] : [];

@@ -1,3 +1,5 @@
+import type { ContribState } from './contrib';
+import { createContrib } from './contrib';
 import type { CpuLevel } from '../ai/difficulty';
 import type { Ping, PingKind } from './ping';
 import type { NationId, Point } from '../config/nations';
@@ -97,6 +99,8 @@ export interface GameState {
   kingBeacon: PerNation<number>;
   /** 練習モード / チュートリアル: the player cannot be captured. */
   practice: boolean;
+  /** 貢献度: what each person did, for the result screen (same rules for CPUs and people). */
+  contrib: ContribState;
   /** CPUレベル: how the AI decides (never its speed, reach or toughness). */
   cpuLevel: CpuLevel;
   /** The king's double (影武者), per nation, and whether it has been used this match. */
@@ -212,6 +216,7 @@ export function createGameState(
     pings: [],
     practice: false,
     cpuLevel: 'normal',
+    contrib: createContrib(entities.length),
     decoy: perNation<{ id: number; until: number } | null>(() => null),
     decoyUsed: perNation(() => false),
     lastAiPingCheck: perNation(() => 0),

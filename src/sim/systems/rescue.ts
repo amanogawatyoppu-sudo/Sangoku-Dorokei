@@ -1,7 +1,6 @@
 import { SPECIAL_CD } from '../../config/roles';
 import type { NationId } from '../../config/nations';
 import type { Entity } from '../entity';
-import { isHuman } from '../entity';
 import type { GameState } from '../state';
 import { emit } from '../state';
 import { canAct } from './capture';
@@ -65,7 +64,7 @@ export function updateRescue(state: GameState, e: Entity, dt: number): void {
   if (e.channeling.prog >= e.channeling.need) {
     const wasKing = t.role === 'king';
     freeFromJail(t);
-    if (isHuman(e)) e.rescuesMade++;
+    e.rescuesMade++;
     if (wasKing) e.kingRescues++;
     state.natStats[e.nation].res++;
     e.cd.special = wasKing ? SPECIAL_CD.keyholderKingRescue : SPECIAL_CD.keyholderRescue;

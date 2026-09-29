@@ -16,6 +16,7 @@ import { lightKings, towerTick } from './systems/tower';
 import { aiPings, pingTick, placePing } from './ping';
 import { nightTick } from './night';
 import { useDecoy } from './decoy';
+import { contribTick } from './contrib';
 import { updateEnemiesSeen } from './systems/vision';
 import { forceEndByTime } from './systems/winCondition';
 import { scheduledMeetingTick } from '../meeting/meetingSystem';
@@ -76,6 +77,7 @@ function applyRemotePoses(state: GameState, dt: number): void {
  */
 export function stepSimulation(state: GameState, dt: number): void {
   if (state.over) return;
+  const firstEvent = state.events.length;
   for (const e of state.entities) { e.prevX = e.x; e.prevY = e.y; e.prevZ = e.z; }
   state.time += dt * 1000;
   if (timeLeftSec(state) <= 0) forceEndByTime(state);
@@ -98,4 +100,5 @@ export function stepSimulation(state: GameState, dt: number): void {
   warTick(state, dt);
   eventTick(state);
   scheduledMeetingTick(state);
+  contribTick(state, firstEvent, dt);
 }
