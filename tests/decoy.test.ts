@@ -49,3 +49,18 @@ describe('影武者 (the king’s double)', () => {
     expect(canUseDecoy(state, king)).toBe(true);
   });
 });
+
+describe('練習モード', () => {
+  it('the player cannot be captured (others can)', async () => {
+    const { attemptCapture } = await import('../src/sim/systems/capture');
+    const state = newGame('sun', 'soldier', 2, 6);
+    state.practice = true;
+    const p = state.player, foe = find(state, 'moon', 'soldier');
+    // Right behind the player, facing its back.
+    teleport(p, 0, 0); p.dirX = 0; p.dirZ = 1; p.hp = 1;
+    teleport(foe, 0, -20); foe.dirX = 0; foe.dirZ = 1;
+    for (let i = 0; i < 5; i++) { foe.cd.capture = 0; attemptCapture(state, foe); }
+    expect(p.jailed).toBe(false);
+    expect(state.events.some((e) => e.type === 'CAPTURE_FAILED' && e.reason === 'practice')).toBe(true);
+  });
+});

@@ -94,6 +94,8 @@ export interface GameState {
   radarAll: number;
   /** Until when each nation sees the enemy kings lit up (tower, last third of the match). */
   kingBeacon: PerNation<number>;
+  /** 練習モード: the player cannot be captured. */
+  practice: boolean;
   /** The king's double (影武者), per nation, and whether it has been used this match. */
   decoy: PerNation<{ id: number; until: number } | null>;
   decoyUsed: PerNation<boolean>;
@@ -205,6 +207,7 @@ export function createGameState(
     radarAll: 0,
     kingBeacon: perNation(() => 0),
     pings: [],
+    practice: false,
     decoy: perNation<{ id: number; until: number } | null>(() => null),
     decoyUsed: perNation(() => false),
     lastAiPingCheck: perNation(() => 0),

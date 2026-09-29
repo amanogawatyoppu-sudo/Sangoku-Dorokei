@@ -16,7 +16,7 @@ export function bindMessages(bus: EventBus<GameEvent>, state: GameState, log: Lo
   const N = (n: keyof typeof NATIONS) => NATIONS[n].name;
   const ent = (id: number) => entityById(state, id)!;
 
-  bus.on('CAPTURE_FAILED', (ev) => log.add(ev.reason === 'side' ? '側面からの捕獲は不安定だった…' : 'わずかに逃れられた！'));
+  bus.on('CAPTURE_FAILED', (ev) => log.add(ev.reason === 'practice' ? '練習モード：捕まりそうになった（本番なら捕獲されていた）' : ev.reason === 'side' ? '側面からの捕獲は不安定だった…' : 'わずかに逃れられた！'));
   bus.on('KING_DODGED', (ev) => log.add(N(ev.nation) + 'の王が回避した！'));
   bus.on('SOLDIER_ENDURED', (ev) => log.add(N(ev.nation) + 'の兵士が耐えた(残り' + ev.hp + ')'));
   /** "月：自由4・牢2・処刑1" for a nation. */

@@ -32,6 +32,8 @@ import { bindMessages } from './ui/messages';
 import { Minimap } from './ui/minimap';
 import { initResultView, showResult } from './ui/resultView';
 import { Recap } from './ui/recap';
+import { PracticeGuide } from './ui/practice';
+import { canRescue } from './sim/systems/rescue';
 import { loadRecords, recordLine } from './ui/records';
 import { initSetupScreen } from './ui/setupScreen';
 import type { OnlineStart } from './ui/onlineLobby';
@@ -110,6 +112,15 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
   bindMessages(bus, state, log, hud);
   bindSfx(bus, state);
   const recap = new Recap(bus, state);
+  const practice = mode.kind === 'solo' && practiceNext ? new PracticeGuide(bus, state, hud) : null;
+  if (practice) {
+    state.practice = true;
+    // One friend waits in an enemy jail, to practise a rescue.
+    if (canRescue(state, state.player)) {
+      const pal = state.entities.find((e) => e.nation === state.player.nation && !e.isPlayer && e.role === 'soldier');
+      if (pal) sendToJail(state, pal, NATION_IDS.find((n) => n !== state.player.nation)!, null);
+    }
+  }
   bus.on('GAME_OVER', () => showResult(state, recap));
   bus.on('ELIMINATED', (ev) => { if (state.entities[ev.entityId].nation === state.player.nation) music.gong(); });
   bus.on('RESCUED', (ev) => { if (state.entities[ev.targetId].nation === state.player.nation) music.chime(); });
@@ -180,7 +191,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
   if (online) {
     log.add(`オンライン対戦：部屋 ${online.lobby.code}・${online.info.seats.length}人。同じ国は味方、ほかの国は敵。`);
     if (host) log.add('あなたがホストです。このタブを閉じると試合が終わります。');
-  } else log.add('v7.21: 試合が進むと夜になる（街灯の下は遠くからでも見える）。1〜4キー（スマホは「合図」）で味方に合図：王・助けて・集合・敵多数。王と「最後の一人」も救出できる（牢屋の仲間のそばでZ）。終盤は管制塔で敵の王を照らせる（B）。味方の頭上に名前と役職。東京は9つの戦区。画面の紋章マーカーが戦略拠点（輪が制圧ゲージ）、街の幟の色がその戦区の支配国。拠点に立ち続けると制圧。ミニマップに勢力と前線。↑↓で前後、←→で旋回、Shiftで加速、Spaceで捕獲、Zで特殊、Qで振り向き。分隊はX 付いてこい・C 周りを警戒・V ここを守れ。');
+  } else log.add('v7.22: 王は1回だけ影武者を立てられる（F）。走る敵の足跡・聞こえる足音の向き・BGM（♪でオンオフ）。試合が進むと夜になる（街灯の下は遠くからでも見える）。1〜4キー（スマホは「合図」）で味方に合図：王・助けて・集合・敵多数。王と「最後の一人」も救出できる（牢屋の仲間のそばでZ）。終盤は管制塔で敵の王を照らせる（B）。味方の頭上に名前と役職。東京は9つの戦区。画面の紋章マーカーが戦略拠点（輪が制圧ゲージ）、街の幟の色がその戦区の支配国。拠点に立ち続けると制圧。ミニマップに勢力と前線。↑↓で前後、←→で旋回、Shiftで加速、Spaceで捕獲、Zで特殊、Qで振り向き。分隊はX 付いてこい・C 周りを警戒・V ここを守れ。');
   hud.banner('三国ドロケイ 開始　' + NATIONS[me.nation].name + 'の' + roleName(me.role), 2200);
   const tags = new NameTags($('nametags'), state, names);
   resizeRenderer(refs, canvas);
@@ -276,6 +287,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
     pingView.sync(state, state.player.nation);
     setNightfall(refs, nightFactor(state));
     footprints.sync(state, cam.yaw);
+    practice?.sync();
     music.setTension(tensionOf(state));
     pingMarkers.sync(state, refs.camera, names, !!state.meeting || state.over);
     tags.sync(state, entityView, refs.camera, clock.alpha);
@@ -376,7 +388,8 @@ function exposeDebug(state: GameState, cam: CameraController): void {
   };
 }
 
-const setup = initSetupScreen(startGame);
+let practiceNext = false;
+const setup = initSetupScreen(startGame, () => { practiceNext = true; });
 initOnlineLobby(setup, (start) => {
   $('setup').style.display = 'none';
   const seat = start.info.seats[start.me];

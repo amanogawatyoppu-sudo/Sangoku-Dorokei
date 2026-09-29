@@ -20,7 +20,7 @@ export type MeetingDeniedReason = 'none_left' | 'too_far';
  */
 export type GameEvent =
   | { type: 'CAPTURE'; attackerId: number; targetId: number }
-  | { type: 'CAPTURE_FAILED'; attackerId: number; reason: 'side' | 'back' }
+  | { type: 'CAPTURE_FAILED'; attackerId: number; reason: 'side' | 'back' | 'practice' }
   | { type: 'JAILED'; entityId: number; capNation: NationId }
   | { type: 'KING_CAPTURED'; nation: NationId }
   /** A king was executed: that kingdom is out and all its people with it. */

@@ -28,7 +28,7 @@ export interface SetupControl {
 }
 
 /** Nation / role picker shown before the match. Calls `onStart` once. */
-export function initSetupScreen(onStart: (nation: NationId, role: RoleId, size: RosterSize) => void): SetupControl {
+export function initSetupScreen(onStart: (nation: NationId, role: RoleId, size: RosterSize) => void, onPractice?: () => void): SetupControl {
   let selNation: NationId | null = null, selRole: RoleId | null = null, selSize: RosterSize = 10;
   const pn = $('pickNation'), pr = $('pickRole'), desc = $('roleDesc');
   const select = (row: HTMLElement, key: string, value: string) => {
@@ -104,6 +104,14 @@ export function initSetupScreen(onStart: (nation: NationId, role: RoleId, size: 
     started = true;
     $('setup').style.display = 'none';
     onStart(selNation, selRole, selSize);
+  };
+  // 練習モード: the same start, flagged as practice (a nation and role are picked for you if needed).
+  $('btnPractice').onclick = () => {
+    if (redirect) return;
+    if (!selNation) pickNation(NATION_IDS[Math.floor(Math.random() * 3)]);
+    if (!selRole) pickRole('soldier');
+    onPractice?.();
+    startBtn.click();
   };
   return {
     picks: () => ({ nation: selNation, role: selRole, size: selSize }),

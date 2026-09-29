@@ -456,3 +456,14 @@ details#hint[open] summary::before{content:'▾ ';}
 #btnDecoy{background:linear-gradient(#5a3a6e,#3e2650);border-color:#a986c4!important}
 #btnDecoy:disabled{opacity:.5}
 #btnDecoy.lit{background:linear-gradient(#a986c4,#6e4a8e);animation:rbPulse .8s ease-in-out infinite}
+
+/* ===== v7.22 practice mode ===== */
+#practice{position:absolute;left:10px;top:48px;z-index:4;max-width:min(300px,70%);padding:8px 10px;border-radius:6px;background:rgba(10,11,16,.82);border:1px solid rgba(110,224,140,.55);box-shadow:0 6px 18px rgba(0,0,0,.5);font-size:12px;pointer-events:none}
+#practice b{display:block;color:#6ee08c;letter-spacing:2px;margin-bottom:4px}
+#practice ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px}
+#practice li{color:#cfc6b2}
+#practice li.done{color:#6ee08c;opacity:.75}
+#practice li.next{color:#fff;font-weight:700}
+#practice li small{display:block;font-weight:400;color:#e8dcc0;font-size:11px;margin:2px 0 0 1em}
+@media (max-width:760px),(max-height:520px){#practice{top:auto;bottom:calc(200px + env(safe-area-inset-bottom,0px));font-size:11px;max-width:60%}}
+#btnMusic{background:#24232a;border-color:var(--line)!important;color:var(--accent-2);min-width:36px;font-size:14px;padding:4px 8px}

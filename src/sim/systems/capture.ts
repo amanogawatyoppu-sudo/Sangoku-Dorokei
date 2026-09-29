@@ -53,6 +53,8 @@ export function attemptCapture(state: GameState, attacker: Entity): void {
   state.factions[attacker.nation].fight = fight;
   state.factions[best.nation].fight = fight;
   noteClash(state, best, attacker.nation, best.nation);
+  // 練習モード: the player cannot be captured.
+  if (state.practice && best.isPlayer) { emit(state, { type: 'CAPTURE_FAILED', attackerId: attacker.id, reason: 'practice' }); return; }
   const tier = superHand(attacker) ? 'deepback' : captureTier(best, attacker);
   if (tier === 'side' && state.rng() < 0.5) { emit(state, { type: 'CAPTURE_FAILED', attackerId: attacker.id, reason: 'side' }); return; }
   if (tier === 'back' && state.rng() < 0.15) { emit(state, { type: 'CAPTURE_FAILED', attackerId: attacker.id, reason: 'back' }); return; }
