@@ -14,7 +14,7 @@ import { EntityView, lerp } from './render/entityView';
 import { Indicators } from './render/indicators';
 import { Effects } from './render/effects';
 import type { SceneRefs } from './render/sceneBuilder';
-import { buildScene, followSun, resizeRenderer, setNightfall, setPixelRatioCap, updateTrain } from './render/sceneBuilder';
+import { buildScene, followSun, resizeRenderer, setNightfall, setPixelRatioCap, updateStreetLights, updateTrain } from './render/sceneBuilder';
 import { QualityGovernor } from './render/quality';
 import { nightFactor } from './sim/night';
 import { buildNavGraphSome } from './ai/nav';
@@ -398,6 +398,7 @@ function render(state: GameState, entityView: EntityView, indicators: Indicators
   }
   entityView.playerOpacity = cam.boomLength < 70 ? 0.3 : 1;
   followSun(refs, px, py, pz);
+  updateStreetLights(refs, px, pz, py);
   updateTrain(refs, state.time / 1000);
   // Behind the result or a meeting the city is covered: draw it only now and then.
   frameNo++;

@@ -1,4 +1,5 @@
 import type { Point } from '../config/nations';
+import type { NationId } from '../config/nations';
 import { NATION_IDS, NATIONS } from '../config/nations';
 import { HOTSPOTS, PERCHES as MAP_PERCHES, TOWER } from '../config/map';
 import { AI_SPEED, AI_TURN_RATE, CAP_RANGE, SPRINT_SPEED } from '../config/constants';
@@ -12,6 +13,7 @@ import { attemptCapture, captureCandidate } from '../sim/systems/capture';
 import { SAME_LEVEL, dist, dist3 } from '../sim/systems/collision';
 import { accelerate, moveToward, turnBy, turnToward } from '../sim/systems/movement';
 import { lastStanding, tryStartRescue } from '../sim/systems/rescue';
+import { kingLit } from '../sim/systems/tower';
 import { canUseDecoy, decoyOf, useDecoy } from '../sim/decoy';
 import { blocked, canWalk, inWater, supportHeight } from '../sim/systems/world';
 import type { AiState, Sighting, Waypoint } from './memory';
@@ -161,12 +163,16 @@ function nearestVisible(state: GameState, e: Entity, range: number, near: Point 
 /** Choose whom to chase: close, king-like (nation belief), and from the nation we are hunting. */
 function pickPrey(state: GameState, e: Entity, range: number): Entity | null {
   const belief = state.factions[e.nation].belief;
-  const hunt = e.ai.task?.kind === 'hunt' ? e.ai.task.nation : null;
+  const task = e.ai.task;
+  const hunt = task?.kind === 'hunt' || task?.kind === 'huntKing' ? task.nation : null;
+  const kingHunt = task?.kind === 'huntKing';
   let best: Entity | null = null, bs = Infinity;
   for (const t of visibleEnemies(state, e)) {
     const d = dist3(t, e);
     if (d > range) continue;
-    const s = d - (belief.get(t.id) ?? 0) * 60 - (hunt === t.nation ? 150 : 0) + (Math.abs(t.y - e.y) > SAME_LEVEL ? 120 : 0);
+    // A king hunter looks past the small fry: king-like and lit-up enemies count for much more.
+    const s = d - (belief.get(t.id) ?? 0) * (kingHunt ? 110 : 60) - (hunt === t.nation ? 150 : 0)
+      - (kingLit(state, t, e.nation) ? 600 : 0) + (Math.abs(t.y - e.y) > SAME_LEVEL ? 120 : 0);
     if (s < bs) { bs = s; best = t; }
   }
   return best;
@@ -437,6 +443,32 @@ function hunterThink(state: GameState, e: Entity, aggro: number): void {
       }
       return;
     }
+    case 'huntKing': {
+      // Anyone met is fair game (the king first, see pickPrey); a lost target is looked for as usual.
+      if (engage(state, e, aggro + 60)) return;
+      if (lostTargetSearch(state, e)) return;
+      const lead = task.lead;
+      if (lead) {
+        const d = Math.hypot(lead.x - e.x, lead.z - e.z);
+        if (d > 90) {
+          if (e.role === 'ranger' && e.cd.special <= 0 && d > 500) useSpecial(state, e);
+          setGoal(state, e, around(lead, e, Math.min(60, d / 4), lead.y), 'INVESTIGATE');
+          return;
+        }
+        // At the lead and nobody in sight: comb the streets around it.
+        startSearch(state, e, { id: -1, x: lead.x, y: lead.y, z: lead.z, t: state.time, since: state.time, vx: 0, vz: 0 });
+        e.ai.targetId = null;
+        return;
+      }
+      // No lead: sweep the places that nation's king keeps to (its rear and base), each hunter its own.
+      const spot = sweepSpot(state, e, task.nation);
+      const g = e.ai.goal;
+      if (e.ai.state === 'INVESTIGATE' && g && Math.hypot(g.x - spot.x, g.z - spot.z) < 320) return;
+      if (e.role === 'ranger' && e.cd.special <= 0 && Math.hypot(spot.x - e.x, spot.z - e.z) > 700) useSpecial(state, e);
+      const n = randomNodeNear(spot.x, 0, spot.z, 260, state.rng);
+      setGoal(state, e, n ? { x: n.x, y: n.y, z: n.z } : { x: spot.x, y: 0, z: spot.z }, 'INVESTIGATE');
+      return;
+    }
     case 'takeTower':
       if (engage(state, e, 240)) return;
       setGoal(state, e, around(TOWER, e, 60), 'GUARD');
@@ -456,6 +488,17 @@ function hunterThink(state: GameState, e: Entity, aggro: number): void {
     if (investigate(state, e)) return;
   } else return;
   patrol(state, e);
+}
+
+/**
+ * Where a king hunter without a lead looks: the places that nation's king keeps to
+ * (its base and the sectors behind its front), a different one per hunter, moving on
+ * every 25 s or so, so a search party spreads out instead of piling onto one spot.
+ */
+function sweepSpot(state: GameState, e: Entity, o: NationId): Point {
+  const cands: Point[] = [NATIONS[o].base];
+  for (const id of state.war.sectors.map((_s, i) => i).filter((i) => state.war.sectors[i].owner === o)) cands.push(behind(id, o, 150));
+  return cands[(e.id + Math.floor(state.time / 25000)) % cands.length];
 }
 
 /**

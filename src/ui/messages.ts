@@ -154,6 +154,7 @@ export function bindMessages(bus: EventBus<GameEvent>, state: GameState, log: Lo
   const PLAN: Record<string, string> = {
     ATTACK_SECTOR: 'へ侵攻', DEFEND_SECTOR: 'を防衛', TAKE_TOWER: '管制塔を奪いに行く', HUNT_KING: '敵の王を捜索', RESCUE_KING: '王の救出作戦',
     HOLD_KING: '捕らえた王の牢屋を守る', OPPORTUNIST: '漁夫の利を狙う', RECOVER: '態勢を立て直す',
+    ALL_OUT: '救出できる者がいない。敵の王へ総攻撃', HOLD_LEAD: 'リードを守りきる',
   };
   bus.on('STRATEGY', (ev) => {
     const what = ev.sector !== null && (ev.kind === 'ATTACK_SECTOR' || ev.kind === 'DEFEND_SECTOR') ? S(ev.sector) + PLAN[ev.kind] : PLAN[ev.kind] ?? ev.kind;

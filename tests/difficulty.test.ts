@@ -9,7 +9,15 @@ import { find, freezeOthers, newGame, SPOT } from './helpers';
 
 describe('CPU level (CPUレベル)', () => {
   it('easy < normal < hard in reaction, search, memory and teamwork', () => {
-    const [e, n, h] = CPU_LEVELS.map((l) => AI_TUNING[l]);
+    const [e, n, h, x] = CPU_LEVELS.map((l) => AI_TUNING[l]);
+    expect(CPU_LEVELS).toEqual(['easy', 'normal', 'hard', 'expert']);
+    expect(x.reactionMs).toBeLessThan(h.reactionMs);
+    expect(x.searchMs).toBeGreaterThan(h.searchMs);
+    expect(x.strategyTickMs).toBeLessThan(h.strategyTickMs);
+    expect(x.rescueExtra).toBeGreaterThan(h.rescueExtra);
+    expect(x.kingHunt).toBeGreaterThan(h.kingHunt);
+    expect(x.endgameSec).toBeGreaterThan(h.endgameSec);
+    expect(e.endgameSec).toBe(0);
     expect(e.reactionMs).toBeGreaterThan(n.reactionMs);
     expect(n.reactionMs).toBeGreaterThan(h.reactionMs);
     expect(e.searchMs).toBeLessThan(n.searchMs);

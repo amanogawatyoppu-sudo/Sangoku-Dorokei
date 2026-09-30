@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { NATION_IDS, NATIONS } from '../config/nations';
 import type { BoxPrim, Prim, RampPrim } from '../config/map';
-import { GROUND, KANDA, LANDMARKS, LOOP, MAST_H, RIVER_WIDTH, STATIONS, STOREY, TOKYO_TOWER_H, TOWER, VIADUCT, WALK_EDGE, WORLD, geo, realHeight } from '../config/map';
+import { GROUND, KANDA, LANDMARKS, LIGHTS, LOOP, MAST_H, RIVER_WIDTH, STATIONS, STOREY, TOKYO_TOWER_H, TOWER, VIADUCT, WALK_EDGE, WORLD, geo, realHeight } from '../config/map';
 import { rampHeight } from '../sim/systems/world';
 import { brickFacadeTexture, detailNoise, stoneFacadeTexture, emblemTexture, facadeTexture, groundTexture, latticeTexture, stoneTexture, viaductTexture } from './textures';
 import { buildCity } from './city';
@@ -20,6 +20,8 @@ export interface SceneRefs {
   train: THREE.Group;
   /** What nightfall changes (see `setNightfall`). */
   night: { sky: Record<'top' | 'mid' | 'horizon', { value: THREE.Color }> & { glow: { value: number } }; hemi: THREE.HemisphereLight; amb: THREE.AmbientLight; k: number };
+  /** Real light from the street lamps nearest the player (see `updateStreetLights`). */
+  lamps: { lights: THREE.PointLight[]; near: THREE.PointLight; at: { x: number; z: number } | null };
 }
 
 /**
@@ -657,7 +659,51 @@ export function buildScene(canvas: HTMLCanvasElement): SceneRefs {
   buildBases(scene);
   buildJails(scene);
   const train = buildRailway(scene);
-  return { renderer, scene, camera, towerMesh, sun, train, night: { sky, hemi, amb, k: -1 } };
+  // A fixed handful of lamp lights (never more or fewer: that would recompile every material).
+  const lights: THREE.PointLight[] = [];
+  for (let i = 0; i < LAMP_LIGHTS; i++) {
+    const l = new THREE.PointLight(0xffd9a0, 0, LAMP_REACH, 1);
+    l.position.set(0, -1000, 0);
+    scene.add(l);
+    lights.push(l);
+  }
+  // A soft light over the player's head at night (the way ahead is never pitch dark, even in a park).
+  const near = new THREE.PointLight(0xdfe4ff, 0, 650, 1);
+  scene.add(near);
+  return { renderer, scene, camera, towerMesh, sun, train, night: { sky, hemi, amb, k: -1 }, lamps: { lights, near, at: null } };
+}
+
+/** How many street lamps near the player actually light the street (the rest only glow). */
+const LAMP_LIGHTS = 5;
+/** How far a lamp's light reaches (≈31 m). */
+const LAMP_REACH = 800;
+
+/**
+ * Street lamps near the player light the street after dark: the nearest few get a real
+ * warm light (the far ones keep their glow and pool). Re-picked when the player has moved.
+ */
+export function updateStreetLights(refs: SceneRefs, x: number, z: number, y = 0): void {
+  const k = Math.max(0, refs.night.k);
+  const lamps = refs.lamps;
+  const on = 0.25 + 0.75 * k;
+  for (const l of lamps.lights) l.intensity = l.position.y > 0 ? 4 * L * on : 0;
+  lamps.near.position.set(x, y + 160, z);
+  lamps.near.intensity = 1.6 * L * k;
+  if (lamps.at && Math.hypot(lamps.at.x - x, lamps.at.z - z) < 60) return;
+  lamps.at = { x, z };
+  const near: { d: number; hx: number; hz: number }[] = [];
+  for (const l of LIGHTS) {
+    const hx = l.x + Math.cos(l.ang) * 62, hz = l.z + Math.sin(l.ang) * 62;
+    const d = Math.hypot(hx - x, hz - z);
+    if (d > LAMP_REACH * 1.3) continue;
+    near.push({ d, hx, hz });
+  }
+  near.sort((a, b) => a.d - b.d);
+  lamps.lights.forEach((l, i) => {
+    const n = near[i];
+    if (n) l.position.set(n.hx, 210, n.hz);
+    else l.position.set(0, -1000, 0);
+  });
 }
 
 const DUSK = {
@@ -665,8 +711,9 @@ const DUSK = {
   sun: new THREE.Color(0xffb27a), hemiSky: new THREE.Color(0xa6b2de), hemiGround: new THREE.Color(0x4a3e44),
 };
 const NIGHT = {
-  top: new THREE.Color(0x05081a), mid: new THREE.Color(0x141a36), horizon: new THREE.Color(0x3a2440), fog: new THREE.Color(0x1a1c2c),
-  sun: new THREE.Color(0x9aa6dc), hemiSky: new THREE.Color(0x6474a8), hemiGround: new THREE.Color(0x2c2632),
+  // A city night, not a blackout: a glowing sky over Tokyo, bright moonlight, lit haze.
+  top: new THREE.Color(0x0a1030), mid: new THREE.Color(0x1f2a52), horizon: new THREE.Color(0x4a3452), fog: new THREE.Color(0x283048),
+  sun: new THREE.Color(0xb4c0ec), hemiSky: new THREE.Color(0x8494cc), hemiGround: new THREE.Color(0x3e3a4a),
 };
 
 /**
@@ -684,13 +731,13 @@ export function setNightfall(refs: SceneRefs, k: number): void {
   const fog = refs.scene.fog as THREE.Fog;
   mix(DUSK.fog, NIGHT.fog, fog.color);
   (refs.scene.background as THREE.Color).copy(fog.color);
-  fog.far = FOG_FAR - 3000 * k;
+  fog.far = FOG_FAR - 1400 * k;
   mix(DUSK.sun, NIGHT.sun, refs.sun.color);
-  refs.sun.intensity = (1.0 - 0.62 * k) * L;
+  refs.sun.intensity = (1.0 - 0.45 * k) * L;
   mix(DUSK.hemiSky, NIGHT.hemiSky, n.hemi.color);
   mix(DUSK.hemiGround, NIGHT.hemiGround, n.hemi.groundColor);
-  n.hemi.intensity = (0.72 - 0.22 * k) * L;
-  n.amb.intensity = (0.12 - 0.01 * k) * L;
+  n.hemi.intensity = (0.72 + 0.1 * k) * L;
+  n.amb.intensity = (0.12 + 0.16 * k) * L;
   for (const g of NIGHT_GLOW) g.set(k);
 }
 

@@ -25,9 +25,7 @@ export function towerTick(state: GameState, dt: number): void {
   }
   const left = timeLeftSec(state);
   if (left <= GAME_TIME / 3 + 1e-6 && left + dt > GAME_TIME / 3 + 1e-6) emit(state, { type: 'BEACON_PHASE' });
-  // Commanders of a nation without people in it light the kings as soon as they can.
-  const o = state.tower.owner;
-  if (o && !state.humans.some((id) => state.entities[id].nation === o)) lightKings(state, o);
+  // Commanders of a nation without people in it light the kings when their hunters are ready (ai/faction.ts).
 }
 
 /** The last third of the match: the tower can light up the kings. */

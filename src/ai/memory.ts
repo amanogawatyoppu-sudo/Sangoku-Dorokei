@@ -53,6 +53,11 @@ export type Task =
   | { kind: 'raidJail'; jail: 'sun' | 'moon' | 'star' }
   | { kind: 'takeTower' }
   | { kind: 'hunt'; nation: 'sun' | 'moon' | 'star' }
+  /**
+   * Find and catch a nation's king (v7.30): go to the best lead the nation has (a lit king,
+   * a king-like enemy someone saw), else sweep that nation's rear where kings keep.
+   */
+  | { kind: 'huntKing'; nation: 'sun' | 'moon' | 'star'; lead: Waypoint | null }
   /** The war (v7.13): march on a sector's strategic point (maybe by a second route), hold one, cover one from high ground. */
   | { kind: 'assault'; sector: number; via: Waypoint | null }
   | { kind: 'defend'; sector: number }

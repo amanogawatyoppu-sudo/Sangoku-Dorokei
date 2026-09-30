@@ -239,6 +239,8 @@ const STRATEGY_TALK: Record<string, string[]> = {
   HOLD_KING: ['捕まえた王を処刑まで守りきる。牢屋を固めろ。', '牢屋の守りが最優先。救出隊を返り討ちにする。'],
   OPPORTUNIST: ['二国がやり合ってる隙に漁夫の利を狙う。', '弱ったほうを後ろから突く。'],
   RECOVER: ['いったん立て直す。無理はするな。', '態勢を整える。散らばってる仲間を集めよう。'],
+  ALL_OUT: ['鍵を開けられる者がもういない。こうなったら敵の王を捕まえるしかない。', '総攻撃だ。{s}あたりを洗って、敵の王を捕まえろ。'],
+  HOLD_LEAD: ['点では勝ってる。無理に攻めず、捕まらないことが一番だ。', 'このまま逃げ切る。王の守りを厚くしろ。'],
 };
 
 /** Our national strategy, explained by the king or a commander, and argued over. */
