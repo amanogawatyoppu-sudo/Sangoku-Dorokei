@@ -100,6 +100,11 @@ export interface AiMemory {
   progressAt: number;
   /** Longest time (s) this AI spent unable to make progress (diagnostics/tests). */
   maxStuckSec: number;
+  /** When the current waypoint became current (to give up on one that cannot be reached). */
+  wpAt: number;
+  wpIndex: number;
+  /** Squad: closest it has got to its formation spot lately (sliding along a wall is not progress). */
+  bestSpotD: number;
   /** Diagnostics: seconds spent above ground level (stairs, floors, hills). */
   highSec: number;
   /** Pausing to look around after reaching a patrol / search point, until this time. */
@@ -111,6 +116,6 @@ export function createAiMemory(): AiMemory {
     state: 'PATROL', targetId: null, visible: [], seen: new Map(), alert: 0,
     goal: null, path: null, lookAt: null, aimId: null, leaderId: null, slot: 0, directOk: false, directAt: 0, thinkAt: 0, perceiveAt: 0, replanAt: 0,
     searchUntil: 0, searchCenter: null, chaseRole: 'direct', flankSide: 1, task: null,
-    progressX: 0, progressZ: 0, progressAt: 0, maxStuckSec: 0, highSec: 0, idleUntil: 0,
+    progressX: 0, progressZ: 0, progressAt: 0, maxStuckSec: 0, wpAt: 0, wpIndex: -1, bestSpotD: Infinity, highSec: 0, idleUntil: 0,
   };
 }

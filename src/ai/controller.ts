@@ -13,7 +13,7 @@ import { SAME_LEVEL, dist, dist3 } from '../sim/systems/collision';
 import { accelerate, moveToward, turnBy, turnToward } from '../sim/systems/movement';
 import { lastStanding, tryStartRescue } from '../sim/systems/rescue';
 import { canUseDecoy, decoyOf, useDecoy } from '../sim/decoy';
-import { blocked, canWalk } from '../sim/systems/world';
+import { blocked, canWalk, inWater, supportHeight } from '../sim/systems/world';
 import type { AiState, Sighting, Waypoint } from './memory';
 import { chokePoints, navGraph, planPath, randomNodeNear } from './nav';
 import { behind, neighbours, sectorPoint } from '../sim/war';
@@ -85,7 +85,9 @@ function follow(state: GameState, e: Entity, dt: number, speed: number): void {
   const path = ai.path;
   if (!path) { ai.progressAt = now; return; }
   let wp = path.points[path.i];
-  while (wp && Math.hypot(wp.x - e.x, wp.z - e.z) < 12 && Math.abs(wp.y - e.y) < 24) {
+  // Passing points on the way count from a little further off (the turning circle at a run is wider
+  // than 12 units: aiming for the exact spot makes people circle it); the destination itself is exact.
+  while (wp && Math.hypot(wp.x - e.x, wp.z - e.z) < (path.i < path.points.length - 1 ? 26 : 12) && Math.abs(wp.y - e.y) < 24) {
     path.i++;
     wp = path.points[path.i];
   }
@@ -94,6 +96,14 @@ function follow(state: GameState, e: Entity, dt: number, speed: number): void {
     if (ai.state === 'PATROL' || ai.state === 'SEARCH') ai.idleUntil = now + 500 + state.rng() * 1800;
     ai.path = null; ai.goal = null; ai.progressAt = now;
     return;
+  }
+  // A waypoint it has been near for a while without reaching (a ledge, a crowd): move on.
+  if (path.i !== ai.wpIndex) { ai.wpIndex = path.i; ai.wpAt = now; }
+  else if (now - ai.wpAt > 1200 && Math.hypot(wp.x - e.x, wp.z - e.z) < 60 && path.i + 1 < path.points.length) {
+    path.i++;
+    ai.wpIndex = path.i;
+    ai.wpAt = now;
+    wp = path.points[path.i];
   }
   moveToward(e, wp.x, wp.z, dt, speed);
   if (Math.hypot(e.x - ai.progressX, e.z - ai.progressZ) > 20) {
@@ -617,19 +627,35 @@ function leaderOf(state: GameState, e: Entity): Entity | null {
   return L && L.alive && !L.jailed ? L : null;
 }
 
-/** Where a follower should stand: its slot behind the leader (or straight behind, if that spot is inside a wall). */
+/**
+ * The floor height of a spot someone could stand on next to the leader — no wall, a floor
+ * near the leader's level (not thin air beside a bridge or a walkway; slopes are fine), not
+ * in the water — or null.
+ */
+function standAt(x: number, z: number, y: number): number | null {
+  const h = supportHeight(x, z, y + 15);
+  if (h < y - 22 || blocked(x, z, h) || inWater(x, z, h)) return null;
+  return h;
+}
+
+/** Where a follower should stand: its slot behind the leader, else straight behind, else right where the leader is. */
 function formationSpot(state: GameState, e: Entity, L: Entity): Waypoint {
   if (ringOrder(state, L)) {
     // 周りを警戒: stand in a ring around the leader.
     const a = ringAngle(state, e, L);
     const x = L.x + Math.sin(a) * RING_R, z = L.z + Math.cos(a) * RING_R;
-    if (!blocked(x, z, L.y)) return { x, y: L.y, z };
+    const h = standAt(x, z, L.y);
+    if (h !== null) return { x, y: h, z };
   }
   const [back, side] = FORMATION[e.ai.slot % FORMATION.length];
   const rx = -L.dirZ, rz = L.dirX;
   const x = L.x + L.dirX * back + rx * side, z = L.z + L.dirZ * back + rz * side;
-  if (!blocked(x, z, L.y)) return { x, y: L.y, z };
-  return { x: L.x + L.dirX * back, y: L.y, z: L.z + L.dirZ * back };
+  const h = standAt(x, z, L.y);
+  if (h !== null) return { x, y: h, z };
+  const bx = L.x + L.dirX * back, bz = L.z + L.dirZ * back;
+  const hb = standAt(bx, bz, L.y);
+  if (hb !== null) return { x: bx, y: hb, z: bz };
+  return { x: L.x, y: L.y, z: L.z };
 }
 
 /**
@@ -675,7 +701,7 @@ function squadThink(state: GameState, e: Entity, L: Entity, aggro: number): bool
   return true;
 }
 
-/** Keep formation: walk straight to the slot when it is close and clear, else take a path; catch up when behind. */
+/** Keep formation: walk straight to the slot when it is close and clear, else take a route; catch up when behind. */
 function squadMove(state: GameState, e: Entity, L: Entity, dt: number): void {
   const ai = e.ai, now = state.time;
   const spot = formationSpot(state, e, L);
@@ -690,17 +716,29 @@ function squadMove(state: GameState, e: Entity, L: Entity, dt: number): void {
     ai.directAt = now + 300;
     ai.directOk = d < 450 && Math.abs(L.y - e.y) < 20 && canWalk(e, spot.x, e.y, spot.z, 16);
   }
+  if (ai.directOk) ai.bestSpotD = Infinity;
   if (!ai.directOk) {
-    // The spot moves with the leader: keep the path and stretch its end, rather than
-    // dropping it (and standing still until the next plan) every time the leader moves on.
+    // The spot moves with the leader: keep the route and move its end along, rather than
+    // dropping it every time the leader moves on — but only while the route's last real
+    // waypoint is still near the spot (stretched further, its last leg would cut through
+    // buildings, so a fresh route is planned instead).
     const g = ai.goal, path = ai.path;
-    if (g && path && ai.state === 'SQUAD' && Math.hypot(g.x - spot.x, g.z - spot.z) < 200 && Math.abs(g.y - spot.y) < 20) {
+    const lastNav = path && path.points.length > 1 ? path.points[path.points.length - 2] : null;
+    const stretchable = !lastNav || (Math.hypot(lastNav.x - spot.x, lastNav.z - spot.z) < 250 && Math.abs(lastNav.y - spot.y) < 20);
+    if (g && path && ai.state === 'SQUAD' && stretchable && Math.hypot(g.x - spot.x, g.z - spot.z) < 200 && Math.abs(g.y - spot.y) < 20) {
       ai.goal = spot;
       path.goal = spot;
       path.points[path.points.length - 1] = spot;
     } else setGoal(state, e, spot, 'SQUAD');
-    if (ai.path) follow(state, e, dt, speed);
-    else moveToward(e, spot.x, spot.z, dt, speed); // until the plan is ready
+    if (ai.path) { follow(state, e, dt, speed); return; }
+    // No route: head straight for the spot (quickest when the leader is just ahead), and plan a
+    // route once that stops getting anywhere or the leader is far. (A route used to be planned
+    // only inside follow(), which a follower with no route never reached: it walked into walls
+    // and bridge railings for ever.)
+    moveToward(e, spot.x, spot.z, dt, speed);
+    // Progress means getting closer to the spot (sliding along a wall is not).
+    if (d < ai.bestSpotD - 10) { ai.bestSpotD = d; ai.progressAt = now; }
+    if (d > 300 || Math.abs(spot.y - e.y) > 20 || now - ai.progressAt > 500) plan(state, e);
     return;
   }
   ai.goal = null;
