@@ -78,7 +78,12 @@ export function showResult(state: GameState, recap?: Recap): void {
     head.style.setProperty('--wc', '#e0b456');
     $('ovDesc').textContent = timeUp ? '時間切れ ― 戦功ポイントが同点だった。' : 'すべての勢力のネットワークが切断された。';
   } else {
-    $('ovTitle').textContent = `NETWORK SECURED — ${NATIONS[winner].name} VICTORY`;
+    const ovTitle = $('ovTitle');
+    const kicker = document.createElement('span');
+    kicker.className = 'ov-kicker';
+    kicker.textContent = `${NATIONS[winner].name} VICTORY`;
+    ovTitle.style.setProperty('--ovc', nationCss(winner));
+    ovTitle.replaceChildren('NETWORK SECURED', kicker);
     head.style.setProperty('--wc', nationCss(winner));
     $('ovDesc').textContent = (winner === p.nation ? `${FACTIONS[winner].ja}の勝利！ あなたの勢力がネットワークを守り抜いた。` : `${FACTIONS[winner].ja}の勝利。あなたの勢力は敗れた。`)
       + (timeUp && kings.length > 1 ? `（時間切れ・戦功ポイント判定：${kings.map((n) => `${NATIONS[n].name} ${nationScore(state, n)}`).join(' / ')}）` : '');

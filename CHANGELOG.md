@@ -1,5 +1,29 @@
 # Changelog
 
+## v8.0 — TRI//TRACE : TOKYO
+
+旧名称「三国ドロケイ」（v7.30 まで）から、独立した作品 **TRI//TRACE : TOKYO** へ移行。ゲームのルール・AI・バランス・オンラインは変更なし。
+v7.30 の状態はタグ `v7.30-sangoku` でいつでも復元できる。
+
+- 名前と世界観: 近未来の東京。山手線内9戦区を3勢力が奪い合い、各勢力に1人だけいる中枢 ANCHOR を追う
+  - キャッチコピー「3勢力。9戦区。敵のANCHORを追え。」「東京を駆け、痕跡を追い、敵勢力の中枢をLOCKせよ。」
+- 勢力: SOL / 太陽陣営・LUNA / 月陣営・ASTER / 星陣営（☀☾★ と色はそのまま）
+- 役職: ANCHOR（アンカー）・VANGUARD（前衛）・SPOTTER（観測手）・RELAY（中継手）・BREAKER（解除士）・RUNNER（遊撃手）
+- 用語: 捕獲 → TRACE（背後から拘束）、牢屋 → LOCK POINT、救出 → 解放、処刑 → 戦線離脱 / LINK SEVER、国の敗北 → NETWORK LOST、
+  王候補 → ANCHOR候補、停戦 → TRUCE（一時停戦）、影武者 → DECOY、王を照らす → ANCHOR SCAN、国家戦略 → 作戦方針、自国領 / 敵国領 → 自勢力圏 / 敵勢力圏
+- 用語の一元管理: `src/config/terminology.ts`（内部の識別子 sun / moon / star・king / keyholder・KING_CAPTURED などは互換性のため変更なし）
+- タイトル: 新ロゴ「TRI//TRACE」（白の TRI・TRACE を赤い // の追跡線が貫く、下に金の TOKYO）。ボタンは PLAY / TUTORIAL
+- 大イベントの演出カード: ANCHOR LOCKED（LINK SEVERまで 80）・ANCHOR RELEASED・NETWORK LOST（戦線離脱）・NETWORK SECURED（勝利）
+- ボタン: 【TRACE】の下に「敵の背後から実行」。スマホも TRACE ボタン
+- チュートリアル: 移動 → ダッシュ → TRACE → LOCK POINT → BREAKERで解除 → ANCHOR → ANCHOR候補の推理 → 戦区 → 前線 → 管制塔 → TRUCE → 勝利条件
+- 会議: ANCHOR候補を話し合う（「周りにVANGUARDが集まっていた」「戦闘が始まると一人だけ前線から離れた」などの観測から推理）
+- リザルト: 「NETWORK SECURED — ASTER VICTORY」、新役職名、称号（ANCHOR HUNTER・TRACE MASTER・HIGH GROUND・NETWORK GUARDIAN・救援のスペシャリスト など）
+- 用語集・戦場マップ・ロード画面の TIPS・ログ・HUD・名札をすべて新用語に。CPU の呼び名も現代風に
+- ロード画面の絵: 旧タイトルの文字と勢力名の札を消し、新ロゴと SOL / LUNA の札に
+- ページ: タイトル・説明文・OGP・構造化データ・アイコンを新ブランドに
+- テスト: `tests/brand.test.ts`（タイトル・所属勢力・ANCHOR / LOCK POINT / BREAKER の表示・イベント演出・README、
+  および src の全文字列と index.html に旧用語が残っていないことの検査）
+
 ## v7.30 — 分隊が詰まらない・勝ちに行くAI・明るい夜・超級
 
 - 「付いてこい」: 橋・欄干・坂・壁で分隊員が引っかかったままになるのを修正

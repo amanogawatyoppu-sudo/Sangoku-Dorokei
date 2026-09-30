@@ -304,7 +304,7 @@ function praise(t: Talk): string[] {
   const speaker = t.other([star ?? saver!]);
   const out: string[] = [];
   if (star) out.push(say(speaker, t.pick([`${nameOf(star.id)}、もう${star.capturesMade}人TRACEしたんだって？ やるな。`, `${nameOf(star.id)}の${star.capturesMade}人TRACEは大きい。`, `さすが${nameOf(star.id)}だ。${star.capturesMade}人LOCKしてる。`])));
-  else if (saver) out.push(say(speaker, t.pick([`${nameOf(saver.id)}が仲間を${saver.rescuesMade}人助けた。ありがとう。`, `${nameOf(saver.id)}の救出、見事だった。`])));
+  else if (saver) out.push(say(speaker, t.pick([`${nameOf(saver.id)}が仲間を${saver.rescuesMade}人助けた。ありがとう。`, `${nameOf(saver.id)}の解放、見事だった。`])));
   const hero = star ?? saver!;
   if (!hero.isPlayer && !hero.remote) out.push(say(hero, t.pick(['運が良かっただけだ。', 'まだまだこれからだ。', '次は敵のANCHORをLOCKしてみせる。', 'みんなが追い込んでくれたおかげだ。'])));
   return out;
