@@ -381,7 +381,7 @@ details#hint[open] summary::before{content:'▾ ';}
 .toast.out{opacity:0;transform:translateY(-6px)}
 @keyframes toastIn{from{opacity:0;transform:translateY(-8px)}}
 #roster{display:flex;flex-direction:column;gap:4px}
-.rs-row{--nc:#999;display:grid;grid-template-columns:3.2em 1fr auto;align-items:center;gap:6px;font-size:11.5px;padding:3px 5px;border-radius:3px;background:rgba(255,255,255,.03);border-left:3px solid var(--nc)}
+.rs-row{--nc:#999;display:grid;grid-template-columns:4.8em 1fr auto;align-items:center;gap:6px;font-size:11.5px;padding:3px 5px;border-radius:3px;background:rgba(255,255,255,.03);border-left:3px solid var(--nc)}
 .rs-row.mine{background:color-mix(in srgb,var(--nc) 14%,transparent)}
 .rs-row.out{opacity:.45}
 .rs-name{font-weight:700;color:color-mix(in srgb,var(--nc) 60%,#fff)}
@@ -728,4 +728,6 @@ body.tutorial #eventCard{top:auto;bottom:40%}
 .tb-stat i{width:auto!important;min-width:17px;padding:0 4px;font-family:'Orbitron',var(--ui);font-size:9px;letter-spacing:.5px}
 #mCap{line-height:1.05}
 #mCap small{white-space:nowrap;font-size:8.5px}
-#ovTitle .ov-kicker{display:block;font-family:'Orbitron',var(--ui);font-size:.34em;letter-spacing:.4em;color:var(--ovc,#e8b04a);margin-top:4px}
+#ovTitle .ov-kicker{display:block;font-family:'Orbitron',var(--ui);font-size:max(13px,.34em);letter-spacing:.4em;color:var(--ovc,#e8b04a);margin-top:4px}
+.rs-name{white-space:nowrap}
+#eventCard .ec-sub{text-wrap:balance}
