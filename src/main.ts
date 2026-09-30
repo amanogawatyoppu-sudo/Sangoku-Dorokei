@@ -33,6 +33,8 @@ import { Minimap } from './ui/minimap';
 import { initResultView, showResult } from './ui/resultView';
 import { Recap } from './ui/recap';
 import { TutorialGuide } from './ui/tutorial';
+import { initLoading, withLoading } from './ui/loadingScreen';
+import { CPU_LEVEL_NAME } from './ai/difficulty';
 import type { AppScreen, Settings } from './ui/flow';
 import { bootScreen, loadSettings, next, saveSettings, setIntent, takeIntent } from './ui/flow';
 import type { CpuLevel } from './ai/difficulty';
@@ -81,6 +83,7 @@ initResultView({
 });
 $('recordLine').textContent = recordLine(loadRecords());
 initDrawers(canvas);
+initLoading();
 watchCanvasSize();
 
 /** Single player, the host of an online match (runs the simulation), or a friend in one (mirrors it). */
@@ -119,6 +122,13 @@ function showScreen(to: AppScreen): void {
     shown.classList.add('enter');
     $('setup').scrollTop = 0;
   }
+}
+
+/** Starts a match (or the tutorial) behind the loading screen (作戦地域へ移動中…). */
+function launch(nation: NationId, role: RoleId, size: RosterSize, mode: Mode = { kind: 'solo' }, opts: { cpu?: CpuLevel; tutorial?: boolean } = {}): void {
+  const info = opts.tutorial ? 'チュートリアル ― 太陽国・鍵使い'
+    : `${NATIONS[nation].name}国・${roleName(role)}　／　各国${size}人　／　` + (mode.kind === 'solo' ? `CPU：${CPU_LEVEL_NAME[opts.cpu ?? 'normal']}` : `対人戦（部屋 ${mode.start.lobby.code}）`);
+  void withLoading({ label: opts.tutorial ? '訓練場へ移動中' : '作戦地域へ移動中', info }, () => startGame(nation, role, size, mode, opts));
 }
 
 function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode = { kind: 'solo' }, opts: { cpu?: CpuLevel; tutorial?: boolean } = {}): void {
@@ -426,19 +436,19 @@ function exposeDebug(state: GameState, cam: CameraController, tutorial: Tutorial
 }
 
 const setup = initSetupScreen(settings,
-  (s) => { if (next(screen, { type: 'START' }, s).effect === 'startMatch') startGame(s.nation!, s.role!, s.size, { kind: 'solo' }, { cpu: s.cpu }); },
+  (s) => { if (next(screen, { type: 'START' }, s).effect === 'startMatch') launch(s.nation!, s.role!, s.size, { kind: 'solo' }, { cpu: s.cpu }); },
   (s) => { settings = s; saveSettings(store('localStorage'), s); });
 initOnlineLobby(setup, (start) => {
   const seat = start.info.seats[start.me];
-  startGame(seat[1], seat[2], start.info.size, { kind: start.me === 0 ? 'host' : 'client', start }, { cpu: settings.cpu });
+  launch(seat[1], seat[2], start.info.size, { kind: start.me === 0 ? 'host' : 'client', start }, { cpu: settings.cpu });
 });
-const startTutorial = () => startGame('sun', 'keyholder', 6, { kind: 'solo' }, { tutorial: true });
+const startTutorial = () => launch('sun', 'keyholder', 6, { kind: 'solo' }, { tutorial: true });
 $('btnPlay').onclick = () => showScreen(next(screen, { type: 'PLAY' }, settings).screen);
 $('btnTutorial').onclick = () => { if (next(screen, { type: 'TUTORIAL' }, settings).effect === 'startTutorial') startTutorial(); };
 $('btnSetupBack').onclick = () => showScreen(next(screen, { type: 'TITLE' }, settings).screen);
 // Start-up: the title, or where the last page asked to land (もう一度遊ぶ / 設定を変更 / そのままプレイ).
 const first = bootScreen(takeIntent(store('sessionStorage')), settings);
-if (first === 'PLAYING') startGame(settings.nation!, settings.role!, settings.size, { kind: 'solo' }, { cpu: settings.cpu });
+if (first === 'PLAYING') launch(settings.nation!, settings.role!, settings.size, { kind: 'solo' }, { cpu: settings.cpu });
 else if (first === 'TUTORIAL') startTutorial();
 else showScreen(first);
 // Build the AI's navigation graph while the player is still on the start screen.

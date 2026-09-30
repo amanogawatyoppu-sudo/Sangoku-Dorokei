@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>三国ドロケイ v7.24 3D</title>
+<title>三国ドロケイ v7.25 3D</title>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -50,7 +50,7 @@
         <canvas id="setupMap" aria-hidden="true"></canvas>
         <section id="titleScreen" class="title-screen">
           <div class="title-inner">
-            <div class="logo"><h1><span class="logo-a">三国</span><span class="logo-b">ドロケイ</span></h1><span class="seal ver">v7.24</span></div>
+            <div class="logo"><h1><span class="logo-a">三国</span><span class="logo-b">ドロケイ</span></h1><span class="seal ver">v7.25</span></div>
             <div class="logo-sub">TOKYO THREE KINGDOMS</div>
             <p class="tagline">東京を駆け、奪い、捕らえろ。<br><span>太陽・月・星 ― 前線の向こうに隠れた敵国の王を探し出せ。</span></p>
             <div class="title-menu">
@@ -116,6 +116,15 @@
           <details class="res-recap"><summary>試合の流れ・活躍</summary><div id="ovRecap"></div></details>
           <p id="ovRecord"></p>
           <div class="res-actions"><button class="go" id="btnRetry">もう一度遊ぶ</button><button class="pickbtn" id="btnResSetup">設定を変更</button><button class="pickbtn" id="btnResTitle">タイトルへ戻る</button></div>
+        </div>
+      </div>
+      <div id="loading" hidden role="status" aria-live="polite">
+        <div class="ld-ui">
+          <p class="ld-text"><span id="ldText">作戦地域へ移動中</span><span class="ld-dots"><i>.</i><i>.</i><i>.</i></span></p>
+          <div class="ld-bar"><i id="ldFill"></i></div>
+          <p class="ld-sub">LOADING</p>
+          <p id="ldInfo"></p>
+          <p id="ldTip"></p>
         </div>
       </div>
       <div id="tutorialCard" hidden><div class="tut-progress" id="tutProgress"></div><h3 id="tutTitle"></h3><p id="tutText"></p><div class="tut-actions" id="tutActions"></div></div>

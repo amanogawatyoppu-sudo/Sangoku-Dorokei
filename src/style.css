@@ -595,3 +595,33 @@ body.tutorial #banner{top:auto;bottom:34%}
 #tutorialCard.final .tut-actions button{font-size:16px;padding:12px 22px}
 @media (max-width:760px){#tutorialCard{top:calc(env(safe-area-inset-top,0px) + 6px);padding:9px 12px}#tutTitle{font-size:17px}#tutText{font-size:12px;line-height:1.55;margin-bottom:6px}}
 @media (max-height:520px){#tutorialCard{top:6px;width:min(560px,calc(100% - 300px));padding:8px 12px}#tutTitle{font-size:16px}#tutText{font-size:11.5px;line-height:1.5}}
+
+/* ===== v7.25 loading screen (作戦地域へ移動中…) ===== */
+#loading{position:fixed;inset:0;z-index:60;background:#07080d var(--art) 50% 15%/cover no-repeat;opacity:1;transition:opacity .45s ease;overflow:hidden}
+#loading::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 48% 42% at 86% 90%,rgba(5,6,10,.82),rgba(5,6,10,.35) 60%,transparent 80%)}
+#loading.out{opacity:0;pointer-events:none}
+.ld-ui{position:absolute;right:max(24px,4.5vw);bottom:max(28px,6vh);width:min(480px,40vw);display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+.ld-text{margin:0;font-family:var(--ui);font-weight:700;font-size:clamp(22px,2.6vw,38px);letter-spacing:.18em;color:#fbf4e4;text-shadow:0 2px 0 #000,0 0 18px rgba(0,0,0,.8)}
+.ld-dots i{font-style:normal;animation:ldDot 1.2s infinite both}
+.ld-dots i:nth-child(2){animation-delay:.2s}
+.ld-dots i:nth-child(3){animation-delay:.4s}
+@keyframes ldDot{0%,20%{opacity:.15}50%{opacity:1}100%{opacity:.15}}
+.ld-bar{width:100%;height:18px;padding:3px;border-radius:12px;border:1.5px solid rgba(224,180,86,.85);background:rgba(10,12,20,.8);box-shadow:0 0 16px rgba(224,180,86,.25)}
+.ld-bar i{display:block;height:100%;width:0;border-radius:9px;background:linear-gradient(90deg,#d9a53c,#f6d77e 60%,#ffe9a8);box-shadow:0 0 12px rgba(246,215,126,.7)}
+.ld-sub{margin:2px 0 0;font-family:var(--display);font-size:13px;letter-spacing:.9em;padding-left:.9em;color:#e0b456}
+#ldInfo{margin:4px 0 0;font-size:12.5px;color:#e8dcc0;letter-spacing:.06em;text-shadow:0 1px 3px #000}
+#ldTip{margin:0;font-size:12px;color:#b9ad93;line-height:1.6;text-shadow:0 1px 3px #000;text-wrap:balance}
+@media (prefers-reduced-motion:reduce){.ld-dots i{animation:none}}
+@media (max-aspect-ratio:1/1){
+  #loading{background-position:32% center}
+  #loading::before{background:linear-gradient(transparent 45%,rgba(5,6,10,.85) 78%)}
+}
+@media (max-aspect-ratio:3/4){
+  /* Phones upright: a bigger crop near the top keeps the logo and the runner in view. */
+  #loading{background-size:auto 60%;background-position:10% 12%}
+  #loading::before{background:linear-gradient(#07080d 0,transparent 14%,transparent 58%,#07080d 76%)}
+}
+@media (max-aspect-ratio:1/1){
+  .ld-ui{left:16px;right:16px;width:auto;bottom:max(32px,calc(env(safe-area-inset-bottom,0px) + 24px))}
+}
+@media (max-height:500px) and (min-aspect-ratio:1/1){#loading::before{background:radial-gradient(ellipse 60% 62% at 72% 100%,rgba(5,6,10,.9),rgba(5,6,10,.5) 60%,transparent 85%)}.ld-ui{width:min(420px,48vw);gap:6px;bottom:18px}.ld-text{font-size:20px}#ldTip{display:none}}
