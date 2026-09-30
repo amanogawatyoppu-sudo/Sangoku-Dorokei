@@ -108,7 +108,7 @@ canvas#mini{width:176px;height:auto;background:#1c2417;border:1px solid var(--li
 #overlay h1{font-size:34px}
 #ovDesc{font-size:15px;margin:0}
 /* v7.14: result and meeting screens in the war-map style (dark glass, gold frame, brush lettering). */
-#overlay,#meetingOverlay{background:radial-gradient(ellipse at 50% 20%,rgba(226,53,43,.16),transparent 55%),radial-gradient(ellipse at 50% 100%,rgba(76,143,240,.12),transparent 60%),rgba(6,7,11,.9)!important;backdrop-filter:blur(3px)}
+#overlay,#meetingOverlay{background:radial-gradient(ellipse at 50% 20%,rgba(226,53,43,.16),transparent 55%),radial-gradient(ellipse at 50% 100%,rgba(76,143,240,.12),transparent 60%),rgba(6,7,11,.9)!important}
 #overlay h1,#meetingOverlay h1{font-family:'Dela Gothic One',var(--display);font-weight:400;letter-spacing:4px;color:#fff4e6;text-shadow:0 3px 0 #000,0 0 26px rgba(226,53,43,.5)}
 #overlay h1{font-size:clamp(34px,6vw,58px)}
 #ovStats{background:rgba(12,13,19,.85);border:1px solid rgba(224,180,86,.4);border-radius:6px;padding:12px 18px;text-align:left;box-shadow:0 12px 34px rgba(0,0,0,.5)}
@@ -244,7 +244,7 @@ canvas#mini{width:176px;height:auto;background:#1c2417;border:1px solid var(--li
 #setup .tagline span{display:inline-block;margin-top:4px;font-family:var(--ui);font-weight:500;font-size:12.5px;letter-spacing:1px;color:#b9ad93}
 .setup-panel{display:flex;flex-direction:column;align-items:center;gap:10px;width:100%;padding:14px 16px 16px;border-radius:8px;
   background:linear-gradient(rgba(14,15,22,.78),rgba(10,11,16,.86));border:1px solid rgba(224,180,86,.35);
-  box-shadow:0 20px 50px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.05);backdrop-filter:blur(4px)}
+  box-shadow:0 20px 50px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.05)}
 .setup-panel .step-label{align-self:stretch;display:flex;align-items:center;gap:10px}
 .setup-panel .step-label::before,.setup-panel .step-label::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(224,180,86,.45),transparent)}
 .nation-card{background:linear-gradient(180deg,color-mix(in srgb,var(--nc) 16%,#15161d),#111218)!important;transition:transform .15s,box-shadow .15s,border-color .15s}
@@ -488,7 +488,7 @@ body.leaving #app{opacity:0;transition:opacity .16s ease}
 #cpuDesc{max-width:520px;font-size:12px;line-height:1.7;color:#cfc6b2;text-align:center}
 .mode-card{min-width:180px}
 .setup-foot{position:sticky;bottom:0;z-index:3;align-self:stretch;display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:4px;padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));
-  background:linear-gradient(rgba(7,8,13,.6),rgba(7,8,13,.94) 30%);border-top:1px solid rgba(224,180,86,.35);backdrop-filter:blur(4px)}
+  background:linear-gradient(rgba(7,8,13,.72),rgba(7,8,13,.96) 30%);border-top:1px solid rgba(224,180,86,.35)}
 #setupSummary{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 6px;font-size:13px;font-weight:700;color:#f3d48a}
 #setupSummary::before{content:'今回の設定';font-size:11px;letter-spacing:2px;color:#9d937f;font-weight:500;align-self:center;margin-right:4px}
 #setupSummary span{padding:2px 9px;border-radius:12px;background:rgba(224,180,86,.12);border:1px solid rgba(224,180,86,.35)}
@@ -684,3 +684,6 @@ body.tutorial #banner{top:auto;bottom:34%}
   .guide-tabs button{flex:1;padding:9px 8px}
 }
 @media (max-height:520px){.title-sub{margin-top:0;padding-top:6px;width:min(340px,100%)}.sub-btn{padding:6px 12px}.sub-btn small{display:none}#guideCanvas{max-height:calc(100dvh - 150px);width:auto;margin:0 auto}.gm-wrap{grid-template-columns:minmax(0,1fr) minmax(240px,1.2fr)}}
+
+/* v7.29: the map only drifts on the title (under the settings, guide and results it holds still: cheaper to draw). */
+body:not([data-screen="TITLE"]) #setupMap{animation:none}

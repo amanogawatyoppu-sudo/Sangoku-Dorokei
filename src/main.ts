@@ -13,9 +13,11 @@ import { CameraController } from './render/cameraController';
 import { EntityView, lerp } from './render/entityView';
 import { Indicators } from './render/indicators';
 import { Effects } from './render/effects';
-import { buildScene, followSun, resizeRenderer, setNightfall, updateTrain } from './render/sceneBuilder';
+import type { SceneRefs } from './render/sceneBuilder';
+import { buildScene, followSun, resizeRenderer, setNightfall, setPixelRatioCap, updateTrain } from './render/sceneBuilder';
+import { QualityGovernor } from './render/quality';
 import { nightFactor } from './sim/night';
-import { navGraph } from './ai/nav';
+import { buildNavGraphSome } from './ai/nav';
 import type { GameEvent } from './sim/events';
 import { advanceFrame } from './sim/game';
 import type { GameState } from './sim/state';
@@ -62,7 +64,21 @@ import { settleBody, updatePlayerMovement } from './sim/systems/movement';
 import { updateEnemiesSeen } from './sim/systems/vision';
 
 const canvas = $('game3d') as HTMLCanvasElement;
-const refs = buildScene(canvas);
+/**
+ * The 3D city is built when the first match (or the tutorial) starts, under the loading
+ * screen, not when the page opens: the title and the settings stay responsive.
+ */
+let refs!: SceneRefs;
+/** Steps the drawing down by itself if the game keeps running slowly (remembered). */
+let quality!: QualityGovernor;
+function ensureScene(): void {
+  if (refs) return;
+  refs = buildScene(canvas);
+  quality = new QualityGovernor(refs.renderer, refs.sun, (cap) => { setPixelRatioCap(cap); resizeRenderer(refs, canvas); },
+    (t) => log.add(`動作が重いので画質を「${t.name}」に下げました（解像度・影を軽く）。`));
+  watchCanvasSize();
+}
+let frameNo = 0;
 const hud = new Hud();
 const log = new LogPanel();
 const minimap = new Minimap();
@@ -86,7 +102,6 @@ $('recordLine').textContent = recordLine(loadRecords());
 initDrawers(canvas);
 initLoading();
 const guide = initGuideScreen();
-watchCanvasSize();
 
 /** Single player, the host of an online match (runs the simulation), or a friend in one (mirrors it). */
 type Mode =
@@ -136,6 +151,7 @@ function launch(nation: NationId, role: RoleId, size: RosterSize, mode: Mode = {
 }
 
 function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode = { kind: 'solo' }, opts: { cpu?: CpuLevel; tutorial?: boolean } = {}): void {
+  ensureScene();
   const online = mode.kind === 'solo' ? undefined : mode.start;
   showScreen(opts.tutorial ? 'TUTORIAL' : 'PLAYING');
   const state = online
@@ -383,7 +399,13 @@ function render(state: GameState, entityView: EntityView, indicators: Indicators
   entityView.playerOpacity = cam.boomLength < 70 ? 0.3 : 1;
   followSun(refs, px, py, pz);
   updateTrain(refs, state.time / 1000);
-  refs.renderer.render(refs.scene, refs.camera);
+  // Behind the result or a meeting the city is covered: draw it only now and then.
+  frameNo++;
+  const covered = state.meeting || (state.over && $('overlay').style.display === 'flex');
+  if (!covered || frameNo % 8 === 0) {
+    if (!covered) quality.beforeRender(dtSec * 1000);
+    refs.renderer.render(refs.scene, refs.camera);
+  }
   hud.update(state);
   minimap.draw(state, ghost?.active ? { x: ghost.x, z: ghost.z, yaw: cam.yaw } : null);
 }
@@ -460,4 +482,9 @@ if (first === 'PLAYING') launch(settings.nation!, settings.role!, settings.size,
 else if (first === 'TUTORIAL') startTutorial();
 else showScreen(first);
 // Build the AI's navigation graph while the player is still on the start screen.
-setTimeout(() => navGraph(), 300);
+// (in small slices, so the title and the settings stay responsive; a match started sooner finishes it under the loading screen).
+const warmNav = () => {
+  const until = performance.now() + 8;
+  if (!buildNavGraphSome(() => performance.now() > until)) setTimeout(warmNav, 0);
+};
+setTimeout(warmNav, 300);

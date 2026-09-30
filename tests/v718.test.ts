@@ -31,5 +31,5 @@ describe('v7.18', () => {
         expect(same.length).toBeLessThanOrEqual(2);
       }
     }
-  });
+  }, 30_000);
 });

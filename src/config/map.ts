@@ -142,7 +142,7 @@ export function loopSignedDist(x: number, z: number): number {
  * common case (far from the edge) needs no polygon test. Cell centres are at
  * most LOOP_SLACK from any point in the cell.
  */
-const LOOP_CELL = 20, LOOP_SLACK = 15;
+const LOOP_CELL = 40, LOOP_SLACK = 29; // slack ≥ half the cell diagonal (28.3)
 const LX0 = Math.min(...LOOP.map((p) => p.x)) - LOOP_CELL, LZ0 = Math.min(...LOOP.map((p) => p.z)) - LOOP_CELL;
 const LCOLS = Math.ceil((Math.max(...LOOP.map((p) => p.x)) - LX0) / LOOP_CELL) + 2;
 const LROWS = Math.ceil((Math.max(...LOOP.map((p) => p.z)) - LZ0) / LOOP_CELL) + 2;

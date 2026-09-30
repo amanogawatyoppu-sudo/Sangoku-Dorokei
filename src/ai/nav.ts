@@ -35,70 +35,101 @@ const gzOf = (z: number) => Math.round((z - BOUNDS.minZ) / NAV_SPACING);
 const xOf = (gx: number) => BOUNDS.minX + gx * NAV_SPACING;
 const zOf = (gz: number) => BOUNDS.minZ + gz * NAV_SPACING;
 
-function build(): Graph {
-  const nodes: NavNode[] = [];
-  const columns = new Map<number, number[]>();
+/**
+ * The network is built in resumable phases (grid columns → narrow features → edges →
+ * reachability), so it can be spread over idle moments on the title screen instead of
+ * freezing the page for a second. `navGraph()` finishes whatever is left at once.
+ */
+interface Builder {
+  nodes: NavNode[];
+  columns: Map<number, number[]>;
+  phase: 0 | 1 | 2 | 3 | 4;
+  /** Where the current phase has got to. */
+  i: number;
+}
+
+function newBuilder(): Builder {
+  return { nodes: [], columns: new Map(), phase: 0, i: 0 };
+}
+
+/** Does some work; true when the graph is complete. `timeUp` says when to pause (the caller keeps the clock). */
+function work(bd: Builder, timeUp: () => boolean): boolean {
+  const { nodes, columns } = bd;
   const GX = gxOf(BOUNDS.maxX), GZ = gzOf(BOUNDS.maxZ);
-  for (let gx = 1; gx < GX; gx++) {
-    for (let gz = 1; gz < GZ; gz++) {
-      const x = xOf(gx), z = zOf(gz);
-      if (!insideLoop(x, z, 0)) continue;
-      const heights = [0];
-      for (const p of primsAt(x, z)) {
-        if (p.noFloor || Math.abs(x - p.x) >= p.w / 2 || Math.abs(z - p.z) >= p.d / 2) continue;
-        heights.push(topAt(p, x, z));
+  while (bd.phase < 4) {
+    if (bd.phase === 0) {
+      // Grid columns: every floor height you could rest at, with room to stand.
+      for (; bd.i < (GX - 1) * (GZ - 1); bd.i++) {
+        if ((bd.i & 63) === 0 && timeUp()) return false;
+        const gx = 1 + Math.floor(bd.i / (GZ - 1)), gz = 1 + (bd.i % (GZ - 1));
+        const x = xOf(gx), z = zOf(gz);
+        if (!insideLoop(x, z, 0)) continue;
+        const heights = [0];
+        for (const p of primsAt(x, z)) {
+          if (p.noFloor || Math.abs(x - p.x) >= p.w / 2 || Math.abs(z - p.z) >= p.d / 2) continue;
+          heights.push(topAt(p, x, z));
+        }
+        const ids: number[] = [];
+        const used: number[] = [];
+        for (const h of heights) {
+          if (supportHeight(x, z, h) !== h || blocked(x, z, h)) continue;
+          if (used.some((u) => Math.abs(u - h) < 1)) continue;
+          used.push(h);
+          const n: NavNode = { id: nodes.length, x, y: h, z, gx, gz, edges: [], costs: [], reachable: false };
+          nodes.push(n);
+          ids.push(n.id);
+        }
+        if (ids.length) columns.set(colKey(gx, gz), ids);
       }
-      const ids: number[] = [];
-      const used: number[] = [];
-      for (const h of heights) {
-        // Only heights you would actually rest at from there, with room to stand.
-        if (supportHeight(x, z, h) !== h || blocked(x, z, h)) continue;
-        if (used.some((u) => Math.abs(u - h) < 1)) continue;
-        used.push(h);
-        const n: NavNode = { id: nodes.length, x, y: h, z, gx, gz, edges: [], costs: [], reachable: false };
-        nodes.push(n);
-        ids.push(n.id);
-      }
-      if (ids.length) columns.set(colKey(gx, gz), ids);
-    }
-  }
-  // Centre-line nodes along narrow walkable features (stairs, slopes, skyways,
-  // bridges, wall walks) so they connect regardless of grid alignment.
-  for (const p of WORLD) {
-    if (p.noFloor) continue;
-    const alongX = p.kind === 'ramp' ? p.axis === 'x' : p.w >= p.d;
-    const narrow = alongX ? p.d : p.w, len = alongX ? p.w : p.d;
-    if (p.kind === 'box' && (narrow > 100 || narrow < 2 * 14 + 4)) continue;
-    const n = Math.max(2, Math.ceil(len / 20));
-    for (let i = 0; i <= n; i++) {
-      const t = -len / 2 + 6 + ((len - 12) * i) / n;
-      const x = alongX ? p.x + t : p.x, z = alongX ? p.z : p.z + t;
-      const h = topAt(p, x, z);
-      if (supportHeight(x, z, h) !== h || blocked(x, z, h)) continue;
-      const gx = gxOf(x), gz = gzOf(z);
-      const node: NavNode = { id: nodes.length, x, y: h, z, gx, gz, edges: [], costs: [], reachable: false };
-      nodes.push(node);
-      const key = colKey(gx, gz);
-      columns.set(key, [...(columns.get(key) ?? []), node.id]);
-    }
-  }
-  for (const n of nodes) {
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dz = -1; dz <= 1; dz++) {
-        for (const mId of columns.get(colKey(n.gx + dx, n.gz + dz)) ?? []) {
-          if (mId === n.id) continue;
-          const m = nodes[mId];
-          if (m.y - n.y > 30 || n.y - m.y > 80) continue;
-          if (!canWalk(n, m.x, m.y, m.z)) continue;
-          const drop = Math.max(0, n.y - m.y - 14);
-          n.edges.push(m.id);
-          n.costs.push(Math.hypot(m.x - n.x, m.y - n.y, m.z - n.z) + drop * 2);
+    } else if (bd.phase === 1) {
+      // Centre-line nodes along narrow walkable features (stairs, slopes, skyways,
+      // bridges, wall walks) so they connect regardless of grid alignment.
+      for (; bd.i < WORLD.length; bd.i++) {
+        if ((bd.i & 31) === 0 && timeUp()) return false;
+        const p = WORLD[bd.i];
+        if (p.noFloor) continue;
+        const alongX = p.kind === 'ramp' ? p.axis === 'x' : p.w >= p.d;
+        const narrow = alongX ? p.d : p.w, len = alongX ? p.w : p.d;
+        if (p.kind === 'box' && (narrow > 100 || narrow < 2 * 14 + 4)) continue;
+        const n = Math.max(2, Math.ceil(len / 20));
+        for (let k = 0; k <= n; k++) {
+          const t = -len / 2 + 6 + ((len - 12) * k) / n;
+          const x = alongX ? p.x + t : p.x, z = alongX ? p.z : p.z + t;
+          const h = topAt(p, x, z);
+          if (supportHeight(x, z, h) !== h || blocked(x, z, h)) continue;
+          const gx = gxOf(x), gz = gzOf(z);
+          const node: NavNode = { id: nodes.length, x, y: h, z, gx, gz, edges: [], costs: [], reachable: false };
+          nodes.push(node);
+          const key = colKey(gx, gz);
+          columns.set(key, [...(columns.get(key) ?? []), node.id]);
         }
       }
+    } else if (bd.phase === 2) {
+      // Edges: walk from each node to its neighbours.
+      for (; bd.i < nodes.length; bd.i++) {
+        if ((bd.i & 15) === 0 && timeUp()) return false;
+        const n = nodes[bd.i];
+        for (let dx = -1; dx <= 1; dx++) {
+          for (let dz = -1; dz <= 1; dz++) {
+            for (const mId of columns.get(colKey(n.gx + dx, n.gz + dz)) ?? []) {
+              if (mId === n.id) continue;
+              const m = nodes[mId];
+              if (m.y - n.y > 30 || n.y - m.y > 80) continue;
+              if (!canWalk(n, m.x, m.y, m.z)) continue;
+              const drop = Math.max(0, n.y - m.y - 14);
+              n.edges.push(m.id);
+              n.costs.push(Math.hypot(m.x - n.x, m.y - n.y, m.z - n.z) + drop * 2);
+            }
+          }
+        }
+      }
+    } else {
+      markReachable(nodes);
     }
+    bd.phase++;
+    bd.i = 0;
   }
-  markReachable(nodes);
-  return { nodes, columns };
+  return true;
 }
 
 /** Flags the largest set of nodes that can reach each other (the playable network). */
@@ -118,9 +149,29 @@ function markReachable(nodes: NavNode[]): void {
   for (const n of nodes) n.reachable = !!(fwd[n.id] && back[n.id]);
 }
 
+let pending: Builder | null = null;
+
 export function navGraph(): Graph {
-  if (!graph) graph = build();
+  if (!graph) {
+    const bd = pending ?? newBuilder();
+    work(bd, () => false);
+    pending = null;
+    graph = { nodes: bd.nodes, columns: bd.columns };
+  }
   return graph;
+}
+
+/**
+ * Builds part of the network until `timeUp()` says to stop; true once it is complete.
+ * Call it again later to go on (the page does this in small slices so it stays responsive).
+ */
+export function buildNavGraphSome(timeUp: () => boolean): boolean {
+  if (graph) return true;
+  pending ??= newBuilder();
+  if (!work(pending, timeUp)) return false;
+  graph = { nodes: pending.nodes, columns: pending.columns };
+  pending = null;
+  return true;
 }
 
 /** Nearest node reachable by walking straight from `body`, or null. */

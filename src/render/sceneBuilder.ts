@@ -719,15 +719,21 @@ export function fovForAspect(aspect: number): number {
   return Math.min(MAX_FOV, Math.max(BASE_FOV, vForH));
 }
 
-export function renderPixelRatio(devicePixelRatio: number): number {
-  return Math.min(Math.max(devicePixelRatio || 1, 1), MAX_PIXEL_RATIO);
+export function renderPixelRatio(devicePixelRatio: number, cap = MAX_PIXEL_RATIO): number {
+  return Math.min(Math.max(devicePixelRatio || 1, 1), cap);
+}
+
+/** Lowered by the quality governor when the game runs slowly. */
+let ratioCap = MAX_PIXEL_RATIO;
+export function setPixelRatioCap(cap: number): void {
+  ratioCap = Math.min(MAX_PIXEL_RATIO, cap);
 }
 
 /** Matches the drawing buffer and camera aspect to the canvas's CSS size and the screen's pixel ratio. */
 export function resizeRenderer(refs: SceneRefs, canvas: HTMLCanvasElement): void {
   const r = canvas.getBoundingClientRect();
   if (r.width < 1 || r.height < 1) return;
-  refs.renderer.setPixelRatio(renderPixelRatio(window.devicePixelRatio));
+  refs.renderer.setPixelRatio(renderPixelRatio(window.devicePixelRatio, ratioCap));
   refs.renderer.setSize(r.width, r.height, false);
   refs.camera.aspect = r.width / r.height;
   refs.camera.fov = fovForAspect(refs.camera.aspect);

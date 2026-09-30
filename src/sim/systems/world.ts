@@ -17,34 +17,70 @@ const CELL = 100;
 const COLS = Math.ceil((BOUNDS.maxX - BOUNDS.minX + 400) / CELL);
 const ROWS = Math.ceil((BOUNDS.maxZ - BOUNDS.minZ + 400) / CELL);
 const OX = BOUNDS.minX - 200, OZ = BOUNDS.minZ - 200;
+/** Per cell: the primitives overlapping it (indices for de-duplication, and the primitives themselves). */
 const grid: number[][] = Array.from({ length: COLS * ROWS }, () => []);
-const cellOf = (x: number, z: number) => [Math.floor((x - OX) / CELL), Math.floor((z - OZ) / CELL)];
+const gridPrims: Prim[][] = Array.from({ length: COLS * ROWS }, () => []);
+const col = (x: number) => Math.floor((x - OX) / CELL);
+const row = (z: number) => Math.floor((z - OZ) / CELL);
 WORLD.forEach((p, i) => {
-  const [c0, r0] = cellOf(p.x - p.w / 2, p.z - p.d / 2), [c1, r1] = cellOf(p.x + p.w / 2, p.z + p.d / 2);
+  const c0 = col(p.x - p.w / 2), r0 = row(p.z - p.d / 2), c1 = col(p.x + p.w / 2), r1 = row(p.z + p.d / 2);
   for (let c = Math.max(0, c0); c <= Math.min(COLS - 1, c1); c++) {
-    for (let r = Math.max(0, r0); r <= Math.min(ROWS - 1, r1); r++) grid[r * COLS + c].push(i);
+    for (let r = Math.max(0, r0); r <= Math.min(ROWS - 1, r1); r++) { grid[r * COLS + c].push(i); gridPrims[r * COLS + c].push(p); }
   }
 });
 let stamp = 0;
 const seen = new Uint32Array(WORLD.length);
+const NONE: Prim[] = [];
 
 /** Primitives whose footprint may overlap the given rectangle. */
 function near(x0: number, z0: number, x1: number, z1: number, out: Prim[]): Prim[] {
   out.length = 0;
   stamp++;
-  const [c0, r0] = cellOf(x0, z0), [c1, r1] = cellOf(x1, z1);
-  for (let c = Math.max(0, c0); c <= Math.min(COLS - 1, c1); c++) {
-    for (let r = Math.max(0, r0); r <= Math.min(ROWS - 1, r1); r++) {
-      for (const i of grid[r * COLS + c]) if (seen[i] !== stamp) { seen[i] = stamp; out.push(WORLD[i]); }
+  const c0 = Math.max(0, col(x0)), r0 = Math.max(0, row(z0)), c1 = Math.min(COLS - 1, col(x1)), r1 = Math.min(ROWS - 1, row(z1));
+  for (let c = c0; c <= c1; c++) {
+    for (let r = r0; r <= r1; r++) {
+      const ids = grid[r * COLS + c];
+      for (let k = 0; k < ids.length; k++) { const i = ids[k]; if (seen[i] !== stamp) { seen[i] = stamp; out.push(WORLD[i]); } }
     }
   }
   return out;
 }
 const scratch: Prim[] = [];
 
+/** Primitives whose footprint may contain the point (x, z): the cell's own list (read only, not a copy). */
+function at(x: number, z: number): readonly Prim[] {
+  const c = col(x), r = row(z);
+  return c < 0 || r < 0 || c >= COLS || r >= ROWS ? NONE : gridPrims[r * COLS + c];
+}
+
 /** Primitives whose footprint may contain the point (x, z) (a fresh array). */
 export function primsAt(x: number, z: number): Prim[] {
-  return [...near(x, z, x, z, scratch)];
+  return [...at(x, z)];
+}
+
+/**
+ * Primitives in the cells a 2D segment passes through (grid traversal, not its whole
+ * bounding box: a long diagonal sight line touches a few dozen cells, not hundreds).
+ */
+function alongSegment(ax: number, az: number, bx: number, bz: number, out: Prim[]): Prim[] {
+  out.length = 0;
+  stamp++;
+  let c = col(ax), r = row(az);
+  const cEnd = col(bx), rEnd = row(bz);
+  const dx = bx - ax, dz = bz - az;
+  const sc = dx > 0 ? 1 : -1, sr = dz > 0 ? 1 : -1;
+  const tdx = dx !== 0 ? Math.abs(CELL / dx) : Infinity, tdz = dz !== 0 ? Math.abs(CELL / dz) : Infinity;
+  let tx = dx !== 0 ? ((dx > 0 ? (c + 1) * CELL + OX - ax : ax - (c * CELL + OX)) / Math.abs(dx)) : Infinity;
+  let tz = dz !== 0 ? ((dz > 0 ? (r + 1) * CELL + OZ - az : az - (r * CELL + OZ)) / Math.abs(dz)) : Infinity;
+  for (let guard = 0; guard < COLS + ROWS + 4; guard++) {
+    if (c >= 0 && r >= 0 && c < COLS && r < ROWS) {
+      const ids = grid[r * COLS + c];
+      for (let k = 0; k < ids.length; k++) { const i = ids[k]; if (seen[i] !== stamp) { seen[i] = stamp; out.push(WORLD[i]); } }
+    }
+    if (c === cEnd && r === rEnd) break;
+    if (tx < tz) { tx += tdx; c += sc; } else { tz += tdz; r += sr; }
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------- primitive geometry
@@ -87,7 +123,9 @@ function topOverCircle(p: Prim, x: number, z: number, r: number): number {
  */
 export function supportHeight(x: number, z: number, y: number): number {
   let best = 0;
-  for (const p of near(x, z, x, z, scratch)) {
+  const cell = at(x, z);
+  for (let k = 0; k < cell.length; k++) {
+    const p = cell[k];
     if (p.noFloor || !underfoot(p, x, z)) continue;
     const t = topAt(p, x, z);
     if (t <= y + STEP_UP && t > best) best = t;
@@ -110,7 +148,7 @@ export function blocked(x: number, z: number, y: number, r = CR): boolean {
 export function inWater(x: number, z: number, y: number): boolean {
   // Standing on a bridge deck (or any floor) over the water is dry, even if the deck is low.
   if (supportHeight(x, z, y) > 0) return false;
-  for (const p of near(x, z, x, z, scratch)) {
+  for (const p of at(x, z)) {
     if (p.mat === 'water' && p.kind === 'box' && y < p.y1 && Math.abs(x - p.x) < p.w / 2 && Math.abs(z - p.z) < p.d / 2) return true;
   }
   return false;
@@ -118,7 +156,7 @@ export function inWater(x: number, z: number, y: number): boolean {
 
 /** Point inside solid, sight-blocking matter (walls, floors, hills; not water). */
 export function solidAt(x: number, y: number, z: number): boolean {
-  for (const p of near(x, z, x, z, scratch)) {
+  for (const p of at(x, z)) {
     if (p.seeThrough || !inside(p, x, z)) continue;
     if (y > p.y0 && y < topAt(p, x, z)) return true;
   }
@@ -127,24 +165,19 @@ export function solidAt(x: number, y: number, z: number): boolean {
 
 /** Does the segment a→b pass through the box's interior (slab test)? */
 function segmentHitsBox(ax: number, ay: number, az: number, bx: number, by: number, bz: number, p: Prim, y1: number): boolean {
-  let t0 = 0, t1 = 1;
-  const axes: [number, number, number, number][] = [
-    [ax, bx - ax, p.x - p.w / 2, p.x + p.w / 2],
-    [ay, by - ay, p.y0, y1],
-    [az, bz - az, p.z - p.d / 2, p.z + p.d / 2],
-  ];
-  for (const [o, d, lo, hi] of axes) {
-    if (Math.abs(d) < 1e-9) {
-      if (o <= lo || o >= hi) return false;
-      continue;
-    }
-    let ta = (lo - o) / d, tb = (hi - o) / d;
-    if (ta > tb) [ta, tb] = [tb, ta];
-    t0 = Math.max(t0, ta);
-    t1 = Math.min(t1, tb);
-    if (t0 >= t1) return false;
-  }
-  return true;
+  // Slab test on x, y and z in turn (no arrays: this runs for every sight line).
+  slabT.t0 = 0;
+  slabT.t1 = 1;
+  return slab(ax, bx - ax, p.x - p.w / 2, p.x + p.w / 2, slabT) && slab(ay, by - ay, p.y0, y1, slabT) && slab(az, bz - az, p.z - p.d / 2, p.z + p.d / 2, slabT);
+}
+const slabT = { t0: 0, t1: 1 };
+function slab(o: number, d: number, lo: number, hi: number, t: { t0: number; t1: number }): boolean {
+  if (Math.abs(d) < 1e-9) return o > lo && o < hi;
+  let ta = (lo - o) / d, tb = (hi - o) / d;
+  if (ta > tb) { const q = ta; ta = tb; tb = q; }
+  if (ta > t.t0) t.t0 = ta;
+  if (tb < t.t1) t.t1 = tb;
+  return t.t0 < t.t1;
 }
 
 const losScratch: Prim[] = [];
@@ -154,7 +187,7 @@ const losScratch: Prim[] = [];
  * even a thin floor slab blocks; ramps are sampled finely.
  */
 export function lineOfSight(ax: number, ay: number, az: number, bx: number, by: number, bz: number): boolean {
-  const cand = near(Math.min(ax, bx), Math.min(az, bz), Math.max(ax, bx), Math.max(az, bz), losScratch);
+  const cand = alongSegment(ax, az, bx, bz, losScratch);
   let ramps = false;
   for (const p of cand) {
     if (p.seeThrough) continue;
