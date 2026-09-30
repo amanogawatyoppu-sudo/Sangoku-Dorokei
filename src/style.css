@@ -236,6 +236,11 @@ canvas#mini{width:176px;height:auto;background:#1c2417;border:1px solid var(--li
 #setup .logo h1{margin:0;font-family:'Dela Gothic One','Hiragino Kaku Gothic StdN','Noto Sans CJK JP','Noto Sans JP','Yu Gothic',sans-serif;font-weight:900;font-synthesis:none;font-size:clamp(46px,8vw,88px);line-height:1;letter-spacing:2px;
   background:none;-webkit-background-clip:initial;background-clip:initial;color:#fff;filter:none;text-shadow:0 4px 0 #000,0 0 30px rgba(0,0,0,.8)}
 .logo-a{color:#f7f1e6;-webkit-text-stroke:2px #f7f1e6;paint-order:stroke fill}
+/* ふりがな over 三国 (reads さんごく, not みくに). */
+.logo-a{ruby-position:over;ruby-align:center}
+.logo-a rt{font-family:var(--display);font-weight:800;font-size:clamp(11px,1.5vw,16px);letter-spacing:.45em;line-height:1.4;color:#e8d9b6;
+  -webkit-text-stroke:0;text-shadow:0 1px 3px #000;padding-left:.45em}
+#setup .logo h1{padding-top:.3em}
 .logo-b{-webkit-text-stroke:2px #e2352b;paint-order:stroke fill}
 .logo-b{color:#e2352b;margin-left:.04em;text-shadow:0 4px 0 #000,0 0 24px rgba(226,53,43,.55)!important;display:inline-block;transform:skewX(-6deg)}
 #setup .logo .ver{margin:0 0 10px}
