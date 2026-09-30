@@ -35,7 +35,7 @@ export const SECTORS: readonly SectorDef[] = [
   { id: 3, name: '文京', center: { x: 150, z: -3200 }, pointNear: { x: 1073, z: -2592 }, pointName: '東京ドーム前', home: null, style: '川と橋と坂。北の要衝' },
   { id: 4, name: '上野', center: { x: 2700, z: -4700 }, pointNear: { x: 2750, z: -4089, y: 130 }, pointName: '上野の山（高台）', home: 'moon', style: '公園の高台と坂。見晴らしがよく偵察と狙撃向き' },
   { id: 5, name: '秋葉原', center: { x: 2550, z: -2150 }, pointNear: { x: 2661, z: -2142 }, pointName: '電気街', home: 'moon', style: '路地と高架と屋上。機動戦' },
-  { id: 6, name: '中央', center: { x: 1350, z: 100 }, pointNear: { x: 1150, z: 850 }, pointName: '日比谷公園', home: null, style: '管制塔・広場・堀の橋。三国が集まる最大の激戦地' },
+  { id: 6, name: '中央', center: { x: 1350, z: 100 }, pointNear: { x: 1150, z: 850 }, pointName: '日比谷公園', home: null, style: '管制塔・広場・堀の橋。3勢力が集まる最大の激戦地' },
   { id: 7, name: '東京タワー', center: { x: 100, z: 2500 }, pointNear: { x: 487, z: 2825 }, pointName: '東京タワー下', home: 'star', style: '高台と塔。広く見渡せる' },
   { id: 8, name: '品川', center: { x: -400, z: 5300 }, pointNear: { x: 300, z: 4600 }, pointName: '品川駅前', home: 'star', style: '広い道路と高架。高速移動と大規模戦' },
 ];

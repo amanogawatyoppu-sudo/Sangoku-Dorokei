@@ -2,7 +2,8 @@ import type { NationId } from '../config/nations';
 import { NATION_IDS, NATIONS, nationCss } from '../config/nations';
 import type { RoleId } from '../config/roles';
 import type { RosterSize } from '../config/roles';
-import { ROLE_INFO, ROLES, ROSTER_SIZES } from '../config/roles';
+import { ROLE_INFO, ROLES, ROSTER_SIZES, roleJa } from '../config/roles';
+import { FACTIONS } from '../config/terminology';
 import { $ } from './dom';
 import { drawTitleMap } from './titleMap';
 import type { CpuLevel } from '../ai/difficulty';
@@ -11,7 +12,7 @@ import type { GameMode, Settings } from './flow';
 import { canStart, missing, summary } from './flow';
 
 /** One-character seal shown on each role card. */
-const ROLE_SEAL: Record<RoleId, string> = { king: '王', soldier: '兵', sniper: '狙', communicator: '通', keyholder: '鍵', ranger: '遊' };
+const ROLE_SEAL: Record<RoleId, string> = { king: 'ANC', soldier: 'VAN', sniper: 'SPT', communicator: 'RLY', keyholder: 'BRK', ranger: 'RUN' };
 
 export interface SetupPicks {
   nation: NationId | null;
@@ -34,8 +35,8 @@ export interface SetupControl {
 const CPU_DESC: Record<CpuLevel, string> = {
   easy: '初級：CPUの反応が少し遅く、追跡をすぐ諦め、回り込みも少ない。初めての人向け。',
   normal: '標準：いつものCPU。',
-  hard: '上級：敵に気付くのが速く、見失っても長く探す。挟み撃ち・先回り・高台や階段を多用し、救出や牢屋の守りの連携も上手い。',
-  expert: '超級：上級よりさらに反応が速く、作戦の切り替えも速い。王らしき相手を積極的に探し、終盤は得点を計算して逆転や逃げ切りを狙う。腕試し向け。',
+  hard: '上級：敵に気付くのが速く、見失っても長く探す。挟み撃ち・先回り・高台や階段を多用し、解放やLOCK POINTの守りの連携も上手い。',
+  expert: '超級：上級よりさらに反応が速く、作戦の切り替えも速い。ANCHOR候補を積極的に探し、終盤は得点を計算して逆転や逃げ切りを狙う。腕試し向け。',
 };
 
 /**
@@ -69,8 +70,11 @@ export function initSetupScreen(initial: Settings, onStart: (s: Settings) => voi
     em.textContent = NATIONS[n].emblem;
     const name = document.createElement('span');
     name.className = 'nname';
-    name.textContent = NATIONS[n].name + '国';
-    b.append(em, name);
+    name.textContent = FACTIONS[n].code;
+    const ja = document.createElement('small');
+    ja.className = 'nja';
+    ja.textContent = FACTIONS[n].ja;
+    b.append(em, name, ja);
     b.onclick = () => pickNation(n);
     pn.appendChild(b);
   }
@@ -84,7 +88,10 @@ export function initSetupScreen(initial: Settings, onStart: (s: Settings) => voi
     const name = document.createElement('span');
     name.className = 'rname';
     name.textContent = ROLE_INFO[r].n;
-    b.append(seal, name);
+    const ja = document.createElement('small');
+    ja.className = 'rja';
+    ja.textContent = roleJa(r);
+    b.append(seal, name, ja);
     b.onclick = () => pickRole(r);
     pr.appendChild(b);
   }

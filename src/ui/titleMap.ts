@@ -200,7 +200,7 @@ export function drawTitleMap(canvas: HTMLCanvasElement): void {
     g.shadowBlur = 16 * dpr;
     g.fillText(NATIONS[n].emblem, x, y - 30 * dpr);
     g.shadowBlur = 0;
-    plate(x, y - 62 * dpr, NATIONS[n].name + '国', nationCss(n), true);
+    plate(x, y - 62 * dpr, NATIONS[n].name, nationCss(n), true);
   }
 
   // Vignette so the title and the picks read on top.

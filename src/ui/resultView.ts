@@ -1,7 +1,8 @@
 import { NATIONS, NATION_IDS, nationCss } from '../config/nations';
 import { nameOf } from '../config/names';
 import type { RoleId } from '../config/roles';
-import { roleName } from '../config/roles';
+import { roleJa, roleName } from '../config/roles';
+import { FACTIONS, facFull } from '../config/terminology';
 import type { Contrib } from '../sim/contrib';
 import { contribution, ranking, titleFor } from '../sim/contrib';
 import type { GameState } from '../sim/state';
@@ -43,17 +44,17 @@ const ORDER: Record<RoleId, StatKey[]> = {
 
 function statLine(k: StatKey, r: Contrib, survive: number, dash: number): [string, string] {
   switch (k) {
-    case 'cap': return ['捕獲数', `${r.cap}`];
-    case 'res': return ['救出数', `${r.res}`];
-    case 'kingHit': return ['王への攻撃', `${r.kingHit}`];
-    case 'kingCap': return ['王捕獲', `${r.kingCap}`];
-    case 'kingRes': return ['王救出', `${r.kingRes}`];
+    case 'cap': return ['TRACE数', `${r.cap}`];
+    case 'res': return ['解放数', `${r.res}`];
+    case 'kingHit': return ['ANCHORへの攻撃', `${r.kingHit}`];
+    case 'kingCap': return ['ANCHOR LOCK', `${r.kingCap}`];
+    case 'kingRes': return ['ANCHOR解放', `${r.kingRes}`];
     case 'sector': return ['戦区制圧貢献', `参加${r.secJoin}・奪取${r.secSteal}`];
     case 'tower': return ['管制塔貢献', `占領${r.towerCap}・${Math.round(r.towerSec)}秒`];
     case 'survive': return ['生存時間', fmtTime(survive)];
     case 'dash': return ['ダッシュ距離', `${Math.round(dash / 25)}m`];
     case 'snipe': return ['狙撃命中', `${r.snipeHit}（援護${r.snipeAssist}）`];
-    case 'escort': return ['王の護衛', `${Math.round(r.escortSec)}秒`];
+    case 'escort': return ['ANCHORの護衛', `${Math.round(r.escortSec)}秒`];
   }
 }
 
@@ -75,11 +76,11 @@ export function showResult(state: GameState, recap?: Recap): void {
   if (winner === 'draw' || !winner) {
     $('ovTitle').textContent = '引き分け';
     head.style.setProperty('--wc', '#e0b456');
-    $('ovDesc').textContent = timeUp ? '時間切れ ― 戦功ポイントが同点だった。' : 'すべての王が処刑された。';
+    $('ovDesc').textContent = timeUp ? '時間切れ ― 戦功ポイントが同点だった。' : 'すべての勢力のネットワークが切断された。';
   } else {
-    $('ovTitle').textContent = NATIONS[winner].name + '国 勝利！';
+    $('ovTitle').textContent = `NETWORK SECURED — ${NATIONS[winner].name} VICTORY`;
     head.style.setProperty('--wc', nationCss(winner));
-    $('ovDesc').textContent = (winner === p.nation ? 'あなたの国が勝利しました！' : 'あなたの国は敗北しました。')
+    $('ovDesc').textContent = (winner === p.nation ? `${FACTIONS[winner].ja}の勝利！ あなたの勢力がネットワークを守り抜いた。` : `${FACTIONS[winner].ja}の勝利。あなたの勢力は敗れた。`)
       + (timeUp && kings.length > 1 ? `（時間切れ・戦功ポイント判定：${kings.map((n) => `${NATIONS[n].name} ${nationScore(state, n)}`).join(' / ')}）` : '');
   }
   // You.
@@ -96,7 +97,7 @@ export function showResult(state: GameState, recap?: Recap): void {
   crest.style.setProperty('--nc', nationCss(p.nation));
   crest.textContent = NATIONS[p.nation].emblem;
   const wt = document.createElement('span');
-  wt.textContent = `${NATIONS[p.nation].name}国・${roleName(p.role)}`;
+  wt.textContent = `${NATIONS[p.nation].name} ・ ${roleName(p.role)}（${roleJa(p.role)}）`;
   who.append(crest, wt);
   $('resTitle').textContent = `称号「${titleFor(state, p)}」`;
   countUp($('resScore'), total);
@@ -151,7 +152,7 @@ export function showResult(state: GameState, recap?: Recap): void {
     name.textContent = e.id === p.id ? (nick ?? nameOf(e.id)) + '（あなた）' : nick ?? nameOf(e.id);
     const role = document.createElement('span');
     role.className = 'rk-role';
-    role.textContent = roleName(e.role) + (e.role === 'king' ? (e.alive ? '' : '・処刑') : !e.alive ? '・処刑' : '');
+    role.textContent = roleName(e.role) + (!e.alive ? '・離脱' : '');
     const pts = document.createElement('b');
     pts.className = 'rk-pts';
     pts.textContent = `${row.total}`;
@@ -175,16 +176,16 @@ export function showResult(state: GameState, recap?: Recap): void {
     card.style.setProperty('--nc', nationCss(n));
     const h = document.createElement('div');
     h.className = 'rn-head';
-    h.textContent = `${NATIONS[n].emblem} ${NATIONS[n].name}国${winner === n ? '　勝利' : ''}`;
+    h.textContent = `${NATIONS[n].emblem} ${facFull(n)}${winner === n ? '　VICTORY' : ''}`;
     const s = state.natStats[n];
     const sectors = state.war.sectors.filter((x) => x.owner === n).length;
-    const kingState = !k ? '―' : !k.alive ? '処刑' : k.jailed ? '捕縛中' : '生存';
+    const kingState = !k ? '―' : !k.alive ? 'LOST' : k.jailed ? 'LOCKED' : '健在';
     const body = document.createElement('dl');
-    for (const [a, b] of [['捕獲', `${s.cap}`], ['救出', `${s.res}`], ['戦区', `${sectors}`], ['王', kingState]]) {
+    for (const [a, b] of [['TRACE', `${s.cap}`], ['解放', `${s.res}`], ['戦区', `${sectors}`], ['ANCHOR', kingState]]) {
       const dt = document.createElement('dt'), dd = document.createElement('dd');
       dt.textContent = a;
       dd.textContent = b;
-      if (a === '王') dd.className = kingState === '生存' ? 'ok' : 'ng';
+      if (a === 'ANCHOR') dd.className = kingState === '健在' ? 'ok' : 'ng';
       body.append(dt, dd);
     }
     card.append(h, body);

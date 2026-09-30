@@ -154,11 +154,11 @@ export function contribution(state: GameState, e: Entity): Contribution {
   const won = state.winner === e.nation;
   const kingHits = r.kingHit;
   const base: ScoreLine[] = [
-    { label: '敵を捕獲', pts: r.cap * 100 },
-    { label: '敵王への有効攻撃', pts: Math.max(0, kingHits - r.kingCap) * 150 },
-    { label: '敵王を捕獲', pts: r.kingCap * 500 },
-    { label: '味方を救出', pts: r.res * 150 },
-    { label: '味方王を救出', pts: r.kingRes * 500 },
+    { label: '敵をTRACE', pts: r.cap * 100 },
+    { label: '敵ANCHORへの有効TRACE', pts: Math.max(0, kingHits - r.kingCap) * 150 },
+    { label: '敵ANCHORをLOCK', pts: r.kingCap * 500 },
+    { label: '味方を解放', pts: r.res * 150 },
+    { label: '味方ANCHORを解放', pts: r.kingRes * 500 },
     { label: '戦区制圧に参加', pts: r.secJoin * 80 },
     { label: '敵戦区を奪取', pts: r.secSteal * 120 },
     { label: '管制塔の占領', pts: r.towerCap * 100 },
@@ -174,16 +174,16 @@ function roleLines(role: RoleId, r: Contrib, e: Entity, won: boolean): ScoreLine
   const alive = e.alive && !e.jailed;
   switch (role) {
     case 'king': return [
-      { label: '王として生存', pts: Math.round(cap(r.survivedSec, 300) * 0.6) },
+      { label: 'ANCHORとして生存', pts: Math.round(cap(r.survivedSec, 300) * 0.6) },
       { label: '最後まで生存', pts: alive ? 120 : 0 },
       { label: '危険からの脱出', pts: cap(r.escapes, 4) * 60 },
-      { label: '王として勝利', pts: won && alive ? 100 : 0 },
+      { label: 'ANCHORとして勝利', pts: won && alive ? 100 : 0 },
     ];
     case 'soldier': return [
-      { label: '味方王の護衛', pts: Math.round(cap(r.escortSec, 150)) },
-      { label: '捕獲（兵士）', pts: r.cap * 20 },
+      { label: '味方ANCHORの護衛', pts: Math.round(cap(r.escortSec, 150)) },
+      { label: 'TRACE（VANGUARD）', pts: r.cap * 20 },
       { label: '前線参加', pts: Math.round(cap(r.frontSec, 120)) },
-      { label: '牢屋の防衛', pts: Math.round(cap(r.jailGuardSec, 120)) },
+      { label: 'LOCK POINTの防衛', pts: Math.round(cap(r.jailGuardSec, 120)) },
     ];
     case 'ranger': return [
       { label: '追跡', pts: Math.round(cap(r.chaseSec, 150)) },
@@ -192,20 +192,20 @@ function roleLines(role: RoleId, r: Contrib, e: Entity, won: boolean): ScoreLine
     ];
     case 'sniper': return [
       { label: '狙撃命中（敵スタン）', pts: r.snipeHit * 60 },
-      { label: '捕獲につながった援護', pts: r.snipeAssist * 120 },
+      { label: 'TRACEにつながった援護', pts: r.snipeAssist * 120 },
       { label: '高所からの支援', pts: Math.round(cap(r.highSec, 240) * 0.5) },
     ];
     case 'communicator': return [
       { label: '管制塔の維持', pts: Math.round(cap(r.towerSec, 250)) },
-      { label: '管制塔の占領（通信士）', pts: r.towerCap * 100 },
+      { label: '管制塔の占領（RELAY）', pts: r.towerCap * 100 },
       { label: 'レーダー使用', pts: cap(r.radar, 5) * 40 },
       { label: '情報共有（合図）', pts: cap(r.pings, 6) * 15 },
     ];
     case 'keyholder': return [
-      { label: '救出（鍵使い）', pts: r.res * 50 },
-      { label: '王救出（鍵使い）', pts: r.kingRes * 200 },
-      { label: '救出成功率', pts: r.rescueTries ? Math.round((Math.min(r.res, r.rescueTries) / r.rescueTries) * 100) : 0 },
-      { label: '敵牢屋への侵入', pts: cap(Math.floor(r.jailRaidSec / 5), 4) * 40 },
+      { label: '解放（BREAKER）', pts: r.res * 50 },
+      { label: 'ANCHOR解放（BREAKER）', pts: r.kingRes * 200 },
+      { label: '解除成功率', pts: r.rescueTries ? Math.round((Math.min(r.res, r.rescueTries) / r.rescueTries) * 100) : 0 },
+      { label: '敵LOCK POINTへの侵入', pts: cap(Math.floor(r.jailRaidSec / 5), 4) * 40 },
     ];
     default: return [];
   }
@@ -231,20 +231,20 @@ export function titleFor(state: GameState, e: Entity): string {
   const won = state.winner === e.nation;
   const alive = e.alive && !e.jailed;
   const myKing = state.entities.find((k) => k.nation === e.nation && k.role === 'king');
-  if (r.kingCap > 0) return '王を討ち取った者';
-  if (r.kingRes > 0) return '王を救った英雄';
-  if (e.role === 'king') return alive ? (won ? '天下を取った王' : '最後まで逃げ切った王') : r.escapes >= 2 ? '粘り強い王' : '散った王';
-  if (r.escortSec >= 90 && myKing?.alive && !myKing.jailed) return '最後まで王を守った近衛';
-  if (r.res >= 3) return '救出の達人';
+  if (r.kingCap > 0) return 'ANCHOR HUNTER';
+  if (r.kingRes > 0) return 'ANCHORを救った英雄';
+  if (e.role === 'king') return alive ? (won ? 'NETWORK GUARDIAN' : '最後まで逃げ切ったANCHOR') : r.escapes >= 2 ? '粘り強いANCHOR' : '途切れたリンク';
+  if (r.escortSec >= 90 && myKing?.alive && !myKing.jailed) return 'ANCHORを守り抜いた盾';
+  if (r.res >= 3) return '救援のスペシャリスト';
   if (r.cap >= 4) return '前線の英雄';
-  if (r.snipeHit >= 3) return '百発百中';
+  if (r.snipeHit >= 3) return 'HIGH GROUND';
   if (r.snipeAssist >= 2) return '影の援護者';
   if (r.towerSec >= 60 || r.radar >= 2) return '情報戦の要';
   if (r.secSteal >= 1) return '戦区奪取の立役者';
   if (r.chaseSec >= 40) return '韋駄天';
   if (alive && r.survivedSec >= 200) return '神出鬼没';
-  if (r.cap >= 1) return '頼れる捕り手';
+  if (r.cap >= 1) return 'TRACE MASTER';
   if (r.res >= 1) return '仲間想い';
   if (r.fights >= 3) return '乱戦の常連';
-  return { soldier: '堅実な兵', ranger: '遊撃の風', sniper: '潜む狙撃手', communicator: '陰の通信士', keyholder: '慎重な鍵使い', king: '王' }[e.role];
+  return { soldier: '堅実なVANGUARD', ranger: '街を駆けるRUNNER', sniper: '潜むSPOTTER', communicator: '陰のRELAY', keyholder: '慎重なBREAKER', king: 'ANCHOR' }[e.role];
 }

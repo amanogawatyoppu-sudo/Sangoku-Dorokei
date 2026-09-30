@@ -145,8 +145,8 @@ function showScreen(to: AppScreen): void {
 
 /** Starts a match (or the tutorial) behind the loading screen (作戦地域へ移動中…). */
 function launch(nation: NationId, role: RoleId, size: RosterSize, mode: Mode = { kind: 'solo' }, opts: { cpu?: CpuLevel; tutorial?: boolean } = {}): void {
-  const info = opts.tutorial ? 'チュートリアル ― 太陽国・鍵使い'
-    : `${NATIONS[nation].name}国・${roleName(role)}　／　各国${size}人　／　` + (mode.kind === 'solo' ? `CPU：${CPU_LEVEL_NAME[opts.cpu ?? 'normal']}` : `対人戦（部屋 ${mode.start.lobby.code}）`);
+  const info = opts.tutorial ? 'チュートリアル ― SOL / 太陽陣営・BREAKER'
+    : `${NATIONS[nation].name}・${roleName(role)}　／　各勢力${size}人　／　` + (mode.kind === 'solo' ? `CPU：${CPU_LEVEL_NAME[opts.cpu ?? 'normal']}` : `対人戦（部屋 ${mode.start.lobby.code}）`);
   void withLoading({ label: opts.tutorial ? '訓練場へ移動中' : '作戦地域へ移動中', info }, () => startGame(nation, role, size, mode, opts));
 }
 
@@ -230,7 +230,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
   const truceBox = $('truceBox');
   bus.on('TRUCE_PROPOSED', (ev) => {
     if (ev.to !== state.player.nation || client) return;
-    $('truceText').textContent = `${NATIONS[ev.from].name}国から提案：「${strongestOther(state, ev.from)}の勢いが強い。${TRUCE_MS / 1000}秒だけ停戦しないか？」（停戦中は互いに捕獲しない）`;
+    $('truceText').textContent = `${NATIONS[ev.from].name}からTRUCEの提案：「${strongestOther(state, ev.from)}の勢いが強い。${TRUCE_MS / 1000}秒だけ一時停戦しないか？」（停戦中は互いにTRACEしない）`;
     truceBox.hidden = false;
   });
   $('truceYes').onclick = () => { answerTruce(state, true); truceBox.hidden = true; flush(); };
@@ -251,11 +251,11 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
   }) : null;
   const me = state.player;
   if (online) {
-    log.add(`オンライン対戦：部屋 ${online.lobby.code}・${online.info.seats.length}人。同じ国は味方、ほかの国は敵。`);
+    log.add(`オンライン対戦：部屋 ${online.lobby.code}・${online.info.seats.length}人。同じ勢力は味方、ほかの勢力は敵。`);
     if (host) log.add('あなたがホストです。このタブを閉じると試合が終わります。');
-  } else if (tutorial) log.add('チュートリアル：CPUは止まっていて、あなたは捕まらない。上のカードの指示に従って操作してみよう。');
-  else log.add('v7.24: 対人戦はブラウザだけで友達と遊べる（部屋コードを共有）。王は1回だけ影武者を立てられる（F）。走る敵の足跡・聞こえる足音の向き・BGM（♪でオンオフ）。試合が進むと夜になる（街灯の下は遠くからでも見える）。1〜4キー（スマホは「合図」）で味方に合図：王・助けて・集合・敵多数。王と「最後の一人」も救出できる（牢屋の仲間のそばでZ）。終盤は管制塔で敵の王を照らせる（B）。味方の頭上に名前と役職。東京は9つの戦区。画面の紋章マーカーが戦略拠点（輪が制圧ゲージ）、街の幟の色がその戦区の支配国。拠点に立ち続けると制圧。ミニマップに勢力と前線。↑↓で前後、←→で旋回、Shiftで加速、Spaceで捕獲、Zで特殊、Qで振り向き。分隊はX 付いてこい・C 周りを警戒・V ここを守れ。');
-  if (!tutorial) hud.banner('三国ドロケイ 開始　' + NATIONS[me.nation].name + 'の' + roleName(me.role), 2200);
+  } else if (tutorial) log.add('チュートリアル：CPUは止まっていて、あなたはTRACEされない。上のカードの指示に従って操作してみよう。');
+  else log.add('TRI//TRACE : TOKYO — 3勢力。9戦区。敵のANCHORを追え。敵の背後を取ってTRACE（Space / スマホは「TRACE」）すると、相手はLOCK POINTに拘束される。護衛の付き方や動きから敵のANCHOR候補を推理しよう。拘束された味方はBREAKERが解放できる（ANCHORと「最後の一人」も解除できる）。ANCHORは1回だけDECOY（F）を立てられる。終盤は管制塔でANCHOR SCAN（B）。戦区の拠点に立ち続けると制圧。1〜4キー（スマホは「合図」）で味方に合図。分隊はX 付いてこい・C 周りを警戒・V ここを守れ。夜は街灯の下が目立つ。');
+  if (!tutorial) hud.banner('TRI//TRACE 開始　' + NATIONS[me.nation].name + ' / ' + roleName(me.role), 2200);
   const tags = new NameTags($('nametags'), state, names);
   resizeRenderer(refs, canvas);
   cam.snap(Math.atan2(state.player.dirX, state.player.dirZ));
@@ -372,7 +372,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
 /** The strongest nation other than `n` (named in a ceasefire offer). */
 function strongestOther(state: GameState, n: NationId): string {
   const o = NATION_IDS.filter((x) => x !== n && x !== state.player.nation).sort((a, b) => strength(state, b) - strength(state, a))[0];
-  return o ? NATIONS[o].name + '国' : '敵';
+  return o ? NATIONS[o].name : '敵';
 }
 
 function showHostLeft(): void {

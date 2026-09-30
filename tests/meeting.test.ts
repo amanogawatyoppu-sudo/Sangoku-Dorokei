@@ -93,14 +93,14 @@ describe('half-time meeting (ハーフタイム会議)', () => {
     openScheduledMeeting(state);
     const text = state.meeting!.lines.join('\n');
     expect(text).toContain('管制塔');
-    expect(text).toContain('捕まっている人数');
-    expect(text).toMatch(/目撃: 月国の人物1人/);
+    expect(text).toContain('LOCK中の人数');
+    expect(text).toMatch(/目撃: LUNAの人物1人/);
     // The AI kingdoms decided at once; the player's side waits for the vote.
     expect(state.teamFocus.moon).not.toBeNull();
     expect(state.teamFocus.star).not.toBeNull();
     expect(state.teamFocus.sun).toBeNull();
     // The sighting's place is the first voting option.
-    expect(state.meeting!.zones[0].label).toContain('月1人');
+    expect(state.meeting!.zones[0].label).toContain('LUNA1人');
   });
 
   it('without a vote, the teammates settle the focus by majority', () => {

@@ -23,12 +23,12 @@ describe('貢献度 (contribution)', () => {
     const before = contribution(state, cpu).total;
     grab(state, cpu, find(state, 'moon', 'communicator'));
     const after1 = contribution(state, cpu);
-    expect(after1.base.find((b) => b.label === '敵を捕獲')?.pts).toBe(100);
+    expect(after1.base.find((b) => b.label === '敵をTRACE')?.pts).toBe(100);
     grab(state, cpu, find(state, 'star', 'king'));
     // The king may dodge once; try again until caught.
     for (let i = 0; i < 10 && !find(state, 'star', 'king').jailed; i++) grab(state, cpu, find(state, 'star', 'king'));
     const c = contribution(state, cpu);
-    expect(c.base.find((b) => b.label === '敵王を捕獲')?.pts).toBe(500);
+    expect(c.base.find((b) => b.label === '敵ANCHORをLOCK')?.pts).toBe(500);
     expect(c.total).toBeGreaterThan(before + 600);
   });
 
@@ -80,13 +80,13 @@ describe('貢献度 (contribution)', () => {
     const state = newGame('sun', 'soldier', 4, 6);
     const k = find(state, 'moon', 'keyholder');
     state.contrib.table[k.id].res = 3;
-    expect(titleFor(state, k)).toBe('救出の達人');
+    expect(titleFor(state, k)).toBe('救援のスペシャリスト');
     state.contrib.table[k.id].kingRes = 1;
-    expect(titleFor(state, k)).toBe('王を救った英雄');
+    expect(titleFor(state, k)).toBe('ANCHORを救った英雄');
     const king = find(state, 'star', 'king');
     state.winner = 'star';
-    expect(titleFor(state, king)).toBe('天下を取った王');
+    expect(titleFor(state, king)).toBe('NETWORK GUARDIAN');
     sendToJail(state, king, 'sun', null);
-    expect(titleFor(state, king)).not.toBe('天下を取った王');
+    expect(titleFor(state, king)).not.toBe('NETWORK GUARDIAN');
   });
 });

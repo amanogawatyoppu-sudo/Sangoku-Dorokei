@@ -30,7 +30,7 @@ export function initOnlineLobby(setup: SetupControl, onStart: (s: OnlineStart) =
   const box = $('netBox'), note = $('netNote'), nick = $('netNick') as HTMLInputElement, code = $('netCode') as HTMLInputElement;
   const btnHost = $('btnHost') as HTMLButtonElement, btnJoin = $('btnJoin') as HTMLButtonElement, btnLeave = $('btnLeave') as HTMLButtonElement;
   const entry = $('netEntry'), room = $('netRoom'), list = $('netMembers');
-  nick.value = savedNick() || '武将' + Math.floor(100 + Math.random() * 900);
+  nick.value = savedNick() || 'AGENT-' + Math.floor(100 + Math.random() * 900);
   let lobby: Lobby | null = null;
   let started = false;
 
@@ -59,13 +59,13 @@ export function initOnlineLobby(setup: SetupControl, onStart: (s: OnlineStart) =
     $('netCodeShow').textContent = lobby.code;
     list.replaceChildren(...members.map((m, i) => {
       const li = document.createElement('li');
-      const pick = m.nation && m.role ? `${NATIONS[m.nation].name}国・${roleName(m.role)}` : '（選択中）';
+      const pick = m.nation && m.role ? `${NATIONS[m.nation].name}・${roleName(m.role)}` : '（選択中）';
       li.textContent = `${m.nick}　${pick}${m.host ? '　［ホスト］' : ''}${m.me ? '　← あなた' : ''}${i >= MAX_PLAYERS ? '　（満員：観戦不可）' : ''}`;
       return li;
     }));
     if (lobby.isHost) {
       note.textContent = members.length > 1
-        ? `${members.length}人が参加中。人数を選んで「みんなで開始」。同じ国を選べば味方、別の国なら敵同士です。`
+        ? `${members.length}人が参加中。人数を選んで「みんなで開始」。同じ勢力を選べば味方、別の勢力なら敵同士です。`
         : '友達に部屋コードを伝えて待ちましょう（ひとりでも開始できます）。';
       return;
     }
@@ -79,7 +79,7 @@ export function initOnlineLobby(setup: SetupControl, onStart: (s: OnlineStart) =
       onStart({ lobby, info, me: i });
       return;
     }
-    note.textContent = 'ホストが開始するのを待っています…（国と役職は上で選べます）';
+    note.textContent = 'ホストが開始するのを待っています…（勢力と役職は上で選べます）';
   };
 
   const publishMe = () => {

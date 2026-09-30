@@ -287,7 +287,7 @@ export class Minimap {
         g.fillStyle = '#ffd24a';
         g.font = '700 11px sans-serif';
         g.textAlign = 'center';
-        g.fillText('♛', mx(e.x), my(e.z) - 11);
+        g.fillText('◆', mx(e.x), my(e.z) - 11);
       }
       if (e.y > HIGH) {
         // Up high: white ring, so stacked floors don't read as the same spot.

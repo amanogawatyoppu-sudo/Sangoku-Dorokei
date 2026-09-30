@@ -41,7 +41,7 @@ export class NameTags {
       if (ally) {
         role = document.createElement('span');
         role.className = 'nt-role';
-        role.textContent = (e.role === 'king' ? '♛ ' : '') + roleName(e.role);
+        role.textContent = (e.role === 'king' ? '◆ ' : '') + roleName(e.role);
         d.appendChild(role);
       }
       d.hidden = true;
@@ -71,7 +71,7 @@ export class NameTags {
       d.classList.toggle('jailed', e.jailed);
       if (t.role) {
         const dbl = decoyOf(state, e.nation)?.id === e.id;
-        const txt = (e.role === 'king' ? '♛ ' : '') + roleName(e.role) + (dbl ? '・影武者' : '') + (!e.jailed && canRescue(state, e) ? ' 🔑' : '');
+        const txt = (e.role === 'king' ? '◆ ' : '') + roleName(e.role) + (dbl ? '・DECOY' : '') + (!e.jailed && canRescue(state, e) ? ' 🔓' : '');
         if (t.role.textContent !== txt) t.role.textContent = txt;
       }
       const s = Math.max(0.75, Math.min(1, 1.15 - far / 3000));

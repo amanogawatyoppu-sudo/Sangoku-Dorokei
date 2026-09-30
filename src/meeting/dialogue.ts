@@ -103,7 +103,7 @@ function opening(t: Talk, lead: Entity): string[] {
   const pool = mine >= best - 0.01
     ? ['今のところ押してる。油断せずにいこう。', '悪くない流れだ。この勢いを保とう。', 'いい調子だ。だからこそ気を抜くな。', 'うちが一番勢いがある。狙われるのもうちだぞ。']
     : mine <= worst + 0.01
-      ? ['正直、苦しい。ここで立て直すぞ。', '押されてる。まずは落ち着こう。', 'このままじゃまずい。知恵を出し合おう。', '劣勢だが、王が生きてる限り負けじゃない。']
+      ? ['正直、苦しい。ここで立て直すぞ。', '押されてる。まずは落ち着こう。', 'このままじゃまずい。知恵を出し合おう。', '劣勢だが、ANCHORが健在な限り負けじゃない。']
       : ['集まったな。手短にいこう。', 'みんな無事か？ 状況を整理しよう。', '時間がない。見たことを順番に話してくれ。', 'よし、揃ったな。報告を頼む。', '一息つこう。まずは情報交換だ。'];
   return [say(lead, t.pick(pool))];
 }
@@ -118,10 +118,10 @@ function kingInJail(t: Talk): string[] {
   const c = N(myKing.capturedBy);
   const kh = t.all.find((e) => e.role === 'keyholder');
   return [
-    say(t.bold, t.pick([`王が${c}の牢屋に捕まってる！ 処刑まであと${left}秒だぞ！`, `大変だ、王が${c}に捕まった！ 残り${left}秒！`, `${c}の牢屋に王がいる。あと${left}秒しかない！`])),
-    kh ? say(kh, t.pick(['俺が行く。誰か護衛についてくれ。', '鍵は開けられる。ただ見張りが多い、ひとりじゃ無理だ。', '任せろ。鍵を開ける間だけ守ってくれ。', '解錠に数秒かかる。その間に囲まれたら終わりだ。']))
-      : say(t.careful, t.pick(['鍵使いがいない…どうする？', '鍵使いが残ってない。力ずくで守りを崩すしかない。'])),
-    say(t.sharp, t.pick([`全員で${c}の牢屋に向かうしかない。ほかは後回しだ。`, `二手に分かれよう。囮が見張りを引きつけて、本隊が${c}の牢屋へ。`, `${c}も待ち構えてるはずだ。正面からは行くな、回り込め。`])),
+    say(t.bold, t.pick([`ANCHORが${c}のLOCK POINTに拘束されてる！ LINK SEVERまであと${left}秒だぞ！`, `大変だ、ANCHORが${c}にLOCKされた！ 残り${left}秒！`, `${c}のLOCK POINTにANCHORがいる。リンク切断まであと${left}秒しかない！`])),
+    kh ? say(kh, t.pick(['俺が行く。誰か護衛についてくれ。', '拘束は解ける。ただ見張りが多い、ひとりじゃ無理だ。', '任せろ。解除する間だけ守ってくれ。', '解除に数秒かかる。その間に囲まれたら終わりだ。']))
+      : say(t.careful, t.pick(['BREAKERがいない…どうする？', 'BREAKERが残ってない。力ずくで守りを崩すしかない。'])),
+    say(t.sharp, t.pick([`全員で${c}のLOCK POINTに向かうしかない。ほかは後回しだ。`, `二手に分かれよう。囮が見張りを引きつけて、本隊が${c}のLOCK POINTへ。`, `${c}も待ち構えてるはずだ。正面からは行くな、回り込め。`])),
   ];
 }
 
@@ -132,9 +132,9 @@ function friendsInJail(t: Talk): string[] {
   const j = jailed[0];
   const left = Math.max(0, Math.ceil((j.jailedAt + JAIL_TIME - state.time) / 1000));
   return [
-    say(t.careful, jailed.length > 1 ? t.pick([`${nameOf(j.id)}たち${jailed.length}人が牢屋にいる。`, `牢屋に${jailed.length}人も取られてる。`])
-      : t.pick([`${nameOf(j.id)}が${N(j.capturedBy!)}の牢屋に捕まってる。あと${left}秒だ。`, `${nameOf(j.id)}がやられた。${N(j.capturedBy!)}の牢屋だ。`])),
-    say(t.bold, t.pick(['助けに行こう。放っておけない。', '見張りが薄いうちに取り返そう。', '仲間を見捨てる国に勝ちはないぞ。', '救出ついでに見張りも捕まえてやる。'])),
+    say(t.careful, jailed.length > 1 ? t.pick([`${nameOf(j.id)}たち${jailed.length}人がLOCKされてる。`, `LOCK POINTに${jailed.length}人も取られてる。`])
+      : t.pick([`${nameOf(j.id)}が${N(j.capturedBy!)}のLOCK POINTに拘束されてる。あと${left}秒だ。`, `${nameOf(j.id)}がやられた。${N(j.capturedBy!)}のLOCK POINTだ。`])),
+    say(t.bold, t.pick(['助けに行こう。放っておけない。', '見張りが薄いうちに取り返そう。', '仲間を見捨てる勢力に勝ちはないぞ。', '解放ついでに見張りもTRACEしてやる。'])),
     ...(t.state.rng() < 0.5 ? [react(t, t.bold, 'doubt')] : []),
   ];
 }
@@ -159,14 +159,14 @@ function sightings(t: Talk, facts: TalkFacts): string[] {
       ? t.pick([`${g.place}で${N(g.nation)}の${g.count}人組を見た。${ago}だ。`, `${ago}、${g.place}に${N(g.nation)}が${g.count}人いた。`, `${g.place}だ。${N(g.nation)}が${g.count}人でうろついてた。${ago}の話だ。`])
       : t.pick([`${g.place}で${N(g.nation)}のやつをひとり見た。${ago}。`, `${ago}、${g.place}に${N(g.nation)}がひとり。`, `${g.place}で${N(g.nation)}の背中を見かけた。${ago}だ。`])));
     if (g.king >= 2) {
-      out.push(say(answer(t.bold, t.sharp), t.pick(['真ん中のやつ、ずっと囲まれてなかったか？ あれが王だろう。', '護衛の付き方が普通じゃない。王の可能性が高い。', 'あの動き、守られてる側の動きだ。王だな。'])));
-      out.push(say(answer(t.careful, t.sharp), t.pick(['囮かもしれない。決めつけるのは早いよ。', 'わざと固まって見せてる可能性もある。', '王に見せかけた影武者ってこともある。'])));
+      out.push(say(answer(t.bold, t.sharp), t.pick(['真ん中のやつ、ずっとVANGUARDに囲まれてなかったか？ あれがANCHORだろう。', '護衛の付き方が普通じゃない。ANCHOR候補だ。', 'あの動き、守られてる側の動きだ。ANCHORだな。'])));
+      out.push(say(answer(t.careful, t.sharp), t.pick(['囮かもしれない。決めつけるのは早いよ。', 'わざと固まって見せてる可能性もある。', 'ANCHORに見せかけたDECOYってこともある。'])));
       out.push(say(answer(t.sharp, t.bold), t.pick([`でも手がかりはそれしかない。${g.place}は候補に入れよう。`, `確かめる価値はある。${g.place}だ。`])));
     } else if (g.count >= 3) {
-      out.push(say(answer(t.bold, t.sharp), t.pick([`${g.count}人もいたなら何か守ってるはずだ。行くべきだ。`, '大所帯だな。王の護衛か、攻めの本隊か。', 'それだけいれば、どこかに穴がある。'])));
+      out.push(say(answer(t.bold, t.sharp), t.pick([`${g.count}人もいたなら何か守ってるはずだ。行くべきだ。`, '大所帯だな。ANCHORの護衛か、攻めの本隊か。', 'それだけいれば、どこかに穴がある。'])));
       out.push(say(answer(t.careful, t.sharp), t.pick(['人数が多いなら、こっちも揃えてから行こう。', '待ち伏せかもしれない。気をつけて。', '真正面からぶつかるのは損だよ。'])));
     } else {
-      out.push(say(answer(t.careful, t.sharp), t.pick(['ひとりなら偵察か、はぐれただけかも。', 'それだけじゃ何とも言えないな。', 'どっちへ向かってた？ …まあいい、覚えておこう。', 'ひとりで動くのは狙撃手か遊撃兵が多い。気をつけて。'])));
+      out.push(say(answer(t.careful, t.sharp), t.pick(['ひとりなら偵察か、はぐれただけかも。', 'それだけじゃ何とも言えないな。', 'どっちへ向かってた？ …まあいい、覚えておこう。', 'ひとりで動くのはSPOTTERかRUNNERが多い。気をつけて。'])));
     }
   });
   return out;
@@ -178,10 +178,10 @@ function suspect(t: Talk, facts: TalkFacts): string[] {
   const ev = s.e.evidence[0]?.text;
   const stars = suspStars(s.e.susp);
   return [
-    say(t.sharp, ev ? t.pick([`${N(s.e.nation)}の、${s.dir}にいたやつ。「${ev}」。${stars >= 3 ? 'かなり怪しい。' : '少し気になる。'}`, `${s.dir}の${N(s.e.nation)}のやつだが、「${ev}」。${stars >= 3 ? '王だと思う。' : 'まだ断定はできない。'}`])
+    say(t.sharp, ev ? t.pick([`${N(s.e.nation)}の、${s.dir}にいたやつ。「${ev}」。${stars >= 3 ? 'かなり怪しい。' : '少し気になる。'}`, `${s.dir}の${N(s.e.nation)}のやつだが、「${ev}」。${stars >= 3 ? 'ANCHORだと思う。' : 'まだ断定はできない。'}`])
       : t.pick([`${N(s.e.nation)}の、${s.dir}にいたやつの動きがおかしい。`, `${s.dir}の${N(s.e.nation)}、妙に周りを気にしてた。`])),
     stars >= 3 ? say(t.bold, t.pick(['同感だ。次に見かけたら後ろを取る。', 'なら狩りに行こう。', '背中を取れば終わりだ。俺がやる。']))
-      : say(t.careful, t.pick(['それだけで王とは言えないけど、目は離さないでおこう。', '覚えておく。でも深追いはしないで。', '怪しいのは確かだね。次の情報を待とう。'])),
+      : say(t.careful, t.pick(['それだけでANCHORとは言えないけど、ANCHOR候補として目は離さないでおこう。', '覚えておく。でも深追いはしないで。', '怪しいのは確かだね。次の情報を待とう。'])),
   ];
 }
 
@@ -192,7 +192,7 @@ function tower(t: Talk): string[] {
   if (owner && owner !== n) {
     return [
       say(comm, t.pick([`管制塔は${N(owner)}に取られてる。レーダーを使われたらこっちが丸見えだ。`, `${N(owner)}が塔を持ってる。こっちの動きは筒抜けだと思ったほうがいい。`, `塔を${N(owner)}に押さえられたままだ。取り返したい。`])),
-      say(t.bold, t.pick(['なら取り返そう。', '塔より王探しが先だろ。', '塔の守りは薄いはずだ。一気に行ける。'])),
+      say(t.bold, t.pick(['なら取り返そう。', '塔よりANCHOR探しが先だろ。', '塔の守りは薄いはずだ。一気に行ける。'])),
     ];
   }
   if (owner === n) {
@@ -214,7 +214,7 @@ function war(t: Talk): string[] {
     const s = state.war.sectors[hot];
     const foe = s.capturer && s.capturer !== n ? N(s.capturer) : '敵';
     out.push(say(t.bold, t.pick([`${SECTORS[hot].name}が${foe}に攻められてる！`, `${SECTORS[hot].name}の拠点が危ない。${foe}が乗り込んできた。`, `${SECTORS[hot].name}で押し合いになってる。`])));
-    out.push(say(t.careful, t.pick([`${SECTORS[hot].name}を落とされたら前線が下がる。守りに人を回そう。`, '戦区を取られても負けにはならない。王を守るのが先だよ。', `${SECTORS[hot].name}は捨てて、ほかで取り返す手もある。`])));
+    out.push(say(t.careful, t.pick([`${SECTORS[hot].name}を落とされたら前線が下がる。守りに人を回そう。`, '戦区を取られても負けにはならない。ANCHORを守るのが先だよ。', `${SECTORS[hot].name}は捨てて、ほかで取り返す手もある。`])));
     return out;
   }
   const strongest = NATION_IDS.slice().sort((a, b) => strength(state, b) - strength(state, a))[0];
@@ -222,7 +222,7 @@ function war(t: Talk): string[] {
   out.push(say(t.sharp, t.pick([
     `うちの戦区は${mine.length}つ。${front.length ? `前線は${front.slice(0, 2).join('と')}だ。` : '今は前線がない。'}`,
     `支配してるのは${mine.map((id) => SECTORS[id].name).join('・') || 'ゼロ'}。${mine.length >= 3 ? '悪くない。' : '心細いな。'}`,
-    strongest === n ? 'いま一番勢いがあるのはうちだ。他の二国に狙われるぞ。' : `いちばん勢いがあるのは${N(strongest)}だ。放っておくと手がつけられなくなる。`,
+    strongest === n ? 'いま一番勢いがあるのはうちだ。他の2勢力に狙われるぞ。' : `いちばん勢いがあるのは${N(strongest)}だ。放っておくと手がつけられなくなる。`,
   ])));
   const neutral = SECTORS.findIndex((_s, id) => !state.war.sectors[id].owner);
   if (neutral >= 0 && state.rng() < 0.6) out.push(say(t.bold, t.pick([`${SECTORS[neutral].name}がまだ空いてる。取りに行こう。`, `中立の${SECTORS[neutral].name}、先に押さえたもん勝ちだ。`])));
@@ -231,16 +231,16 @@ function war(t: Talk): string[] {
 }
 
 const STRATEGY_TALK: Record<string, string[]> = {
-  ATTACK_SECTOR: ['いまの方針は{s}への侵攻だ。', '{s}を取りに行く。兵士と遊撃兵は前へ。', '{s}の拠点を落とす。狙撃手は高いところから援護してくれ。'],
+  ATTACK_SECTOR: ['いまの方針は{s}への侵攻だ。', '{s}を取りに行く。VANGUARDとRUNNERは前へ。', '{s}の拠点を落とす。SPOTTERは高いところから援護してくれ。'],
   DEFEND_SECTOR: ['{s}の守りを固める。', 'まずは{s}を守りきる。攻めるのはその後だ。', '{s}を取られるわけにはいかない。'],
   TAKE_TOWER: ['管制塔を取りに行く。', '塔を押さえて、情報で勝つ。'],
-  HUNT_KING: ['{s}あたりに王がいるはずだ。探し出す。', '王狩りだ。{s}を洗うぞ。'],
-  RESCUE_KING: ['王の救出が最優先だ。', '全力で王を取り返す。'],
-  HOLD_KING: ['捕まえた王を処刑まで守りきる。牢屋を固めろ。', '牢屋の守りが最優先。救出隊を返り討ちにする。'],
-  OPPORTUNIST: ['二国がやり合ってる隙に漁夫の利を狙う。', '弱ったほうを後ろから突く。'],
+  HUNT_KING: ['{s}あたりに敵のANCHORがいるはずだ。探し出す。', '痕跡を追う。{s}を洗うぞ。'],
+  RESCUE_KING: ['ANCHORの解放が最優先だ。', '全力でANCHORを取り返す。リンクを切らせるな。'],
+  HOLD_KING: ['LOCKした敵のANCHORを、リンクが切れるまで守りきる。LOCK POINTを固めろ。', 'LOCK POINTの守りが最優先。解放に来る部隊を返り討ちにする。'],
+  OPPORTUNIST: ['2勢力がやり合ってる隙に漁夫の利を狙う。', '弱ったほうを後ろから突く。'],
   RECOVER: ['いったん立て直す。無理はするな。', '態勢を整える。散らばってる仲間を集めよう。'],
-  ALL_OUT: ['鍵を開けられる者がもういない。こうなったら敵の王を捕まえるしかない。', '総攻撃だ。{s}あたりを洗って、敵の王を捕まえろ。'],
-  HOLD_LEAD: ['点では勝ってる。無理に攻めず、捕まらないことが一番だ。', 'このまま逃げ切る。王の守りを厚くしろ。'],
+  ALL_OUT: ['拘束を解ける者がもういない。こうなったら敵のANCHORをLOCKするしかない。', '総攻撃だ。{s}あたりを洗って、敵のANCHORを追え。'],
+  HOLD_LEAD: ['点では勝ってる。無理に攻めず、TRACEされないことが一番だ。', 'このまま逃げ切る。ANCHORの守りを厚くしろ。'],
 };
 
 /** Our national strategy, explained by the king or a commander, and argued over. */
@@ -267,15 +267,15 @@ function truceTalk(t: Talk): string[] {
     const partner = now.a === n ? now.b : now.a;
     const left = Math.ceil((now.until - state.time) / 1000);
     return [
-      say(t.careful, t.pick([`${N(partner)}とは停戦中だ。あと${left}秒は手を出すな。`, `停戦はあと${left}秒。${N(partner)}とは揉めないように。`])),
-      say(t.bold, t.pick([`停戦が切れた瞬間、${N(partner)}も敵に戻る。忘れるなよ。`, '停戦中に稼げるだけ稼ごう。', `${N(partner)}を信用しすぎるな。`])),
+      say(t.careful, t.pick([`${N(partner)}とはTRUCE中だ。あと${left}秒は手を出すな。`, `一時停戦はあと${left}秒。${N(partner)}とは揉めないように。`])),
+      say(t.bold, t.pick([`TRUCEが切れた瞬間、${N(partner)}も敵に戻る。忘れるなよ。`, '停戦中に稼げるだけ稼ごう。', `${N(partner)}を信用しすぎるな。`])),
     ];
   }
   const strongest = NATION_IDS.slice().sort((a, b) => strength(state, b) - strength(state, a))[0];
   if (strongest === n || state.war.trucesHeld >= 2) return [];
   const third = NATION_IDS.find((k) => k !== n && k !== strongest)!;
   return [
-    say(t.sharp, t.pick([`${N(strongest)}が強すぎる。${N(third)}と組むのも手だ。`, `${N(third)}に停戦を持ちかけてみるか？ ${N(strongest)}を止めないと。`])),
+    say(t.sharp, t.pick([`${N(strongest)}が強すぎる。${N(third)}と組むのも手だ。`, `${N(third)}にTRUCEを持ちかけてみるか？ ${N(strongest)}を止めないと。`])),
     say(t.bold, t.pick(['組むなんて性に合わないが…勝つためなら。', `${N(third)}なんか信用できるか。`, 'ありだな。背中を気にせず戦える。'])),
   ];
 }
@@ -287,11 +287,11 @@ function losses(t: Talk): string[] {
   const dead = ours.filter((e) => !e.alive).length;
   const free = ours.filter((e) => e.alive && !e.jailed).length;
   if (!dead) {
-    return state.rng() < 0.5 ? [say(t.careful, t.pick(['まだ誰も処刑されてない。この調子で。', `全員無事だ。${free}人で動ける。`]))] : [];
+    return state.rng() < 0.5 ? [say(t.careful, t.pick(['まだ誰も戦線離脱してない。この調子で。', `全員無事だ。${free}人で動ける。`]))] : [];
   }
   return [
-    say(t.careful, t.pick([`もう${dead}人処刑された。残りは${free}人だ。`, `${dead}人失った。これ以上減らすわけにはいかない。`, `動けるのは${free}人。無茶はできないよ。`])),
-    say(t.bold, t.pick(['その分、取り返せばいい。', '数が減ったなら、固まって動こう。', 'あいつらの分まで捕まえてやる。'])),
+    say(t.careful, t.pick([`もう${dead}人が戦線離脱した。残りは${free}人だ。`, `${dead}人失った。これ以上減らすわけにはいかない。`, `動けるのは${free}人。無茶はできないよ。`])),
+    say(t.bold, t.pick(['その分、取り返せばいい。', '数が減ったなら、固まって動こう。', 'あいつらの分までTRACEしてやる。'])),
   ];
 }
 
@@ -303,10 +303,10 @@ function praise(t: Talk): string[] {
   if (!star && !saver) return [];
   const speaker = t.other([star ?? saver!]);
   const out: string[] = [];
-  if (star) out.push(say(speaker, t.pick([`${nameOf(star.id)}、もう${star.capturesMade}人捕まえたんだって？ やるな。`, `${nameOf(star.id)}の${star.capturesMade}人捕獲は大きい。`, `さすが${nameOf(star.id)}だ。${star.capturesMade}人捕まえてる。`])));
+  if (star) out.push(say(speaker, t.pick([`${nameOf(star.id)}、もう${star.capturesMade}人TRACEしたんだって？ やるな。`, `${nameOf(star.id)}の${star.capturesMade}人TRACEは大きい。`, `さすが${nameOf(star.id)}だ。${star.capturesMade}人LOCKしてる。`])));
   else if (saver) out.push(say(speaker, t.pick([`${nameOf(saver.id)}が仲間を${saver.rescuesMade}人助けた。ありがとう。`, `${nameOf(saver.id)}の救出、見事だった。`])));
   const hero = star ?? saver!;
-  if (!hero.isPlayer && !hero.remote) out.push(say(hero, t.pick(['運が良かっただけだ。', 'まだまだこれからだ。', '次は王を捕まえてみせる。', 'みんなが追い込んでくれたおかげだ。'])));
+  if (!hero.isPlayer && !hero.remote) out.push(say(hero, t.pick(['運が良かっただけだ。', 'まだまだこれからだ。', '次は敵のANCHORをLOCKしてみせる。', 'みんなが追い込んでくれたおかげだ。'])));
   return out;
 }
 
@@ -317,28 +317,28 @@ function clockTalk(t: Talk): string[] {
   const m = Math.floor(left / 60), s = Math.floor(left % 60);
   const when = m ? `${m}分${s ? `${s}秒` : ''}` : `${s}秒`;
   if (left > 200) return [say(t.sharp, t.pick([`残り${when}。まだ時間はある。焦らず確実に。`, `あと${when}。前半は情報集めでいい。`]))];
-  if (left > 90) return [say(t.sharp, t.pick([`残り${when}。そろそろ勝負に出る頃だ。`, `あと${when}。王の目星をつけておきたい。`])), react(t, t.sharp, 'push')];
-  return [say(t.bold, t.pick([`残り${when}しかないぞ！`, `あと${when}！ 一気に行くぞ！`])), say(t.careful, t.pick(['時間切れなら戦況で決まる。無理に突っ込んで捕まるのが一番まずい。', '焦って捕まったら元も子もないよ。']))];
+  if (left > 90) return [say(t.sharp, t.pick([`残り${when}。そろそろ勝負に出る頃だ。`, `あと${when}。ANCHOR候補の目星をつけておきたい。`])), react(t, t.sharp, 'push')];
+  return [say(t.bold, t.pick([`残り${when}しかないぞ！`, `あと${when}！ 一気に行くぞ！`])), say(t.careful, t.pick(['時間切れなら戦功ポイントで決まる。無理に突っ込んでLOCKされるのが一番まずい。', '焦ってTRACEされたら元も子もないよ。']))];
 }
 
 /** A moment of character between the business: a remark and a fitting answer. */
 const SMALL_TALK: [string, string[]][] = [
   ['腹減ったな…終わったら何か食おう。', ['勝ってからな。', 'ラーメンがいいな。', '今それ言う？']],
-  ['さっき階段で転びかけた。', ['ははっ、気をつけろよ。', '転んだところを捕まったら笑えないぞ。']],
+  ['さっき階段で転びかけた。', ['ははっ、気をつけろよ。', '転んだところをTRACEされたら笑えないぞ。']],
   ['足音がして振り向いたら猫だった。', ['それ、敵じゃなくてよかったな。', '猫でも油断するなよ。']],
   ['夕焼けがきれいだな、こんな時に。', ['見とれてると背中を取られるぞ。', 'たしかに。勝って見たいもんだ。']],
   ['この街、路地が多すぎる。', ['逃げるには好都合だけどな。', '裏を返せば待ち伏せし放題だ。']],
   ['背中がぞわっとした。誰かに見られてた気がする。', ['気のせいであってほしいな。', '次からは二人で動こう。']],
   ['走りすぎて脇腹が痛い。', ['スタミナ管理も仕事のうちだ。', '会議のうちに休んでおけ。']],
-  ['王、顔色が悪いですよ。', ['誰のせいだと思ってる。', '大丈夫だ。心配するな。']],
+  ['アンカー、顔色が悪いですよ。', ['誰のせいだと思ってる。', '大丈夫だ。心配するな。']],
 ];
 function smallTalk(t: Talk): string[] {
   const line = t.pick(SMALL_TALK.map(([a]) => a));
   const answers = SMALL_TALK.find(([a]) => a === line)![1];
   const king = t.all.find((e) => e.role === 'king');
-  const who = line.startsWith('王、') ? t.other(king ? [king] : []) : t.other([t.sharp]);
-  const answerer = line.startsWith('王、') && king ? king : who !== t.bold ? t.bold : t.careful;
-  if (line.startsWith('王、') && !king) return [];
+  const who = line.startsWith('アンカー、') ? t.other(king ? [king] : []) : t.other([t.sharp]);
+  const answerer = line.startsWith('アンカー、') && king ? king : who !== t.bold ? t.bold : t.careful;
+  if (line.startsWith('アンカー、') && !king) return [];
   return [say(who, line), say(answerer, t.pick(answers))];
 }
 
@@ -386,8 +386,8 @@ export function replyLines(state: GameState, n: NationId, choice: string): strin
   if (choice.includes('怪しい')) {
     return [say(sharp, t.pick(['了解、そっちを重点的に見よう。', '根拠は？ …いや、あり得るな。', 'なるほど。そっちに人を寄せよう。', 'いい読みだと思う。'])), say(careful, t.pick(['ただ、囮には気をつけて。', '決めつけすぎないようにね。', '裏をかかれてないといいけど。']))];
   }
-  if (choice.includes('管制塔')) return [say(bold, t.pick(['塔より王探しだろ…まあ、レーダーは欲しいか。', '塔を取れば探しやすくなる。賛成だ。', '塔か。守りの薄いうちに取っちまおう。'])), say(careful, t.pick(['賛成。情報が先だ。', '通信士がいれば一瞬で取れる。']))];
-  if (choice.includes('牢屋')) return [say(careful, t.pick(['そうだな、救出に来る敵を待ち伏せできる。', '牢屋は狙われやすい。見張りを置こう。'])), say(bold, t.pick(['守ってばかりじゃ勝てないぞ。', '仲間を取り返すのが先だ。', 'なら牢屋の前で返り討ちにしてやる。']))];
+  if (choice.includes('管制塔')) return [say(bold, t.pick(['塔よりANCHOR探しだろ…まあ、レーダーは欲しいか。', '塔を取れば探しやすくなる。賛成だ。', '塔か。守りの薄いうちに取っちまおう。'])), say(careful, t.pick(['賛成。情報が先だ。', 'RELAYがいれば一瞬で取れる。']))];
+  if (choice.includes('LOCK POINT')) return [say(careful, t.pick(['そうだな、解放に来る敵を待ち伏せできる。', 'LOCK POINTは狙われやすい。見張りを置こう。'])), say(bold, t.pick(['守ってばかりじゃ勝てないぞ。', '仲間を取り返すのが先だ。', 'ならLOCK POINTの前で返り討ちにしてやる。']))];
   if (choice.includes('情報が足りない')) return [say(sharp, t.pick(['散って探すしかないな。見つけたらすぐ知らせてくれ。', '二人一組で広く探そう。', 'まずは高いところから見渡そう。']))];
   return [say(t.all[0], t.pick(['わかった。', '了解。', 'そうしよう。']))];
 }

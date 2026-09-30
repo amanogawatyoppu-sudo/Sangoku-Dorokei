@@ -32,12 +32,12 @@ export function scoreBreakdown(state: GameState, n: NationId): { label: string; 
   const free = state.entities.filter((e) => e.nation === n && e.alive && !e.jailed).length;
   const kingJailed = state.entities.some((e) => e.nation === n && e.role === 'king' && e.alive && e.jailed);
   return [
-    { label: '捕獲', pts: s.cap * 3 },
-    { label: '救出', pts: s.res * 3 },
-    { label: '王への攻撃', pts: s.hit * 2 },
+    { label: 'TRACE', pts: s.cap * 3 },
+    { label: '解放', pts: s.res * 3 },
+    { label: 'ANCHORへの攻撃', pts: s.hit * 2 },
     { label: '生存', pts: free * 2 },
     { label: '管制塔', pts: Math.floor(s.tower / 15) },
-    { label: '王が牢屋', pts: kingJailed ? -10 : 0 },
+    { label: 'ANCHOR拘束中', pts: kingJailed ? -10 : 0 },
   ];
 }
 

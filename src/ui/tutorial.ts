@@ -94,10 +94,10 @@ export class TutorialGuide {
         done: () => this.near(60) && this.dashed,
       },
       {
-        title: '敵を背後から捕まえる',
-        short: key('背中側に回って Space', '背中側に回って「捕獲」'),
-        text: key(`目の前に${NATIONS[enemyNation].name}国の兵がいる（練習用・動かない）。背中側に回り込み、足元の輪が緑のうちに Space。正面からは捕まえられない。`,
-          `目の前に${NATIONS[enemyNation].name}国の兵がいる（練習用・動かない）。背中側に回り込み、足元の輪が緑のうちに「捕獲」。正面からは捕まえられない。`),
+        title: '敵の背後を取ってTRACEしよう',
+        short: key('背中側に回って Space（TRACE）', '背中側に回って「TRACE」'),
+        text: key(`TRACE ＝ 敵の背後から相手を拘束する基本アクション。目の前に${NATIONS[enemyNation].name}のメンバーがいる（練習用・動かない）。背中側に回り込み、足元の輪が緑のうちに Space。正面からはTRACEできない。`,
+          `TRACE ＝ 敵の背後から相手を拘束する基本アクション。目の前に${NATIONS[enemyNation].name}のメンバーがいる（練習用・動かない）。背中側に回り込み、足元の輪が緑のうちに「TRACE」。正面からはTRACEできない。`),
         enter: () => {
           this.captured = false;
           const a = ahead(170);
@@ -110,14 +110,14 @@ export class TutorialGuide {
         done: () => this.captured,
       },
       {
-        title: '牢屋',
-        text: `捕まえた敵は${NATIONS[p.nation].name}国の牢屋へ送られた。牢屋に入れられた人は一定時間（王は80秒・ほかは50秒）が経つと処刑され、試合から外れる。処刑される前なら、仲間が牢屋まで来て救出できる。敵国の王を捕まえて処刑すれば、その国は負け。`,
+        title: 'LOCK POINT',
+        text: `TRACEした敵は${NATIONS[p.nation].name}のLOCK POINTへ拘束された。拘束された人は動けず、一定時間（ANCHORは80秒・ほかは50秒）が過ぎると戦線離脱する。その前なら、仲間のBREAKERがLOCK POINTまで来て拘束を解除できる。`,
         manual: true,
       },
       {
-        title: '仲間を救出する（鍵使い）',
-        short: key('牢屋の仲間のそばで Z（離れない）', '牢屋の仲間のそばで「特殊」（離れない）'),
-        text: key('味方が敵国の牢屋に捕まっている。あなたは鍵使い。牢屋の仲間のそばで Z を押し、鍵を開け終わるまで離れずに待とう。', '味方が敵国の牢屋に捕まっている。あなたは鍵使い。牢屋の仲間のそばで「特殊」を押し、鍵を開け終わるまで離れずに待とう。'),
+        title: 'BREAKERで拘束を解除する',
+        short: key('LOCK POINTの仲間のそばで Z（離れない）', 'LOCK POINTの仲間のそばで「特殊」（離れない）'),
+        text: key('味方が敵勢力のLOCK POINTに拘束されている。あなたはBREAKER（解除士）。拘束された仲間のそばで Z を押し、解除し終わるまで離れずに待とう。', '味方が敵勢力のLOCK POINTに拘束されている。あなたはBREAKER（解除士）。拘束された仲間のそばで「特殊」を押し、解除し終わるまで離れずに待とう。'),
         enter: () => {
           this.rescued = false;
           sendToJail(state, pal, enemyNation, null);
@@ -130,9 +130,9 @@ export class TutorialGuide {
         done: () => this.rescued,
       },
       {
-        title: '王を守れ',
-        short: '♛ の王のそばへ行く',
-        text: '各国に1人ずつ王がいる。自国の王が捕まって処刑されると負け。王は正面からでも捕まえられる「スーパーハンド」と救出の力を持つ。♛ の王のそばまで行ってみよう。敵国の王は正体を隠している。',
+        title: 'ANCHORを守れ',
+        short: '◆ のANCHORのそばへ行く',
+        text: '各勢力に1人だけANCHOR（アンカー）がいる。勢力の情報・指揮ネットワークを保つ中枢だ。ANCHORがLOCKされたまま時間切れになると、その勢力はNETWORK LOST（戦線離脱）。ANCHORは正面からでもTRACEでき、拘束の解除もできる。◆ のANCHORのそばまで行ってみよう。',
         enter: () => {
           const k = kingOf(state, p.nation)!;
           const at = openSpot(k.x + 200, k.z + 60);
@@ -143,9 +143,14 @@ export class TutorialGuide {
         done: () => { const k = kingOf(state, p.nation)!; return Math.hypot(k.x - p.x, k.z - p.z) < 90; },
       },
       {
+        title: 'ANCHOR候補を推理する',
+        text: '敵勢力のANCHORは誰なのか分からない。普通のメンバーに紛れている。「護衛が集まっている」「戦闘が始まると一人だけ安全な戦区へ移る」「救援がそこに集中する」— そんな痕跡からANCHOR候補を絞り込もう。緊急会議では仲間と観測した情報を出し合い、捜索する相手を決められる。',
+        manual: true,
+      },
+      {
         title: '戦区と拠点',
         short: '拠点の輪に立ち続けて制圧',
-        text: '東京は9つの戦区に分かれている。紋章マーカーが戦区の拠点。輪の中に立ち続けると制圧ゲージがたまり、その戦区を自国のものにできる。敵と一緒に立つと止まる。前線（ミニマップの境目）で三国がぶつかる。',
+        text: '東京・山手線内は9つの戦区に分かれている。紋章マーカーが戦区の拠点。輪の中に立ち続けると制圧ゲージがたまり、その戦区が自勢力圏になる。敵と一緒に立つと止まる。',
         enter: () => {
           this.sectorTaken = false;
           const q = sectorPoint(CENTRAL);
@@ -159,9 +164,14 @@ export class TutorialGuide {
         done: () => this.sectorTaken,
       },
       {
+        title: '前線',
+        text: '違う勢力の戦区が接するところが前線（ミニマップの光る境目）。戦区を取り合うたびに前線は動く。2勢力が争っている隙に、3つ目の勢力が横から突く「漁夫の利」もある。敵のANCHORは前線の後ろ、自勢力圏の奥にいることが多い。',
+        manual: true,
+      },
+      {
         title: '管制塔を取る',
         short: '管制塔の足元に立ち続けて占領',
-        text: key('中央の管制塔の足元に立ち続けると占領できる。塔を持つ国はレーダーで敵の位置がわかり、試合の最後の3分の1では B で敵国の王を光の柱で照らせる。', '中央の管制塔の足元に立ち続けると占領できる。塔を持つ国はレーダーで敵の位置がわかり、試合の最後の3分の1では「王を照らす」で敵国の王を光の柱で照らせる。'),
+        text: key('中央の管制塔の足元に立ち続けると占領できる。塔を持つ勢力はRELAYのレーダーで敵の位置がわかり、試合の最後の3分の1では B（ANCHOR SCAN）で敵勢力のANCHORを光の柱で照らし出せる。', '中央の管制塔の足元に立ち続けると占領できる。塔を持つ勢力はRELAYのレーダーで敵の位置がわかり、試合の最後の3分の1では「ANCHOR SCAN」で敵勢力のANCHORを光の柱で照らし出せる。'),
         enter: () => {
           this.towerTaken = false;
           state.tower.owner = null;
@@ -173,14 +183,19 @@ export class TutorialGuide {
         done: () => this.towerTaken,
       },
       {
-        title: '準備完了！',
-        text: '基本はこれで全部。本番では敵も動き、捕まえに来る。仲間と合図（1〜4 / 「合図」）で連携し、敵国の王を探し出そう。',
+        title: 'TRUCE（一時停戦）',
+        text: '1つの勢力が強くなりすぎたら、残りの2勢力は短いTRUCE（一時停戦）を結べる（上部の「TRUCE」・1試合2回まで）。停戦中の相手とは互いにTRACEしない。3つ巴の流れを読み、手を組む相手と時を選ぼう。',
+        manual: true,
+      },
+      {
+        title: '勝利条件',
+        text: '敵勢力のANCHORをLOCKし、時間内に解放されなければその勢力はNETWORK LOST。最後までネットワークを保った勢力がNETWORK SECURED（勝利）。時間切れなら、TRACE・解放・生存・管制塔などの戦功ポイントで決まる。本番では敵も動き、TRACEしに来る。合図（1〜4 / 「合図」）で仲間と連携しよう。',
       },
     ];
     // Start on the open plaza by the tower, out of everyone's way.
     teleport(p, plaza.x, plaza.z);
     this.faceTo(plaza.x + 900, plaza.z);
-    hud.banner('チュートリアル：あなたは捕まらない。CPUは止まっている', 2600);
+    hud.banner('チュートリアル：あなたはTRACEされない。CPUは止まっている', 2600);
     this.card.hidden = false;
     // Tap the folded card to read the whole step again (buttons keep working as usual).
     this.card.onclick = (ev) => {

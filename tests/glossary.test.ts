@@ -10,7 +10,7 @@ describe('用語集', () => {
   });
 
   it('search finds words by name, reading and text, within a category', () => {
-    expect(searchGlossary('牢屋', null).map((t) => t.term)).toContain('牢屋');
+    expect(searchGlossary('ろっくぽいんと', null).map((t) => t.term)).toContain('LOCK POINT');
     expect(searchGlossary('かんせいとう', null).map((t) => t.term)).toContain('管制塔');
     expect(searchGlossary('', '役職').every((t) => t.cat === '役職')).toBe(true);
     expect(searchGlossary('存在しない言葉xyz', null)).toEqual([]);

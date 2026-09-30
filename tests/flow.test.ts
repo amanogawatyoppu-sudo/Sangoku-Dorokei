@@ -22,7 +22,7 @@ describe('screen flow', () => {
 
   it('cannot start with something unchosen; can start a CPU match once all is set', () => {
     expect(canStart(DEFAULT_SETTINGS)).toBe(false);
-    expect(missing(DEFAULT_SETTINGS)).toEqual(['所属国', '役職']);
+    expect(missing(DEFAULT_SETTINGS)).toEqual(['所属勢力', '役職']);
     expect(next('SETUP', { type: 'START' }, DEFAULT_SETTINGS).screen).toBe('SETUP');
     expect(canStart({ ...ready, role: null })).toBe(false);
     expect(next('SETUP', { type: 'START' }, ready)).toEqual({ screen: 'PLAYING', effect: 'startMatch' });

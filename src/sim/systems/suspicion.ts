@@ -29,11 +29,11 @@ export function updateSuspicion(state: GameState, e: Entity, dt: number): void {
     if ((dx / d) * e.dirX + (dz / d) * e.dirZ > 0.4) fleeing = true;
   }
   const decoyBoost = e.decoy ? 0.6 : 1;
-  if (escort >= 2) { e.susp = Math.min(100, e.susp + dt * 13 * decoyBoost); pushEvidence(state, e, '複数人に護衛されていた'); }
-  if (fleeing) { e.susp = Math.min(100, e.susp + dt * 9 * decoyBoost); pushEvidence(state, e, '危険を感じて逃走した'); }
+  if (escort >= 2) { e.susp = Math.min(100, e.susp + dt * 13 * decoyBoost); pushEvidence(state, e, '周りにVANGUARDが集まっていた'); }
+  if (fleeing) { e.susp = Math.min(100, e.susp + dt * 9 * decoyBoost); pushEvidence(state, e, '戦闘が始まると一人だけ前線から離れた'); }
   if (dist(e, TOWER) < TOWER.r + 20) {
     e.towerTicks += dt;
-    if (e.towerTicks > 4) { e.towerTicks = 0; pushEvidence(state, e, '管制塔を頻繁に利用していた'); }
+    if (e.towerTicks > 4) { e.towerTicks = 0; pushEvidence(state, e, '管制塔のネットワークを頻繁に使っていた'); }
   }
   if (escort < 2 && !fleeing) e.susp = Math.max(0, e.susp - dt * 5);
 }

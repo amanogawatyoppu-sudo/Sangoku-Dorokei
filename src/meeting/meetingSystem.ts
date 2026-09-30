@@ -70,7 +70,7 @@ export function openMeeting(state: GameState): boolean {
   state.terminalActive[p.nation] = state.time + TERMINAL_TIME;
   state.commands = [];
 
-  const lines = ['（自国の生存している仲間が集まった）'];
+  const lines = ['（自勢力の動ける仲間が集まった）'];
   const { choices, zones, script } = discussion(state, p);
   state.meeting = { kind: 'emergency', closeAfterMs: MEETING_AUTO_CLOSE, lines, choices, zones, script, nextLineAt: FIRST_LINE_MS, voted: false, elapsedMs: 0, others: {}, votes: {}, ready: [] };
   state.meetingsHeld++;
@@ -87,15 +87,15 @@ function discussion(state: GameState, p: Entity, extraZones: MeetingZone[] = [])
     seen: sightings(state, p.nation).map((g) => ({ nation: g.nation, place: g.place.name, count: g.count, ageSec: g.ageSec, king: g.king })),
     suspect: topSusp ? { e: topSusp, dir: compass(topSusp.x - p.x, topSusp.z - p.z) + '方向' } : null,
   });
-  const choices = ['管制塔を優先しよう', '牢屋を警戒しよう', '情報が足りない'];
-  if (topSusp) choices.unshift(NATIONS[topSusp.nation].name + '方面は怪しいと共有する');
+  const choices = ['管制塔を優先しよう', 'LOCK POINTを警戒しよう', '情報が足りない'];
+  if (topSusp) choices.unshift(NATIONS[topSusp.nation].name + 'のANCHOR候補を共有する');
 
   const zones: MeetingZone[] = [
     ...extraZones,
     ...[
-      { label: NATIONS.sun.name + '国拠点周辺', ...NATIONS.sun.base },
-      { label: NATIONS.moon.name + '国拠点周辺', ...NATIONS.moon.base },
-      { label: NATIONS.star.name + '国拠点周辺', ...NATIONS.star.base },
+      { label: NATIONS.sun.name + ' 拠点周辺', ...NATIONS.sun.base },
+      { label: NATIONS.moon.name + ' 拠点周辺', ...NATIONS.moon.base },
+      { label: NATIONS.star.name + ' 拠点周辺', ...NATIONS.star.base },
       { label: '管制塔周辺', x: TOWER.x, z: TOWER.z },
     ].filter((z) => z.label.indexOf(NATIONS[p.nation].name) !== 0),
   ];
@@ -135,7 +135,7 @@ function agreedFocus(state: GameState, n: NationId): MeetingZone {
   if (g) return { label: g.place.name + '付近', x: g.place.x, z: g.place.z };
   if (state.tower.owner !== n) return { label: '管制塔周辺', x: TOWER.x, z: TOWER.z };
   const rival = NATION_IDS.filter((o) => o !== n)[state.meetingsHeld % 2];
-  return { label: NATIONS[rival].name + '国拠点周辺', ...NATIONS[rival].base };
+  return { label: NATIONS[rival].name + ' 拠点周辺', ...NATIONS[rival].base };
 }
 
 /**
@@ -162,17 +162,17 @@ export function openScheduledMeeting(state: GameState): void {
 /** The half-time report for `p`'s nation, told from where `p` stands. */
 function scheduledView(state: GameState, p: Entity): MeetingView {
   const lines = [`【ハーフタイム会議】経過 ${clock(elapsedSec(state))}／残り ${clock(timeLeftSec(state))}`];
-  lines.push('管制塔: ' + (state.tower.owner ? NATIONS[state.tower.owner].name + '国が占領中' : '未占領'));
+  lines.push('管制塔: ' + (state.tower.owner ? NATIONS[state.tower.owner].name + 'が占領中' : '未占領'));
   const jailed = NATION_IDS.map((n) => NATIONS[n].name + state.entities.filter((e) => e.nation === n && e.jailed).length + '人').join('・');
-  lines.push('捕まっている人数: ' + jailed);
+  lines.push('LOCK中の人数: ' + jailed);
   for (const n of NATION_IDS) {
     const k = state.entities.find((e) => e.nation === n && e.role === 'king');
-    if (k?.jailed && k.capturedBy) lines.push(`⚠ ${NATIONS[n].name}国の王が${NATIONS[k.capturedBy].name}国の牢屋に捕まっている！`);
+    if (k?.jailed && k.capturedBy) lines.push(`⚠ ${NATIONS[n].name}のANCHORが${NATIONS[k.capturedBy].name}のLOCK POINTに拘束されている！`);
   }
   const seen = sightings(state, p.nation);
   if (!seen.length) lines.push('目撃情報: 直近の目撃はなし');
   for (const g of seen.slice(0, 4)) {
-    lines.push(`目撃: ${NATIONS[g.nation].name}国の人物${g.count}人 ― ${g.place.name}付近（${Math.round(g.ageSec)}秒前）${g.king >= 2 ? '　護衛付き＝王の可能性' : ''}`);
+    lines.push(`目撃: ${NATIONS[g.nation].name}の人物${g.count}人 ― ${g.place.name}付近（${Math.round(g.ageSec)}秒前）${g.king >= 2 ? '　護衛付き＝ANCHOR候補' : ''}`);
   }
   const extra = seen.slice(0, 2).map((g) => ({ label: `${g.place.name}付近（${NATIONS[g.nation].name}${g.count}人）`, x: g.place.x, z: g.place.z }));
   const { choices, zones, script } = discussion(state, p, extra);

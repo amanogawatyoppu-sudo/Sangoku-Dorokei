@@ -15,8 +15,8 @@ import { groundAt } from './systems/world';
  */
 export type PingKind = 'king' | 'help' | 'gather' | 'danger';
 export const PING_KINDS: readonly PingKind[] = ['king', 'help', 'gather', 'danger'];
-export const PING_LABEL: Record<PingKind, string> = { king: 'ここに王！', help: '助けて！', gather: 'ここに集合', danger: '敵多数！' };
-export const PING_ICON: Record<PingKind, string> = { king: '♛', help: '!', gather: '⚑', danger: '⚠' };
+export const PING_LABEL: Record<PingKind, string> = { king: 'ここにANCHOR！', help: '助けて！', gather: 'ここに集合', danger: '敵多数！' };
+export const PING_ICON: Record<PingKind, string> = { king: '◆', help: '!', gather: '⚑', danger: '⚠' };
 
 export interface Ping { id: number; nation: NationId; by: number; kind: PingKind; x: number; y: number; z: number; t: number }
 

@@ -23,10 +23,10 @@ import { $ } from './dom';
 /** v6 UI cooldown scale for the special button fill (keyholder uses 1 in v6). */
 const SPECIAL_FILL_SCALE = { king: 15, soldier: 18, sniper: 8, keyholder: 1, communicator: 10, ranger: 16 } as const;
 const SPECIAL_DESC = {
-  king: '回避を強化（捕獲はスーパーハンド：正面からでも確実）。牢屋の仲間のそばでZ＝救出',
+  king: '回避を強化（TRACEはスーパーハンド：正面からでも確実）。LOCK POINTの仲間のそばでZ＝解放',
   soldier: '耐久を全回復',
   sniper: '照準（前方±30°・射程20m・高所から+25%）の敵を狙撃→3秒スタン。赤い線が出たら命中',
-  keyholder: '牢屋の味方の近くでZ(王は詠唱長め・進捗表示あり)',
+  keyholder: 'LOCK POINTの味方の近くでZで解除(ANCHORは解除に時間がかかる・進捗表示あり)',
   communicator: '管制塔内でレーダー展開',
   ranger: '疾走: 4.5秒間 速さ×1.3・スタミナ回復アップ（再使用16秒）',
 } as const;
@@ -65,6 +65,28 @@ export class Hud {
     id.style.setProperty('--nc', nationCss(p.nation));
   }
 
+  /**
+   * The big moments of a match (ANCHOR LOCKED / RELEASED, NETWORK LOST): an English headline
+   * with the faction above and a Japanese line under it, in the faction's colour.
+   */
+  eventCard(c: { kicker: string; title: string; sub: string; note?: string; tone: 'lock' | 'release' | 'lost' | 'win'; color?: string }, ms = 3200): void {
+    let el = document.getElementById('eventCard');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'eventCard';
+      el.setAttribute('role', 'status');
+      document.getElementById('app')?.appendChild(el);
+    }
+    el.className = 'ec-' + c.tone;
+    el.style.setProperty('--ec', c.color ?? '#e2352b');
+    el.replaceChildren(...[['ec-kicker', c.kicker], ['ec-title', c.title], ['ec-sub', c.sub], ['ec-note', c.note ?? '']]
+      .filter(([, t]) => t).map(([cls, t]) => { const d = document.createElement('div'); d.className = cls; d.textContent = t; return d; }));
+    el.classList.add('show');
+    const stamp = String(Math.random());
+    el.dataset.stamp = stamp;
+    setTimeout(() => { if (el!.dataset.stamp === stamp) el!.classList.remove('show'); }, ms);
+  }
+
   banner(text: string, ms = 1800): void {
     const b = this.el.banner;
     b.textContent = text;
@@ -88,12 +110,12 @@ export class Hud {
     list.replaceChildren(...(members.length ? members : []).map((e) => {
       const d = document.createElement('div');
       d.className = 'squad-member';
-      const st = e.jailed ? '牢屋' : !e.alive ? '脱落' : e.stunUntil > state.time ? 'スタン' : STATUS[e.ai.state] ?? '行動中';
+      const st = e.jailed ? 'LOCK中' : !e.alive ? '脱落' : e.stunUntil > state.time ? 'スタン' : STATUS[e.ai.state] ?? '行動中';
       d.textContent = `${nameOf(e.id)}（${roleName(e.role)}）${st}　${Math.round(Math.hypot(e.x - p.x, e.z - p.z) / 26)}m`;
       if (st === '追跡中' || st === '回り込み') d.classList.add('hot');
       return d;
     }));
-    if (!members.length) list.textContent = !p.alive ? '（処刑済み）' : p.jailed ? '（あなたが牢屋にいる間は各自で行動）' : '（仲間を集めています…）';
+    if (!members.length) list.textContent = !p.alive ? '（戦線離脱）' : p.jailed ? '（あなたがLOCKされている間は各自で行動）' : '（仲間を集めています…）';
     for (const b of Array.from(document.querySelectorAll<HTMLButtonElement>('#squadBox [data-order]'))) b.classList.toggle('sel', b.dataset.order === state.squadOrder);
     const m = document.querySelector('#mSquad small');
     if (m) m.textContent = { follow: '付いて', spread: '警戒', hold: '守れ' }[state.squadOrder];
@@ -113,7 +135,7 @@ export class Hud {
     const now = performance.now();
     if (first || now - (this.sectorShownAt.get(here.id) ?? -Infinity) < 60000) return;
     this.sectorShownAt.set(here.id, now);
-    const who = here.owner ? (here.owner === p.nation ? '自国領' : NATIONS[here.owner].name + '国領') : '中立';
+    const who = here.owner ? (here.owner === p.nation ? '自勢力圏' : NATIONS[here.owner].name + ' 勢力圏') : '中立';
     this.banner(`${SECTORS[here.id].name}戦区（${who}）— ${SECTORS[here.id].style}`, 2200);
   }
 
@@ -136,7 +158,7 @@ export class Hud {
     const truce = state.war.truces.find((t) => t.until > state.time);
     const tr = $('tbTruce');
     tr.hidden = !truce;
-    if (truce) tr.textContent = `停戦 ${NATIONS[truce.a].emblem}${NATIONS[truce.b].emblem} ${Math.ceil((truce.until - state.time) / 1000)}秒`;
+    if (truce) tr.textContent = `TRUCE ${NATIONS[truce.a].emblem}${NATIONS[truce.b].emblem} ${Math.ceil((truce.until - state.time) / 1000)}秒`;
   }
 
   update(state: GameState): void {
@@ -152,7 +174,7 @@ export class Hud {
     el.tbMeet.classList.toggle('soon', toMeet <= 10);
     el.tbTower.textContent = state.tower.owner ? NATIONS[state.tower.owner].emblem + NATIONS[state.tower.owner].name : '―';
     const myKing = kingOf(state, p.nation)!;
-    el.tbKing.textContent = !myKing.alive ? '処刑済み' : myKing.jailed ? '捕縛中！' : '生存';
+    el.tbKing.textContent = !myKing.alive ? 'LOST' : myKing.jailed ? 'LOCKED！' : '健在';
     el.tbKing.parentElement!.className = 'tb-stat' + (!myKing.alive ? ' dead' : myKing.jailed ? ' alert' : '');
     el.tbTime.classList.toggle('low', left <= 60);
     el.tbJailed.textContent = String(state.entities.filter((e) => e.nation === p.nation && e.jailed).length);
@@ -171,7 +193,7 @@ export class Hud {
     this.updateDecoy(state);
     if (p.channeling) {
       el.progText.style.opacity = '1';
-      el.progText.textContent = '救出詠唱 [' + Math.round((p.channeling.prog / p.channeling.need) * 100) + '%]';
+      el.progText.textContent = '解除中 [' + Math.round((p.channeling.prog / p.channeling.need) * 100) + '%]';
     } else el.progText.style.opacity = '0';
   }
 
@@ -194,14 +216,14 @@ export class Hud {
 
   private statusFor(state: GameState, tier: CaptureTier | 'super' | null): { text: string; kind: string } | null {
     const p = state.player, now = state.time;
-    if (!p.alive) return { text: '処刑済み — 幽霊で観戦中', kind: 'jail' };
+    if (!p.alive) return { text: '戦線離脱 — 幽霊で観戦中', kind: 'jail' };
     if (p.jailed) {
       const left = Math.max(0, Math.ceil((p.jailedAt + jailDuration(p) - now) / 1000));
-      return { text: '牢屋に捕縛中 — 処刑まで ' + left + '秒', kind: 'jail' };
+      return { text: 'LOCK POINTに拘束中 — ' + (p.role === 'king' ? 'LINK SEVERまで ' : '戦線離脱まで ') + left + '秒', kind: 'jail' };
     }
     if (p.stunUntil > now) return { text: 'スタン中 ' + ((p.stunUntil - now) / 1000).toFixed(1) + '秒', kind: 'stun' };
     if (p.channeling) return null; // progText shows the rescue
-    if (tier) return { text: '捕獲可能: ' + TIER_LABEL[tier] + (p.cd.capture > 0 ? '（準備中）' : ''), kind: 'capture' };
+    if (tier) return { text: 'TRACE可能: ' + TIER_LABEL[tier] + (p.cd.capture > 0 ? '（準備中）' : ''), kind: 'capture' };
     return null;
   }
 
@@ -242,7 +264,7 @@ export class Hud {
       dots.innerHTML = '<i class="f"></i>'.repeat(r.free) + '<i class="j"></i>'.repeat(r.jailed) + '<i class="d"></i>'.repeat(r.dead);
       const num = document.createElement('span');
       num.className = 'rs-num';
-      num.textContent = `${r.free}人` + (r.jailed ? `・牢${r.jailed}` : '') + (r.dead ? `・処刑${r.dead}` : '');
+      num.textContent = `${r.free}人` + (r.jailed ? `・LOCK${r.jailed}` : '') + (r.dead ? `・離脱${r.dead}` : '');
       d.append(name, dots, num);
       return d;
     }));
@@ -263,7 +285,7 @@ export class Hud {
   toast(text: string, kind: 'cap' | 'exec' | 'rescue'): void {
     const d = document.createElement('div');
     d.className = `toast ${kind}`;
-    d.textContent = (kind === 'cap' ? '⛓ ' : kind === 'exec' ? '✖ ' : '🔑 ') + text;
+    d.textContent = (kind === 'cap' ? '⛓ ' : kind === 'exec' ? '✖ ' : '🔓 ') + text;
     this.el.toasts.prepend(d);
     while (this.el.toasts.children.length > 3) this.el.toasts.lastElementChild!.remove();
     setTimeout(() => d.classList.add('out'), 4200);
@@ -276,24 +298,24 @@ export class Hud {
     const can = p.alive && !p.jailed && canRescue(state, p);
     if (!can) { b.hidden = true; return; }
     const target = rescueTargetNear(state, p);
-    const why = p.role === 'keyholder' ? '鍵使い' : p.role === 'king' ? '王の特権' : '最後の一人';
+    const why = p.role === 'keyholder' ? 'BREAKER' : p.role === 'king' ? 'ANCHORの特権' : '最後の一人';
     b.hidden = false;
     b.className = target ? 'ready' : '';
-    b.textContent = target ? `🔑 Zで${nameOf(target.id)}を救出！` : `🔑 救出能力あり（${why}）— 牢屋の仲間のそばでZ`;
+    b.textContent = target ? `🔓 Zで${nameOf(target.id)}を解放！` : `🔓 解除能力あり（${why}）— LOCK POINTの仲間のそばでZ`;
     if (p.role !== 'keyholder') {
-      const label = target ? '救出' : '特殊';
+      const label = target ? '解放' : '特殊';
       if (this.el.mSpec.textContent !== label) this.el.mSpec.textContent = label;
     }
   }
 
-  /** 影武者: the king's once-a-match button (shows who stands in while it lasts). */
+  /** DECOY (was 影武者): the king's once-a-match button (shows who stands in while it lasts). */
   private updateDecoy(state: GameState): void {
     const p = state.player, btn = this.el.btnDecoy;
     const d = decoyOf(state, p.nation);
     btn.hidden = p.role !== 'king' || !p.alive || (state.decoyUsed[p.nation] && !d);
     if (btn.hidden) return;
     btn.disabled = !canUseDecoy(state, p);
-    btn.textContent = d ? `影武者:${nameOf(d.id)} ${Math.ceil((state.decoy[p.nation]!.until - state.time) / 1000)}s` : '影武者(F)';
+    btn.textContent = d ? `DECOY:${nameOf(d.id)} ${Math.ceil((state.decoy[p.nation]!.until - state.time) / 1000)}s` : 'DECOY(F)';
     btn.classList.toggle('lit', !!d);
   }
 
@@ -307,9 +329,9 @@ export class Hud {
     const until = timeLeftSec(state) - GAME_TIME / 3;
     btn.disabled = !canLightKings(state, p.nation);
     btn.classList.toggle('lit', lit);
-    btn.textContent = lit ? `照射中 ${Math.ceil((state.kingBeacon[p.nation] - state.time) / 1000)}s`
-      : until > 0 ? `王を照らす（あと${Math.floor(until / 60)}:${String(Math.floor(until % 60)).padStart(2, '0')}）`
-        : state.time < state.beaconReadyAt[p.nation] ? `王を照らす（${Math.ceil((state.beaconReadyAt[p.nation] - state.time) / 1000)}s）` : '王を照らす(B)';
+    btn.textContent = lit ? `SCAN中 ${Math.ceil((state.kingBeacon[p.nation] - state.time) / 1000)}s`
+      : until > 0 ? `ANCHOR SCAN（あと${Math.floor(until / 60)}:${String(Math.floor(until % 60)).padStart(2, '0')}）`
+        : state.time < state.beaconReadyAt[p.nation] ? `ANCHOR SCAN（${Math.ceil((state.beaconReadyAt[p.nation] - state.time) / 1000)}s）` : 'ANCHOR SCAN(B)';
   }
 
   private computeHint(state: GameState): string {
@@ -334,15 +356,15 @@ export class Hud {
     this.el.vignette.classList.toggle('on', danger);
     // Snipers: someone drawing a bead on you (their red laser), or your own shot lined up.
     if (!p.jailed && state.entities.some((e) => e.role === 'sniper' && e.nation !== p.nation && e.alive && !e.jailed && e.ai.aimId === p.id && visibleTo(state, e, p))) {
-      return '狙撃手に狙われている！赤い線から外れて物陰へ';
+      return 'SPOTTERに狙われている！赤い線から外れて物陰へ';
     }
     if (p.role === 'sniper' && !p.jailed) {
       const t = sniperTarget(state, p);
       if (t) {
         const m = Math.round(Math.hypot(t.x - p.x, t.z - p.z, t.y - p.y) / 26);
         return p.cd.special > 0.5
-          ? `照準: ${NATIONS[t.nation].name}国・${m}m ― 装填中（あと${Math.ceil(p.cd.special)}秒）`
-          : `照準: ${NATIONS[t.nation].name}国・${m}m ― Z / 特殊 で狙撃！`;
+          ? `照準: ${NATIONS[t.nation].name}・${m}m ― 装填中（あと${Math.ceil(p.cd.special)}秒）`
+          : `照準: ${NATIONS[t.nation].name}・${m}m ― Z / 特殊 で狙撃！`;
       }
     }
     if (tier === 3) {
@@ -353,15 +375,15 @@ export class Hud {
     if (tier === 2) return '警戒！敵の気配が続いている';
     if (tier === 1) return '……？ 何かが視界の端に';
     const myKing = kingOf(state, p.nation)!;
-    if (myKing.jailed) return '至急、味方と協力して王を救出しよう！';
-    if (p.jailed) return '味方の鍵使いが助けに来るのを待とう';
-    if (p.role === 'keyholder' && jailedAlly(state, p)) return '味方が牢屋にいる。救出を試みよう';
+    if (myKing.jailed) return '自勢力のANCHORがLOCKされた！味方と協力して解放しよう';
+    if (p.jailed) return '味方のBREAKERが解除に来るのを待とう';
+    if (p.role === 'keyholder' && jailedAlly(state, p)) return '味方がLOCK POINTにいる。解除しに行こう';
     if (p.role === 'communicator' && state.tower.owner !== p.nation) return '管制塔を確保しよう';
-    if (state.entities.some((e) => e.nation === p.nation && e.jailed)) return '牢屋の味方を救出できないか探ろう';
+    if (state.entities.some((e) => e.nation === p.nation && e.jailed)) return 'LOCK POINTの味方を解放できないか探ろう';
     if (state.entities.some((e) => e.nation !== p.nation && e.alive && !e.jailed && visibleTo(state, e, p) && e.susp > 45)) {
-      return '怪しい動きの敵がいる…王候補として警戒しよう';
+      return '怪しい動きの敵がいる…ANCHOR候補として警戒しよう';
     }
-    return '広いマップを探索し、隙を探ろう';
+    return '痕跡を追い、敵のANCHORを探ろう';
   }
 }
 

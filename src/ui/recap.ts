@@ -30,20 +30,20 @@ export class Recap {
     bus.on('JAILED', (ev) => {
       const e = state.entities[ev.entityId];
       if (!this.firstJailed.has(e.id)) this.firstJailed.set(e.id, elapsedSec(state));
-      if (mine(e.nation) || mine(ev.capNation) || e.role === 'king') add(e.role === 'king' ? 'king' : 'cap', `${who(e.id)}が${N(ev.capNation)}国に捕まった`, mine(e.nation));
+      if (mine(e.nation) || mine(ev.capNation) || e.role === 'king') add(e.role === 'king' ? 'king' : 'cap', `${who(e.id)}が${N(ev.capNation)}にLOCKされた`, mine(e.nation));
       else this.otherCaps++;
     });
-    bus.on('ELIMINATED', (ev) => { const e = state.entities[ev.entityId]; if (mine(e.nation) || e.role === 'king') add('exec', `${who(e.id)}が処刑された`, mine(e.nation)); });
+    bus.on('ELIMINATED', (ev) => { const e = state.entities[ev.entityId]; if (mine(e.nation) || e.role === 'king') add('exec', `${who(e.id)}が戦線離脱`, mine(e.nation)); });
     bus.on('RESCUED', (ev) => {
       this.rescues.set(ev.rescuerId, (this.rescues.get(ev.rescuerId) ?? 0) + 1);
       const t = state.entities[ev.targetId];
-      if (mine(t.nation) || t.role === 'king') add('rescue', `${who(ev.rescuerId)}が${state.humanNames[t.id] ?? nameOf(t.id)}を救出`, mine(t.nation));
+      if (mine(t.nation) || t.role === 'king') add('rescue', `${who(ev.rescuerId)}が${state.humanNames[t.id] ?? nameOf(t.id)}を解放`, mine(t.nation));
     });
-    bus.on('NATION_FALLEN', (ev) => add('king', `${N(ev.nation)}国の王が処刑され、${N(ev.nation)}国は滅亡`, mine(ev.nation)));
-    bus.on('SECTOR_CAPTURED', (ev) => add('war', `${N(ev.nation)}国が${SECTORS[ev.sector].name}戦区を制圧${ev.from ? `（${N(ev.from)}国から）` : ''}`, mine(ev.nation) || (ev.from !== null && mine(ev.from))));
-    bus.on('TOWER_CAPTURED', (ev) => add('tower', `${N(ev.nation)}国が管制塔を占領`, mine(ev.nation)));
-    bus.on('KING_BEACON', (ev) => add('tower', `${N(ev.nation)}国が管制塔から王を照らした`, mine(ev.nation)));
-    bus.on('TRUCE_STARTED', (ev) => add('diplo', `${N(ev.a)}国と${N(ev.b)}国が一時停戦`, mine(ev.a) || mine(ev.b)));
+    bus.on('NATION_FALLEN', (ev) => add('king', `${N(ev.nation)}のANCHORのリンクが切断 — ${N(ev.nation)} NETWORK LOST`, mine(ev.nation)));
+    bus.on('SECTOR_CAPTURED', (ev) => add('war', `${N(ev.nation)}が${SECTORS[ev.sector].name}戦区を制圧${ev.from ? `（${N(ev.from)}から）` : ''}`, mine(ev.nation) || (ev.from !== null && mine(ev.from))));
+    bus.on('TOWER_CAPTURED', (ev) => add('tower', `${N(ev.nation)}が管制塔を占領`, mine(ev.nation)));
+    bus.on('KING_BEACON', (ev) => add('tower', `${N(ev.nation)}がANCHOR SCANを実行`, mine(ev.nation)));
+    bus.on('TRUCE_STARTED', (ev) => add('diplo', `${N(ev.a)}と${N(ev.b)}がTRUCE（一時停戦）`, mine(ev.a) || mine(ev.b)));
   }
 
   /** The timeline and the MVP cards, as DOM. */
@@ -71,10 +71,10 @@ export class Recap {
     };
     const end = elapsedSec(state);
     const cards = [
-      best((id) => people[id].capturesMade, (id, v) => card('捕獲王', id, `${v}人を捕獲`)),
-      best((id) => this.rescues.get(id) ?? 0, (id, v) => card('救出の要', id, `${v}人を救出`)),
-      best((id) => people[id].kingCaptures * 10 + people[id].kingHits, (id) => card('王狩り', id, `王への攻撃${people[id].kingHits}回・王の捕獲${people[id].kingCaptures}回`)),
-      best((id) => (people[id].alive && !this.firstJailed.has(id) && people[id].role !== 'king' ? 1 + people[id].capturesMade * 0.01 : 0), (id) => card('無傷の生還', id, `${Math.round(end)}秒間一度も捕まらなかった`)),
+      best((id) => people[id].capturesMade, (id, v) => card('TRACE MASTER', id, `${v}人をTRACE`)),
+      best((id) => this.rescues.get(id) ?? 0, (id, v) => card('救援のスペシャリスト', id, `${v}人を解放`)),
+      best((id) => people[id].kingCaptures * 10 + people[id].kingHits, (id) => card('ANCHOR HUNTER', id, `ANCHORへの攻撃${people[id].kingHits}回・ANCHOR LOCK ${people[id].kingCaptures}回`)),
+      best((id) => (people[id].alive && !this.firstJailed.has(id) && people[id].role !== 'king' ? 1 + people[id].capturesMade * 0.01 : 0), (id) => card('無傷の生還', id, `${Math.round(end)}秒間一度もLOCKされなかった`)),
     ].filter((c): c is HTMLDivElement => !!c);
     if (cards.length) {
       const h = document.createElement('h3');
@@ -102,7 +102,7 @@ export class Recap {
     if (!shown.length) { const li = document.createElement('li'); li.textContent = '大きな出来事はなかった'; list.append(li); }
     const note = document.createElement('p');
     note.className = 'tl-note';
-    note.textContent = this.otherCaps ? `ほかに他国同士の捕獲が${this.otherCaps}件あった。` : '';
+    note.textContent = this.otherCaps ? `ほかに他勢力同士のTRACEが${this.otherCaps}件あった。` : '';
     box.append(h, list, note);
     // Nations at the end.
     const tally = document.createElement('p');
@@ -110,7 +110,7 @@ export class Recap {
     tally.textContent = NATION_IDS.map((n) => {
       const all = people.filter((e) => e.nation === n);
       const free = all.filter((e) => e.alive && !e.jailed).length, dead = all.filter((e) => !e.alive).length;
-      return `${NATIONS[n].name}：残り${free}人・処刑${dead}人`;
+      return `${NATIONS[n].name}：残り${free}人・離脱${dead}人`;
     }).join('　');
     box.append(tally);
     return box;

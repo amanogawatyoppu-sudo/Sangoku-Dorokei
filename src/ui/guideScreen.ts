@@ -17,14 +17,14 @@ const hexA = (c: number, a: number) => `rgba(${(c >> 16) & 255},${(c >> 8) & 255
 function sitesIn(id: number): string[] {
   const out: string[] = [];
   for (const n of NATION_IDS) {
-    if (sectorAt(NATIONS[n].base.x, NATIONS[n].base.z) === id) out.push(`${NATIONS[n].name}国の拠点（スタート地点）`);
-    if (sectorAt(NATIONS[n].jail.x, NATIONS[n].jail.z) === id) out.push(`${NATIONS[n].name}国の牢屋`);
+    if (sectorAt(NATIONS[n].base.x, NATIONS[n].base.z) === id) out.push(`${NATIONS[n].name}の拠点（スタート地点）`);
+    if (sectorAt(NATIONS[n].jail.x, NATIONS[n].jail.z) === id) out.push(`${NATIONS[n].name}のLOCK POINT`);
   }
   if (sectorAt(TOWER.x, TOWER.z) === id) out.push('管制塔（日比谷公園の電波塔）');
   return out;
 }
 
-const homeName = (h: NationId | null) => (h ? `${NATIONS[h].name}国` : '中立');
+const homeName = (h: NationId | null) => (h ? NATIONS[h].name : '中立');
 
 export interface GuideControl {
   /** Draw the map (the tab may have been hidden while sizing). */
@@ -99,7 +99,7 @@ export function initGuideScreen(): GuideControl {
     h.textContent = `${id + 1}. ${s.name}戦区`;
     const owner = document.createElement('span');
     owner.className = 'sc-owner';
-    owner.textContent = s.home ? `${NATIONS[s.home].emblem} 最初の支配：${homeName(s.home)}` : '最初の支配：中立（どの国のものでもない）';
+    owner.textContent = s.home ? `${NATIONS[s.home].emblem} 最初の支配：${homeName(s.home)}` : '最初の支配：中立（どの勢力のものでもない）';
     const dl = document.createElement('dl');
     const row = (a: string, b: string) => { const dt = document.createElement('dt'), dd = document.createElement('dd'); dt.textContent = a; dd.textContent = b; dl.append(dt, dd); };
     row('戦略拠点', s.pointName + (s.pointNear.y && !s.pointName.includes('高台') ? '（高台の上）' : ''));
@@ -182,7 +182,7 @@ export function initGuideScreen(): GuideControl {
     for (const sec of SECTORS) icons.push([X(sec.pointNear.x), Y(sec.pointNear.z), '旗', sec.home ? nationCss(sec.home) : '#6e7898', 8]);
     for (const n of NATION_IDS) {
       icons.push([X(NATIONS[n].base.x), Y(NATIONS[n].base.z), NATIONS[n].emblem, nationCss(n), 12]);
-      icons.push([X(NATIONS[n].jail.x), Y(NATIONS[n].jail.z), '牢', '#3a2a2a', 9]);
+      icons.push([X(NATIONS[n].jail.x), Y(NATIONS[n].jail.z), 'L', '#3a2a2a', 9]);
     }
     icons.push([X(TOWER.x), Y(TOWER.z), '塔', '#c9a24e', 11]);
     // Smaller plates on a small map.
