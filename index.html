@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>三国ドロケイ v7.27 3D</title>
+<title>三国ドロケイ v7.28 3D</title>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -50,14 +50,34 @@
         <canvas id="setupMap" aria-hidden="true"></canvas>
         <section id="titleScreen" class="title-screen">
           <div class="title-inner">
-            <div class="logo"><h1><span class="logo-a">三国</span><span class="logo-b">ドロケイ</span></h1><span class="seal ver">v7.27</span></div>
+            <div class="logo"><h1><span class="logo-a">三国</span><span class="logo-b">ドロケイ</span></h1><span class="seal ver">v7.28</span></div>
             <div class="logo-sub">TOKYO THREE KINGDOMS</div>
             <p class="tagline">東京を駆け、奪い、捕らえろ。<br><span>太陽・月・星 ― 前線の向こうに隠れた敵国の王を探し出せ。</span></p>
             <div class="title-menu">
               <button class="menu-btn primary" id="btnPlay"><b>プレイする</b><small>設定を選んで試合へ</small></button>
               <button class="menu-btn" id="btnTutorial"><b>チュートリアルを行う</b><small>操作しながら基本を覚える（約5分）</small></button>
             </div>
+            <div class="title-sub"><button class="sub-btn" id="btnGuide"><span class="sub-ico" aria-hidden="true">📖</span><span><b>用語・戦場マップ</b><small>ルールの言葉と9つの戦区をいつでも確認</small></span></button></div>
             <p id="recordLine"></p>
+          </div>
+        </section>
+        <section id="guideScreen" class="guide-screen" hidden>
+          <div class="guide-inner">
+            <div class="setup-head"><button class="back-btn" id="btnGuideBack">← タイトル</button><h2>用語・戦場マップ</h2></div>
+            <div id="guideTabs" class="guide-tabs" role="tablist"><button role="tab" data-tab="terms">用語集</button><button role="tab" data-tab="map">戦場マップ</button></div>
+            <div id="guideTerms" class="guide-pane" role="tabpanel">
+              <input id="glossQ" type="search" placeholder="言葉をさがす（例：牢屋、制圧、狙撃）" aria-label="用語をさがす">
+              <div id="glossCats" class="gl-cats"></div>
+              <dl id="glossList"></dl>
+            </div>
+            <div id="guideMap" class="guide-pane" role="tabpanel" hidden>
+              <div class="gm-wrap">
+                <div class="gm-canvas"><canvas id="guideCanvas" aria-label="東京の戦区マップ（戦区をタップすると詳細）"></canvas>
+                  <p class="gm-legend"><span class="lg flag">旗</span>戦略拠点 <span class="lg base">☀</span>国の拠点 <span class="lg jail">牢</span>牢屋 <span class="lg tower">塔</span>管制塔 <span class="lg front"></span>前線 <span class="lg river"></span>神田川 <span class="lg loop"></span>山手線</p>
+                </div>
+                <div class="gm-side"><div id="sectorList" class="sector-list"></div><div id="sectorCard" class="sector-card"></div></div>
+              </div>
+            </div>
           </div>
         </section>
         <section id="setupScreen" class="setup-screen" hidden>
@@ -127,7 +147,7 @@
           <p id="ldTip"></p>
         </div>
       </div>
-      <div id="tutorialCard" hidden><div class="tut-progress" id="tutProgress"></div><h3 id="tutTitle"></h3><p id="tutText"></p><div class="tut-actions" id="tutActions"></div></div>
+      <div id="tutorialCard" hidden><div class="tut-progress" id="tutProgress"></div><h3 id="tutTitle"></h3><p id="tutText"></p><p id="tutShort"></p><div class="tut-actions" id="tutActions"></div></div>
       <div id="meetingOverlay">
         <h1 id="meetingTitle">緊急会議</h1>
         <div id="meetingLog"></div>

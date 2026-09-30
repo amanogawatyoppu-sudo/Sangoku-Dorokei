@@ -67,3 +67,13 @@ describe('screen flow', () => {
     expect(next('TUTORIAL', { type: 'TUTORIAL_PLAY' }, DEFAULT_SETTINGS)).toEqual({ screen: 'SETUP', effect: 'reload' });
   });
 });
+
+describe('用語・戦場マップ', () => {
+  it('opens from the title only, and goes back to the title without a reload', () => {
+    const s = { ...DEFAULT_SETTINGS };
+    expect(next('TITLE', { type: 'GUIDE' }, s)).toEqual({ screen: 'GUIDE', effect: 'none' });
+    expect(next('SETUP', { type: 'GUIDE' }, s).screen).toBe('SETUP');
+    expect(next('GUIDE', { type: 'TITLE' }, s)).toEqual({ screen: 'TITLE', effect: 'none' });
+    expect(next('GUIDE', { type: 'START' }, { ...s, nation: 'sun', role: 'king' }).screen).toBe('GUIDE');
+  });
+});

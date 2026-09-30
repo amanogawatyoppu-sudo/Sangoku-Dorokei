@@ -9,9 +9,10 @@ import { ROLES, ROSTER_SIZES, roleName } from '../config/roles';
  * The game's screens and how you move between them:
  * TITLE → (プレイする) SETUP → (ゲームスタート！) PLAYING → RESULT → (もう一度 / 設定を変更 / タイトル)
  * TITLE → (チュートリアル) TUTORIAL → (タイトルへ / そのままプレイ)
+ * TITLE → (用語・戦場マップ) GUIDE → (← タイトル) TITLE
  * Pure logic (no DOM), so it can be tested; the screens follow `screen`.
  */
-export type AppScreen = 'TITLE' | 'SETUP' | 'TUTORIAL' | 'PLAYING' | 'RESULT';
+export type AppScreen = 'TITLE' | 'SETUP' | 'GUIDE' | 'TUTORIAL' | 'PLAYING' | 'RESULT';
 export type GameMode = 'cpu' | 'online';
 
 export interface Settings {
@@ -27,6 +28,7 @@ export const DEFAULT_SETTINGS: Settings = { nation: null, role: null, size: 10, 
 export type FlowEvent =
   | { type: 'PLAY' }
   | { type: 'TUTORIAL' }
+  | { type: 'GUIDE' }
   | { type: 'TITLE' }
   | { type: 'START' }
   | { type: 'GAME_OVER' }
@@ -62,8 +64,9 @@ export function next(screen: AppScreen, ev: FlowEvent, s: Settings): FlowResult 
   switch (ev.type) {
     case 'PLAY': return screen === 'TITLE' ? { screen: 'SETUP', effect: 'none' } : stay;
     case 'TUTORIAL': return screen === 'TITLE' ? { screen: 'TUTORIAL', effect: 'startTutorial' } : stay;
+    case 'GUIDE': return screen === 'TITLE' ? { screen: 'GUIDE', effect: 'none' } : stay;
     case 'TITLE':
-      if (screen === 'SETUP') return { screen: 'TITLE', effect: 'none' };
+      if (screen === 'SETUP' || screen === 'GUIDE') return { screen: 'TITLE', effect: 'none' };
       if (screen === 'RESULT' || screen === 'TUTORIAL') return { screen: 'TITLE', effect: 'reload' };
       return stay;
     case 'START': return screen === 'SETUP' && canStart(s) ? { screen: 'PLAYING', effect: 'startMatch' } : stay;

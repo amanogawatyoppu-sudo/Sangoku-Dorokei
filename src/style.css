@@ -578,23 +578,33 @@ body.leaving #app{opacity:0;transition:opacity .16s ease}
 /* tutorial */
 body.tutorial .tb-clock,body.tutorial #btnMeeting,body.tutorial #btnTruce{visibility:hidden}
 body.tutorial #banner{top:auto;bottom:34%}
-#tutorialCard{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:15;width:min(460px,calc(100% - 24px));padding:12px 16px 12px;border-radius:8px;text-align:left;
-  background:linear-gradient(rgba(16,17,24,.94),rgba(10,11,16,.96));border:1px solid rgba(224,180,86,.6);box-shadow:0 14px 40px rgba(0,0,0,.6);animation:tutIn .3s ease both}
+/* Top-left and small, so the way ahead stays clear; folds to the title and one line once you move (tap to open). */
+#tutorialCard{position:absolute;left:12px;top:12px;z-index:15;width:min(340px,calc(100% - 24px));padding:10px 14px;border-radius:8px;text-align:left;cursor:pointer;
+  background:linear-gradient(rgba(16,17,24,.86),rgba(10,11,16,.9));border:1px solid rgba(224,180,86,.55);box-shadow:0 10px 30px rgba(0,0,0,.5);animation:tutIn .3s ease both;transition:width .2s,padding .2s}
 @keyframes tutIn{from{opacity:0}to{opacity:1}}
-.tut-progress{font-size:11px;letter-spacing:2px;color:#9d937f}
-#tutTitle{margin:2px 0 4px;font-family:'Dela Gothic One',var(--display);font-weight:400;font-size:20px;letter-spacing:2px;color:#fff4e6}
-#tutText{margin:0 0 8px;font-size:13px;line-height:1.7;color:#e8dcc0}
+.tut-progress{font-size:10.5px;letter-spacing:2px;color:#9d937f}
+#tutTitle{margin:2px 0 4px;font-family:'Dela Gothic One',var(--display);font-weight:400;font-size:18px;letter-spacing:2px;color:#fff4e6}
+#tutText{margin:0 0 8px;font-size:12.5px;line-height:1.65;color:#e8dcc0}
+#tutShort{display:none;margin:0;font-size:12.5px;font-weight:700;color:#8fe0a5}
+#tutShort::after{content:'　▼説明';font-weight:400;font-size:10.5px;color:#9d937f}
 .tut-actions{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
-.tut-actions button{padding:8px 16px;border-radius:4px;cursor:pointer;font-weight:700;letter-spacing:1px}
+.tut-actions button{padding:6px 14px;border-radius:4px;cursor:pointer;font-weight:700;letter-spacing:1px}
 .tut-actions .go{background:linear-gradient(#f2584a,#b72419);color:#fff;border:1px solid #ff8a78}
-.tut-actions .pickbtn{padding:8px 14px}
+.tut-actions .pickbtn{padding:6px 12px}
 .tut-wait{margin-right:auto;font-size:12px;color:#8fe0a5;animation:tutPulse 1.4s ease-in-out infinite}
 @keyframes tutPulse{50%{opacity:.45}}
-#tutorialCard.final{top:50%;transform:translate(-50%,-50%);width:min(520px,calc(100% - 24px));padding:20px 22px;text-align:center}
+#tutorialCard.compact{width:auto;max-width:min(340px,calc(100% - 24px));padding:6px 12px;background:rgba(10,11,16,.66)}
+#tutorialCard.compact #tutText,#tutorialCard.compact .tut-wait{display:none}
+#tutorialCard.compact #tutShort{display:block}
+#tutorialCard.compact #tutTitle{font-size:14px;margin:0 0 2px}
+#tutorialCard.compact .tut-actions{margin-top:4px;justify-content:flex-start}
+#tutorialCard.compact .tut-actions button{padding:3px 10px;font-size:11px}
+#tutorialCard.final{left:50%;top:50%;transform:translate(-50%,-50%);width:min(520px,calc(100% - 24px));padding:20px 22px;text-align:center;cursor:default}
 #tutorialCard.final .tut-actions{justify-content:center}
 #tutorialCard.final .tut-actions button{font-size:16px;padding:12px 22px}
-@media (max-width:760px){#tutorialCard{top:calc(env(safe-area-inset-top,0px) + 6px);padding:9px 12px}#tutTitle{font-size:17px}#tutText{font-size:12px;line-height:1.55;margin-bottom:6px}}
-@media (max-height:520px){#tutorialCard{top:6px;width:min(560px,calc(100% - 300px));padding:8px 12px}#tutTitle{font-size:16px}#tutText{font-size:11.5px;line-height:1.5}}
+/* Phones: the top bar floats over the view, so the card sits under it. */
+@media (max-width:760px){#tutorialCard{top:calc(env(safe-area-inset-top,0px) + 150px);left:8px;width:min(270px,calc(100% - 16px));padding:8px 11px}#tutTitle{font-size:16px}#tutText{font-size:12px;line-height:1.55;margin-bottom:6px}}
+@media (max-height:520px){#tutorialCard{top:78px;left:8px;width:min(300px,40%);padding:7px 11px}#tutTitle{font-size:15px}#tutText{font-size:11.5px;line-height:1.5}}
 
 /* ===== v7.25 loading screen (作戦地域へ移動中…) ===== */
 #loading{position:fixed;inset:0;z-index:60;background:#07080d var(--art) 50% 15%/cover no-repeat;opacity:1;transition:opacity .45s ease;overflow:hidden}
@@ -625,3 +635,52 @@ body.tutorial #banner{top:auto;bottom:34%}
   .ld-ui{left:16px;right:16px;width:auto;bottom:max(32px,calc(env(safe-area-inset-bottom,0px) + 24px))}
 }
 @media (max-height:500px) and (min-aspect-ratio:1/1){#loading::before{background:radial-gradient(ellipse 60% 62% at 72% 100%,rgba(5,6,10,.9),rgba(5,6,10,.5) 60%,transparent 85%)}.ld-ui{width:min(420px,48vw);gap:6px;bottom:18px}.ld-text{font-size:20px}#ldTip{display:none}}
+
+/* ===== v7.28 title: 用語・戦場マップ, and its screen ===== */
+.title-sub{width:min(400px,100%);margin-top:6px;padding-top:12px;border-top:1px solid rgba(224,180,86,.25)}
+.sub-btn{display:flex;align-items:center;gap:12px;width:100%;padding:10px 16px;border-radius:6px;cursor:pointer;text-align:left;color:#e8dcc0;
+  background:rgba(10,11,16,.7);border:1px dashed rgba(224,180,86,.45);transition:border-color .15s,background .15s}
+.sub-btn:hover{border-color:var(--accent-2);border-style:solid;background:rgba(20,21,28,.85)}
+.sub-btn b{display:block;font-family:var(--display);font-size:16px;letter-spacing:2px;color:#f3d48a}
+.sub-btn small{font-size:11.5px;color:#9d937f}
+.sub-ico{font-size:22px;line-height:1}
+.guide-screen{position:relative;z-index:1;min-height:100%;background:rgba(7,8,13,.72)}
+.guide-inner{display:flex;flex-direction:column;gap:10px;width:min(1100px,100%);margin:0 auto;padding:22px 20px 28px}
+.guide-tabs{display:flex;gap:6px;border-bottom:1px solid rgba(224,180,86,.35)}
+.guide-tabs button{padding:9px 20px;border:1px solid rgba(224,180,86,.35);border-bottom:none;border-radius:6px 6px 0 0;background:rgba(14,15,22,.8);color:#cfc6b2;cursor:pointer;font-family:var(--display);font-weight:800;font-size:15px;letter-spacing:2px}
+.guide-tabs button.sel{background:linear-gradient(#2a2518,#16140e);color:#f3d48a;border-color:var(--accent)}
+.guide-pane{background:linear-gradient(rgba(14,15,22,.88),rgba(10,11,16,.92));border:1px solid rgba(224,180,86,.3);border-radius:0 8px 8px 8px;padding:14px 16px;text-align:left}
+#glossQ{width:100%;padding:10px 12px;border-radius:5px;border:1px solid var(--line);background:#141210;color:var(--text);font-size:14px;margin-bottom:8px}
+.gl-cats{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.gl-cats .pickbtn{padding:5px 12px;font-size:12px}
+#glossList{margin:0;display:grid;grid-template-columns:minmax(120px,190px) 1fr;gap:0;border-top:1px solid rgba(224,180,86,.15)}
+#glossList dt,#glossList dd{padding:8px 6px;border-bottom:1px solid rgba(224,180,86,.15);margin:0}
+#glossList dt{font-weight:800;color:#f3d48a;font-size:14px}
+#glossList dt small{display:block;font-weight:400;font-size:10.5px;color:#8a8170;margin-top:2px}
+#glossList dd{font-size:13px;line-height:1.7;color:#e3d9c3}
+.gl-none{grid-column:1/-1;color:#9d937f;font-size:13px}
+.gm-wrap{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(260px,1fr);gap:14px;align-items:start}
+.gm-canvas{position:relative}
+#guideCanvas{display:block;width:100%;aspect-ratio:3/4;max-height:72vh;border-radius:6px;background:#10131f;cursor:pointer}
+.gm-legend{margin:6px 0 0;font-size:11.5px;color:#b9ad93;line-height:2}
+.lg{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;font-size:10px;font-weight:800;color:#fff;margin:0 3px 0 8px;vertical-align:-4px;border:1px solid rgba(0,0,0,.6)}
+.lg.flag{background:#6e7898}.lg.base{background:#ff9048}.lg.jail{background:#3a2a2a}.lg.tower{background:#c9a24e}
+.lg.front,.lg.river,.lg.loop{width:18px;height:4px;border-radius:2px;border:none;vertical-align:2px}
+.lg.front{background:#ff5a46}.lg.river{background:#5aaae6}.lg.loop{background:#9acd32}
+.sector-list{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
+.sec-btn{--nc:#999;padding:5px 10px;font-size:12.5px;border-left:3px solid var(--nc)!important}
+.sector-card{--nc:#999;padding:12px 14px;border-radius:6px;background:linear-gradient(color-mix(in srgb,var(--nc) 14%,#14151b),#0f1015);border-top:3px solid var(--nc)}
+.sector-card h3{margin:0 0 4px;font-family:'Dela Gothic One',var(--display);font-weight:400;font-size:22px;letter-spacing:2px;color:#fff4e6}
+.sc-owner{display:inline-block;font-size:12.5px;font-weight:700;color:var(--nc);margin-bottom:8px}
+.sector-card dl{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:0;font-size:13px;line-height:1.6}
+.sector-card dt{color:#b9ad93;white-space:nowrap}
+.sector-card dd{margin:0;color:#ece2cc}
+@media (max-width:760px){
+  .guide-inner{padding:calc(14px + env(safe-area-inset-top,0px)) 12px 20px}
+  .gm-wrap{grid-template-columns:1fr}
+  #guideCanvas{max-height:60vh}
+  #glossList{grid-template-columns:1fr}
+  #glossList dt{border-bottom:none;padding-bottom:0}
+  .guide-tabs button{flex:1;padding:9px 8px}
+}
+@media (max-height:520px){.title-sub{margin-top:0;padding-top:6px;width:min(340px,100%)}.sub-btn{padding:6px 12px}.sub-btn small{display:none}#guideCanvas{max-height:calc(100dvh - 150px);width:auto;margin:0 auto}.gm-wrap{grid-template-columns:minmax(0,1fr) minmax(240px,1.2fr)}}

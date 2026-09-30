@@ -17,6 +17,8 @@ import { $ } from './dom';
 interface Step {
   title: string;
   text: string;
+  /** The instruction in one line, for the folded card. */
+  short?: string;
   enter?: () => void;
   done?: () => boolean;
   /** Steps that are only explanation move on with a button. */
@@ -48,6 +50,10 @@ export class TutorialGuide {
   private towerTaken = false;
   private target: { x: number; y: number; z: number } | null = null;
   private stepAt = 0;
+  /** Opened again by a tap: stays open for this step. */
+  private pinned = false;
+  /** Where the player was when the step began (the card folds once they move). */
+  private stepFrom = { x: 0, z: 0 };
 
   constructor(bus: EventBus<GameEvent>, private state: GameState, private hud: Hud, private exits: TutorialExits) {
     const p = state.player;
@@ -68,24 +74,28 @@ export class TutorialGuide {
     this.steps = [
       {
         title: '移動してみよう',
+        short: key('↑ で前進', 'スティックを上に倒して前進'),
         text: key('↑ で前進、↓ で後退。少し歩いてみよう。', '左下のスティックを上に倒すと前進。少し歩いてみよう。'),
         enter: () => { this.moved = 0; this.lastPos = { x: p.x, z: p.z }; },
         done: () => this.moved > 140,
       },
       {
         title: '向きを変えよう',
+        short: key('← → で旋回 ／ Q で振り向き', 'スティック左右で旋回 ／「振向」'),
         text: key('← → で旋回。Q を押すと一瞬で真後ろを向ける（背中は見えないので時々振り向こう）。', 'スティックを左右に倒して旋回。「振向」で一瞬で真後ろを向ける。'),
         enter: () => { this.turned = 0; this.lastYaw = Math.atan2(p.dirX, p.dirZ); },
         done: () => this.turned > 2.6,
       },
       {
         title: 'ダッシュで目的地へ',
+        short: key('⚑ まで Shift で走る', '⚑ まで「ダッシュ」で走る'),
         text: key('⚑ マーカーまで Shift を押しながら走ろう。ダッシュ中は足音が大きく、スタミナを使う。', '⚑ マーカーまで「ダッシュ」を押しながら走ろう。ダッシュ中は足音が大きく、スタミナを使う。'),
         enter: () => { this.dashed = false; const a = ahead(380); mark(a.x, a.z); },
         done: () => this.near(60) && this.dashed,
       },
       {
         title: '敵を背後から捕まえる',
+        short: key('背中側に回って Space', '背中側に回って「捕獲」'),
         text: key(`目の前に${NATIONS[enemyNation].name}国の兵がいる（練習用・動かない）。背中側に回り込み、足元の輪が緑のうちに Space。正面からは捕まえられない。`,
           `目の前に${NATIONS[enemyNation].name}国の兵がいる（練習用・動かない）。背中側に回り込み、足元の輪が緑のうちに「捕獲」。正面からは捕まえられない。`),
         enter: () => {
@@ -106,6 +116,7 @@ export class TutorialGuide {
       },
       {
         title: '仲間を救出する（鍵使い）',
+        short: key('牢屋の仲間のそばで Z（離れない）', '牢屋の仲間のそばで「特殊」（離れない）'),
         text: key('味方が敵国の牢屋に捕まっている。あなたは鍵使い。牢屋の仲間のそばで Z を押し、鍵を開け終わるまで離れずに待とう。', '味方が敵国の牢屋に捕まっている。あなたは鍵使い。牢屋の仲間のそばで「特殊」を押し、鍵を開け終わるまで離れずに待とう。'),
         enter: () => {
           this.rescued = false;
@@ -120,6 +131,7 @@ export class TutorialGuide {
       },
       {
         title: '王を守れ',
+        short: '♛ の王のそばへ行く',
         text: '各国に1人ずつ王がいる。自国の王が捕まって処刑されると負け。王は正面からでも捕まえられる「スーパーハンド」と救出の力を持つ。♛ の王のそばまで行ってみよう。敵国の王は正体を隠している。',
         enter: () => {
           const k = kingOf(state, p.nation)!;
@@ -132,6 +144,7 @@ export class TutorialGuide {
       },
       {
         title: '戦区と拠点',
+        short: '拠点の輪に立ち続けて制圧',
         text: '東京は9つの戦区に分かれている。紋章マーカーが戦区の拠点。輪の中に立ち続けると制圧ゲージがたまり、その戦区を自国のものにできる。敵と一緒に立つと止まる。前線（ミニマップの境目）で三国がぶつかる。',
         enter: () => {
           this.sectorTaken = false;
@@ -147,6 +160,7 @@ export class TutorialGuide {
       },
       {
         title: '管制塔を取る',
+        short: '管制塔の足元に立ち続けて占領',
         text: key('中央の管制塔の足元に立ち続けると占領できる。塔を持つ国はレーダーで敵の位置がわかり、試合の最後の3分の1では B で敵国の王を光の柱で照らせる。', '中央の管制塔の足元に立ち続けると占領できる。塔を持つ国はレーダーで敵の位置がわかり、試合の最後の3分の1では「王を照らす」で敵国の王を光の柱で照らせる。'),
         enter: () => {
           this.towerTaken = false;
@@ -168,6 +182,13 @@ export class TutorialGuide {
     this.faceTo(plaza.x + 900, plaza.z);
     hud.banner('チュートリアル：あなたは捕まらない。CPUは止まっている', 2600);
     this.card.hidden = false;
+    // Tap the folded card to read the whole step again (buttons keep working as usual).
+    this.card.onclick = (ev) => {
+      if ((ev.target as HTMLElement).closest('button')) return;
+      if (this.card.classList.contains('final')) return;
+      this.card.classList.toggle('compact');
+      this.pinned = !this.card.classList.contains('compact');
+    };
     document.body.classList.add('tutorial');
     this.go(0);
   }
@@ -191,6 +212,10 @@ export class TutorialGuide {
     const st = this.steps[i];
     this.stepAt = this.state.time;
     st.enter?.();
+    this.stepFrom = { x: this.state.player.x, z: this.state.player.z };
+    this.card.classList.remove('compact');
+    this.pinned = false;
+    $('tutShort').textContent = st.short ?? '';
     $('tutProgress').textContent = `チュートリアル ${i + 1} / ${this.steps.length}`;
     $('tutTitle').textContent = st.title;
     $('tutText').textContent = st.text;
@@ -244,6 +269,11 @@ export class TutorialGuide {
     s.pings = s.pings.filter((q) => q.id !== -1);
     if (this.target) s.pings.push({ id: -1, nation: p.nation, by: p.id, kind: this.i === 6 ? 'king' : 'gather', ...this.target, t: s.time });
     const st = this.steps[this.i];
+    // Out of the way once the player gets going (or after a few seconds): just the title and one line.
+    if (st && !st.manual && st.short && !this.pinned && !this.card.classList.contains('compact')
+      && (Math.hypot(p.x - this.stepFrom.x, p.z - this.stepFrom.z) > 30 || s.input.turn !== 0 || s.time - this.stepAt > 4500)) {
+      this.card.classList.add('compact');
+    }
     if (st?.done && s.time - this.stepAt > 400 && st.done()) this.advance();
   }
 

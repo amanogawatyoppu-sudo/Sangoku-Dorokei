@@ -34,6 +34,7 @@ import { initResultView, showResult } from './ui/resultView';
 import { Recap } from './ui/recap';
 import { TutorialGuide } from './ui/tutorial';
 import { initLoading, withLoading } from './ui/loadingScreen';
+import { initGuideScreen } from './ui/guideScreen';
 import { CPU_LEVEL_NAME } from './ai/difficulty';
 import type { AppScreen, Settings } from './ui/flow';
 import { bootScreen, loadSettings, next, saveSettings, setIntent, takeIntent } from './ui/flow';
@@ -84,6 +85,7 @@ initResultView({
 $('recordLine').textContent = recordLine(loadRecords());
 initDrawers(canvas);
 initLoading();
+const guide = initGuideScreen();
 watchCanvasSize();
 
 /** Single player, the host of an online match (runs the simulation), or a friend in one (mirrors it). */
@@ -111,12 +113,14 @@ musicBtn.onclick = () => {
 function showScreen(to: AppScreen): void {
   screen = to;
   document.body.dataset.screen = to;
-  const menu = to === 'TITLE' || to === 'SETUP';
+  const menu = to === 'TITLE' || to === 'SETUP' || to === 'GUIDE';
   $('setup').style.display = menu ? '' : 'none';
   $('titleScreen').hidden = to !== 'TITLE';
   $('setupScreen').hidden = to !== 'SETUP';
+  $('guideScreen').hidden = to !== 'GUIDE';
+  if (to === 'GUIDE') guide.show();
   if (menu) {
-    const shown = $(to === 'TITLE' ? 'titleScreen' : 'setupScreen');
+    const shown = $(to === 'TITLE' ? 'titleScreen' : to === 'SETUP' ? 'setupScreen' : 'guideScreen');
     shown.classList.remove('enter');
     void shown.offsetWidth;
     shown.classList.add('enter');
@@ -448,6 +452,8 @@ const startTutorial = () => launch('sun', 'keyholder', 6, { kind: 'solo' }, { tu
 $('btnPlay').onclick = () => showScreen(next(screen, { type: 'PLAY' }, settings).screen);
 $('btnTutorial').onclick = () => { if (next(screen, { type: 'TUTORIAL' }, settings).effect === 'startTutorial') startTutorial(); };
 $('btnSetupBack').onclick = () => showScreen(next(screen, { type: 'TITLE' }, settings).screen);
+$('btnGuide').onclick = () => showScreen(next(screen, { type: 'GUIDE' }, settings).screen);
+$('btnGuideBack').onclick = () => showScreen(next(screen, { type: 'TITLE' }, settings).screen);
 // Start-up: the title, or where the last page asked to land (もう一度遊ぶ / 設定を変更 / そのままプレイ).
 const first = bootScreen(takeIntent(store('sessionStorage')), settings);
 if (first === 'PLAYING') launch(settings.nation!, settings.role!, settings.size, { kind: 'solo' }, { cpu: settings.cpu });
