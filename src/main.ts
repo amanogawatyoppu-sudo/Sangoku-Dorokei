@@ -421,6 +421,8 @@ function exposeDebug(state: GameState, cam: CameraController, tutorial: Tutorial
     ghost: () => ({ x: refs.camera.position.x, y: refs.camera.position.y, z: refs.camera.position.z }),
     jailAllies: (by: NationId, keep = 0) => { const mine = state.entities.filter((e) => e.nation === state.player.nation && !e.isPlayer && e.alive && !e.jailed); for (const e of mine.slice(0, mine.length - keep)) sendToJail(state, e, by, null); },
     setTime: (ms: number) => { state.time = ms; },
+    /** Stuns someone (the player if no id) for `ms`, as a rifle hit would. */
+    stun: (ms: number, id = state.player.id) => { state.entities[id].stunUntil = state.time + ms; },
     /** Puts an enemy of `nation` at an offset from the player, running across (for footprint/footstep checks). */
     runner: (nation: NationId, dx: number, dz: number) => { const e = state.entities.find((o) => o.nation === nation && o.role === 'soldier' && o.alive && !o.jailed)!; teleport(e, state.player.x + dx, state.player.z + dz); e.dashing = true; e.ai.goal = { x: state.player.x + dx, y: 0, z: state.player.z - dz * 3 }; return e.id; },
     giveTower: (n: NationId) => { state.tower.owner = n; },

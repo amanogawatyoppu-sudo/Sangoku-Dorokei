@@ -8,6 +8,8 @@ import { STEP_SEC } from '../core/clock';
 import type { BoneName, Human } from './humanModel';
 import { BONES, buildHuman } from './humanModel';
 import { emblemTexture } from './textures';
+import type { BodyPose, Pose } from './poses';
+import { jailPose, lockPose, stunPose } from './poses';
 import { sniperTarget } from '../sim/systems/abilities';
 
 export function lerp(a: number, b: number, t: number): number {
@@ -23,6 +25,8 @@ const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 /** Per-character animation state (presentation only). */
 interface Anim {
   human: Human;
+  /** ピヨピヨ: stars circling over the head while stunned (made on first use). */
+  stars: THREE.Group | null;
   phase: number;
   yaw: number;
   turnRate: number;
@@ -52,8 +56,6 @@ const GUN_AIM = { p: new THREE.Vector3(-3.0, 2.6, 10.0), r: new THREE.Euler(0, 0
 const ARMS_READY: Pose = { armR: [-0.5, 0, 0.12], foreR: [-1.1, 0, 0], armL: [-0.7, 0, -0.45], foreL: [-1.3, 0, 0] };
 const ARMS_AIM: Pose = { armR: [-1.3, 0, 0.35], foreR: [-0.85, 0, 0], armL: [-1.55, 0, -0.55], foreL: [-0.3, 0, 0] };
 
-/** Target rotations (x, y, z) per bone for this frame; missing = rest. */
-type Pose = Partial<Record<BoneName, [number, number, number]>>;
 
 /**
  * Owns one person per entity and mirrors simulation state onto them each frame:
@@ -81,6 +83,18 @@ function addXray(mesh: THREE.SkinnedMesh, color: number): void {
   mesh.add(x);
 }
 
+/** A chunky four-pointed star (two crossed blocks), shared by every dizzy head. */
+const STAR_GEO = mergeStar();
+const STAR_MAT = new THREE.MeshBasicMaterial({ color: 0xffd65a, fog: false });
+function mergeStar(): THREE.BufferGeometry {
+  const a = new THREE.BoxGeometry(4.6, 1.4, 1.4), b = new THREE.BoxGeometry(1.4, 4.6, 1.4), c = new THREE.BoxGeometry(2.4, 2.4, 1.6);
+  const g = new THREE.BufferGeometry();
+  const parts = [a, b, c].map((x) => x.toNonIndexed());
+  const pos = parts.flatMap((x) => Array.from(x.attributes.position.array as Float32Array));
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return g;
+}
+
 export class EntityView {
   private anims = new Map<number, Anim>();
   private emblemMats: Record<NationId, THREE.MeshStandardMaterial>;
@@ -103,7 +117,7 @@ export class EntityView {
       this.anims.set(e.id, {
         human, phase: (e.id * 1.7) % (Math.PI * 2), yaw: Math.atan2(e.dirX, e.dirZ), turnRate: 0, speed: 0,
         headYaw: 0, reach: 0, lastCapCd: e.cd.capture, nation: e.nation, aim: 0, recoil: 0, lastSpecialCd: e.cd.special,
-        accel: 0, still: 0, land: 0, airborne: false, turnStep: 0,
+        accel: 0, still: 0, land: 0, airborne: false, turnStep: 0, stars: null,
       });
     }
   }
@@ -180,36 +194,11 @@ export class EntityView {
     a.airborne = falling;
     a.land = Math.max(0, a.land - dt);
     a.still = spd < 6 ? a.still + dt : 0;
-    if (e.jailed) {
-      // 体育座り: hugging the knees on the ground.
-      hipsY = -17;
-      pose.spine = [0.35, 0, 0];
-      pose.head = [0.15, Math.sin(t * 0.4) * 0.3, 0];
-      pose.thighL = [-2.0, 0, 0.14]; pose.thighR = [-2.0, 0, -0.14];
-      pose.shinL = [2.5, 0, 0]; pose.shinR = [2.5, 0, 0];
-      pose.armL = [-0.95, 0, -0.1]; pose.armR = [-0.95, 0, 0.1];
-      pose.foreL = [-0.9, 0, 0]; pose.foreR = [-0.9, 0, 0];
-    } else if (e.channeling) {
-      // Crouched, working at a lock or terminal with both hands.
-      hipsY = -8;
-      pose.spine = [0.45, 0, 0];
-      pose.head = [0.1, 0, 0];
-      pose.thighL = [-1.0, 0, 0.1]; pose.thighR = [-0.6, 0, -0.1];
-      pose.shinL = [1.7, 0, 0]; pose.shinR = [1.3, 0, 0];
-      pose.footL = [-0.6, 0, 0]; pose.footR = [-0.6, 0, 0];
-      const w = Math.sin(t * 9) * 0.12;
-      pose.armL = [-1.1 + w, 0, -0.15]; pose.armR = [-1.1 - w, 0, 0.15];
-      pose.foreL = [-0.5, 0, 0]; pose.foreR = [-0.5, 0, 0];
-    } else if (stunned) {
-      // Dazed: hunched, knees buckling, swaying.
-      hipsY = -4;
-      rootZ = Math.sin(t * 5) * 0.08;
-      pose.spine = [0.5, 0, Math.sin(t * 3) * 0.1];
-      pose.head = [0.4, Math.sin(t * 2.3) * 0.3, 0];
-      pose.thighL = [-0.45, 0, 0.1]; pose.thighR = [-0.35, 0, -0.1];
-      pose.shinL = [0.8, 0, 0]; pose.shinR = [0.7, 0, 0];
-      pose.armL = [-0.35, 0, 0.15]; pose.armR = [-0.3, 0, -0.15];
-      pose.foreL = [-0.3, 0, 0]; pose.foreR = [-0.3, 0, 0];
+    const held: BodyPose | null = e.jailed ? jailPose(t) : e.channeling ? lockPose(t) : stunned ? stunPose(t) : null;
+    if (held) {
+      Object.assign(pose, held.pose);
+      hipsY = held.hipsY;
+      rootZ = held.rootZ;
     } else {
       // Locomotion blended with a relaxed stance.
       const A = lerp(0.42, 0.78, run) * move; // hip swing
@@ -278,13 +267,14 @@ export class EntityView {
     }
     if (a.land > 0 && !e.jailed) {
       const k = Math.sin((a.land / 0.28) * Math.PI);
-      hipsY -= 6 * k;
+      hipsY -= 4.8 * k;
       for (const [th, sh] of [['thighL', 'shinL'], ['thighR', 'shinR']] as const) {
         pose[th] = [(pose[th]?.[0] ?? 0) - 0.5 * k, pose[th]?.[1] ?? 0, pose[th]?.[2] ?? 0];
         pose[sh] = [(pose[sh]?.[0] ?? 0) + 0.9 * k, 0, 0];
       }
       pose.spine = [(pose.spine?.[0] ?? 0) + 0.2 * k, 0, 0];
     }
+    this.dizzy(a, stunned && !e.jailed, t);
     if (a.human.gun) this.holdRifle(a, e, state, pose, dt);
     this.apply(a, pose, hipsY, hipsX, rootZ, dt);
   }
@@ -380,6 +370,27 @@ export class EntityView {
     return !!this.anims.get(id)?.human.mesh.visible;
   }
 
+  /** Three little gold stars circling over a stunned head. */
+  private dizzy(a: Anim, on: boolean, t: number): void {
+    if (!on) { if (a.stars) a.stars.visible = false; return; }
+    if (!a.stars) {
+      a.stars = new THREE.Group();
+      for (let i = 0; i < 3; i++) {
+        const m = new THREE.Mesh(STAR_GEO, STAR_MAT);
+        m.userData.a = (i / 3) * Math.PI * 2;
+        a.stars.add(m);
+      }
+      a.stars.position.set(0, 22, 0);
+      a.human.bones.head.add(a.stars);
+    }
+    a.stars.visible = true;
+    for (const m of a.stars.children) {
+      const ang = m.userData.a + t * 4;
+      m.position.set(Math.cos(ang) * 8.5, Math.sin(t * 6 + m.userData.a) * 1.0, Math.sin(ang) * 8.5);
+      m.rotation.y = t * 5;
+    }
+  }
+
   /** Eases every bone toward its pose (quick, so the gait keeps its snap). */
   private apply(a: Anim, pose: Pose, hipsY: number, hipsX: number, rootZ: number, dt: number): void {
     const k = 1 - Math.exp(-dt * 20);
@@ -392,8 +403,7 @@ export class EntityView {
       b.rotation.z = lerp(b.rotation.z, r[2], k);
     }
     bones.root.rotation.z = lerp(bones.root.rotation.z, rootZ, k);
-    // Hip dips (sitting, crouching) were set for 24-unit legs: scale them to this body.
-    bones.hips.position.y = lerp(bones.hips.position.y, rest.hips.y + hipsY * (rest.hips.y / 24), k);
+    bones.hips.position.y = lerp(bones.hips.position.y, rest.hips.y + hipsY, k);
     bones.hips.position.x = lerp(bones.hips.position.x, rest.hips.x + hipsX, k);
   }
 }
