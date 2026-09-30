@@ -47,8 +47,8 @@ interface Anim {
 }
 
 /** Rifle placement on the chest bone: low ready (muzzle down, across the body) and shouldered. */
-const GUN_READY = { p: new THREE.Vector3(-1.8, -1.5, 8.5), r: new THREE.Euler(0.5, 0.25, 0) };
-const GUN_AIM = { p: new THREE.Vector3(-2.6, 5.0, 10.5), r: new THREE.Euler(0, 0, 0) };
+const GUN_READY = { p: new THREE.Vector3(-1.8, -2.5, 8.0), r: new THREE.Euler(0.5, 0.25, 0) };
+const GUN_AIM = { p: new THREE.Vector3(-3.0, 2.6, 10.0), r: new THREE.Euler(0, 0, 0) };
 const ARMS_READY: Pose = { armR: [-0.5, 0, 0.12], foreR: [-1.1, 0, 0], armL: [-0.7, 0, -0.45], foreL: [-1.3, 0, 0] };
 const ARMS_AIM: Pose = { armR: [-1.3, 0, 0.35], foreR: [-0.85, 0, 0], armL: [-1.55, 0, -0.55], foreL: [-0.3, 0, 0] };
 
@@ -392,7 +392,8 @@ export class EntityView {
       b.rotation.z = lerp(b.rotation.z, r[2], k);
     }
     bones.root.rotation.z = lerp(bones.root.rotation.z, rootZ, k);
-    bones.hips.position.y = lerp(bones.hips.position.y, rest.hips.y + hipsY, k);
+    // Hip dips (sitting, crouching) were set for 24-unit legs: scale them to this body.
+    bones.hips.position.y = lerp(bones.hips.position.y, rest.hips.y + hipsY * (rest.hips.y / 24), k);
     bones.hips.position.x = lerp(bones.hips.position.x, rest.hips.x + hipsX, k);
   }
 }
