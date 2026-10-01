@@ -13,12 +13,17 @@ export interface QualityTier {
   shadowMapSize: number;
   /** Redraw the shadow map every Nth frame (0 = no shadows). */
   shadowEvery: number;
+  /** Character mesh detail (2 high … 0 low): fewer segments on the round parts. */
+  detail: number;
+  /** Shown in the settings: preset code and what it changes. */
+  code: 'HIGH' | 'MEDIUM' | 'LOW';
+  note: string;
 }
 
 export const TIERS: readonly QualityTier[] = [
-  { name: '高', pixelRatio: 2, shadowMapSize: 2048, shadowEvery: 2 },
-  { name: '中', pixelRatio: 1.25, shadowMapSize: 1024, shadowEvery: 3 },
-  { name: '低', pixelRatio: 1, shadowMapSize: 1024, shadowEvery: 0 },
+  { name: '高', code: 'HIGH', note: '高解像度・くっきりした影・細かいキャラクター', pixelRatio: 2, shadowMapSize: 2048, shadowEvery: 2, detail: 2 },
+  { name: '中', code: 'MEDIUM', note: '解像度と影を少し軽く（スマホ向けの標準）', pixelRatio: 1.25, shadowMapSize: 1024, shadowEvery: 3, detail: 1 },
+  { name: '低', code: 'LOW', note: '影なし・低解像度・軽いキャラクター（古い端末向け）', pixelRatio: 1, shadowMapSize: 1024, shadowEvery: 0, detail: 0 },
 ];
 
 const KEY = 'sangoku.quality.v1';
@@ -26,15 +31,32 @@ const KEY = 'sangoku.quality.v1';
 const SLOW_MS = 22;
 const WINDOW_MS = 3000;
 
-export function loadTier(): number {
-  try {
-    const v = Number(localStorage.getItem(KEY));
-    return Number.isInteger(v) && v >= 0 && v < TIERS.length ? v : 0;
-  } catch { return 0; }
+const AUTO_KEY = 'tt.quality.auto.v1';
+
+/** The first-time preset: MEDIUM on phones and tablets, HIGH elsewhere. */
+export function defaultTier(coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches): number {
+  return coarse ? 1 : 0;
 }
 
-function saveTier(t: number): void {
+export function loadTier(): number {
+  try {
+    const raw = localStorage.getItem(KEY);
+    const v = Number(raw);
+    return raw !== null && Number.isInteger(v) && v >= 0 && v < TIERS.length ? v : defaultTier();
+  } catch { return defaultTier(); }
+}
+
+export function saveTier(t: number): void {
   try { localStorage.setItem(KEY, String(t)); } catch { /* storage off */ }
+}
+
+/** Whether the game may step the quality down by itself when it runs slowly (on unless turned off). */
+export function loadAuto(): boolean {
+  try { return localStorage.getItem(AUTO_KEY) !== '0'; } catch { return true; }
+}
+
+export function saveAuto(on: boolean): void {
+  try { localStorage.setItem(AUTO_KEY, on ? '1' : '0'); } catch { /* storage off */ }
 }
 
 /** Decides when to step down from frame times alone (kept apart from three.js so it can be tested). */
@@ -63,6 +85,8 @@ export class FrameJudge {
 
 export class QualityGovernor {
   tier: number;
+  /** Steps down by itself only when the player has not turned that off. */
+  auto = loadAuto();
   private judge = new FrameJudge();
   private frame = 0;
 
@@ -84,7 +108,7 @@ export class QualityGovernor {
     const t = this.current;
     this.frame++;
     if (t.shadowEvery > 0 && this.frame % t.shadowEvery === 0) this.renderer.shadowMap.needsUpdate = true;
-    if (this.tier < TIERS.length - 1 && this.judge.add(frameMs)) {
+    if (this.auto && this.tier < TIERS.length - 1 && this.judge.add(frameMs)) {
       this.tier++;
       saveTier(this.tier);
       this.apply(true);

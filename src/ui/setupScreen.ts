@@ -1,3 +1,4 @@
+import { TIERS, loadAuto, loadTier, saveAuto, saveTier } from '../render/quality';
 import type { NationId } from '../config/nations';
 import { NATION_IDS, NATIONS, nationCss } from '../config/nations';
 import type { RoleId } from '../config/roles';
@@ -119,6 +120,25 @@ export function initSetupScreen(initial: Settings, onStart: (s: Settings) => voi
   }
   select(pc, 'cpu', cur.cpu);
   cpuDesc.textContent = CPU_DESC[cur.cpu];
+  // Graphics preset (HIGH / MEDIUM / LOW) and whether it may step down by itself.
+  const pq = $('pickQuality'), qDesc = $('qualityDesc');
+  const showQ = () => { const t = TIERS[loadTier()]; qDesc.textContent = `${t.code}：${t.note}` + (loadAuto() ? '（重いときは自動で下げる）' : '（固定）'); };
+  TIERS.forEach((t, i) => {
+    const b = document.createElement('button');
+    b.className = 'pickbtn size-card q-card';
+    b.dataset.q = String(i);
+    b.textContent = `${t.code}（${t.name}）`;
+    b.onclick = () => { saveTier(i); select(pq, 'q', String(i)); showQ(); };
+    pq.appendChild(b);
+  });
+  const auto = document.createElement('button');
+  auto.className = 'pickbtn size-card q-auto';
+  const showAuto = () => { auto.textContent = loadAuto() ? '自動調整：ON' : '自動調整：OFF'; auto.setAttribute('aria-pressed', String(loadAuto())); };
+  auto.onclick = () => { saveAuto(!loadAuto()); showAuto(); showQ(); };
+  pq.appendChild(auto);
+  showAuto();
+  select(pq, 'q', String(loadTier()));
+  showQ();
   // CPU戦 / 対人戦: the room UI only for 対人戦.
   const pm = $('pickMode'), net = $('netBox');
   const MODE_NOTE: Record<GameMode, string> = { cpu: 'CPU戦（あなた以外はCPU）', online: '対人戦（友達と部屋で）' };

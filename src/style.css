@@ -499,7 +499,7 @@ body.leaving #app{opacity:0;transition:opacity .16s ease}
 .setup-head h2{margin:0;font-family:'Dela Gothic One',var(--display);font-weight:400;font-size:26px;letter-spacing:4px;color:#fff4e6;text-shadow:0 3px 0 #000}
 .back-btn{padding:8px 14px;border-radius:4px;border:1px solid rgba(224,180,86,.45);background:rgba(12,13,19,.8);color:#e8dcc0;cursor:pointer;font-size:13px}
 .back-btn:hover{border-color:var(--accent-2);color:#fff}
-#cpuDesc{max-width:520px;font-size:12px;line-height:1.7;color:#cfc6b2;text-align:center}
+#cpuDesc,#qualityDesc{max-width:520px;font-size:12px;line-height:1.7;color:#cfc6b2;text-align:center}
 .mode-card{min-width:180px}
 .setup-foot{position:sticky;bottom:0;z-index:3;align-self:stretch;display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:4px;padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));
   background:linear-gradient(rgba(7,8,13,.72),rgba(7,8,13,.96) 30%);border-top:1px solid rgba(224,180,86,.35)}
@@ -737,3 +737,16 @@ body.tutorial #eventCard{top:auto;bottom:40%}
 #randomNote b{font-size:15px;letter-spacing:2px;color:#f1dfbd}
 #randomNote span{font-size:12px;color:#b9ad93}
 #pickWho[hidden]{display:none}
+
+/* v9.0: screen-edge pulse (ANCHOR LOCKED / NETWORK LOST) and held-ANCHOR countdowns */
+#edgeFx{position:absolute;inset:0;pointer-events:none;z-index:6;opacity:0;box-shadow:inset 0 0 90px 18px var(--ef,#e2352b)}
+#edgeFx.ef-on{animation:efPulse 1.6s ease-out 2}
+#edgeFx.ef-strong{animation:efStrong .9s ease-out 1}
+@keyframes efPulse{0%{opacity:0}15%{opacity:.85}100%{opacity:0}}
+@keyframes efStrong{0%{opacity:1;box-shadow:inset 0 0 160px 40px var(--ef)}100%{opacity:0;box-shadow:inset 0 0 60px 8px var(--ef)}}
+#anchorClocks{position:absolute;left:50%;top:84px;transform:translateX(-50%);z-index:5;display:flex;gap:6px;pointer-events:none}
+#anchorClocks .ac-chip{font-family:'Orbitron',var(--display);font-size:11px;font-weight:700;letter-spacing:.12em;color:#fff;background:rgba(10,10,14,.78);border:1px solid var(--ac);border-left:4px solid var(--ac);padding:3px 9px;white-space:nowrap}
+#anchorClocks .ac-hot{animation:acHot .6s steps(2) infinite}
+@keyframes acHot{50%{background:var(--ac);color:#111}}
+@media (max-width:700px){#anchorClocks{top:64px;flex-direction:column;align-items:center}#anchorClocks .ac-chip{font-size:10px}}
+@media (prefers-reduced-motion:reduce){#edgeFx.ef-on,#edgeFx.ef-strong,#anchorClocks .ac-hot{animation:none}}

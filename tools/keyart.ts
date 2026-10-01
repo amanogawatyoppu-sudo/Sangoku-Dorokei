@@ -15,9 +15,9 @@ renderer.setClearColor(0x000000, 0);
 const scene = new THREE.Scene();
 const L = Math.PI;
 // Night city light: cool fill, a warm key from the front-left, a red rim from behind.
-scene.add(new THREE.HemisphereLight(0x8a9ad0, 0x2a2430, 0.8 * L));
-const key = new THREE.DirectionalLight(0xffc896, 1.15 * L); key.position.set(-50, 60, 90); scene.add(key);
-const rim = new THREE.DirectionalLight(0xff4a3a, 1.2 * L); rim.position.set(60, 30, -80); scene.add(rim);
+scene.add(new THREE.HemisphereLight(0x8a9ad0, 0x2a2430, 0.55 * L));
+const key = new THREE.DirectionalLight(0xffe2c4, 0.85 * L); key.position.set(-50, 60, 90); scene.add(key);
+const rim = new THREE.DirectionalLight(0xff4a3a, 0.7 * L); rim.position.set(60, 30, -80); scene.add(rim);
 const rim2 = new THREE.DirectionalLight(0x6fb0ff, 0.7 * L); rim2.position.set(-80, 20, -40); scene.add(rim2);
 
 type Set = (b: string, x: number, y: number, z: number) => void;
@@ -32,13 +32,14 @@ function run(set: Set, m: 1 | -1, lean = 0.32) {
 }
 
 const cast = [
-  { n: 'sun' as const, id: 3, x: 0, z: 30, rot: 0.8, m: 1 as const, s: 1.0 },
-  { n: 'moon' as const, id: 10, x: 34, z: -12, rot: 0.75, m: -1 as const, s: 1.0 },
-  { n: 'star' as const, id: 17, x: -30, z: -26, rot: 1.1, m: -1 as const, s: 1.0 },
+  { n: 'sun' as const, role: 'ranger' as const, id: 3, x: 0, z: 30, rot: 0.8, m: 1 as const, s: 1.0 },
+  { n: 'moon' as const, role: 'soldier' as const, id: 10, x: 34, z: -12, rot: 0.75, m: -1 as const, s: 1.0 },
+  { n: 'star' as const, role: 'communicator' as const, id: 17, x: -30, z: -26, rot: 1.1, m: -1 as const, s: 1.0 },
 ];
 for (const c of cast) {
   const em = new THREE.MeshStandardMaterial({ map: emblemTexture(NATIONS[c.n].emblem, NATIONS[c.n].color), roughness: 0.8 });
-  const h = buildHuman(c.id, NATIONS[c.n].color, em);
+  const h = buildHuman(c.id, NATIONS[c.n].color, em, { role: c.role });
+  h.setExpression('focused', 1);
   h.mesh.position.set(c.x, 0, c.z);
   h.mesh.rotation.y = c.rot;
   h.mesh.scale.setScalar(c.s);

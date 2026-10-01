@@ -88,6 +88,43 @@ export class Hud {
     setTimeout(() => { if (el!.dataset.stamp === stamp) el!.classList.remove('show'); }, ms);
   }
 
+  /** A pulse round the edges of the screen in a faction's colour (ANCHOR LOCKED, NETWORK LOST). */
+  edgePulse(color: string, strong = false): void {
+    let el = document.getElementById('edgeFx');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'edgeFx';
+      el.setAttribute('aria-hidden', 'true');
+      document.getElementById('app')?.appendChild(el);
+    }
+    el.style.setProperty('--ef', color);
+    el.className = '';
+    void el.offsetWidth; // restart the animation
+    el.className = strong ? 'ef-strong' : 'ef-on';
+  }
+
+  /** Countdown chips for every held ANCHOR: "LUNA ANCHOR LOCKED 0:42" until the LINK SEVER. */
+  anchorClocks(rows: { label: string; color: string; ms: number }[]): void {
+    let el = document.getElementById('anchorClocks');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'anchorClocks';
+      el.setAttribute('role', 'status');
+      document.getElementById('app')?.appendChild(el);
+    }
+    const key = rows.map((r) => r.label + Math.ceil(r.ms / 1000)).join('|');
+    if (el.dataset.key === key) return;
+    el.dataset.key = key;
+    el.replaceChildren(...rows.map((r) => {
+      const d = document.createElement('div');
+      d.className = 'ac-chip' + (r.ms < 15000 ? ' ac-hot' : '');
+      d.style.setProperty('--ac', r.color);
+      const s = Math.ceil(r.ms / 1000);
+      d.textContent = `${r.label} ANCHOR LOCKED ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+      return d;
+    }));
+  }
+
   banner(text: string, ms = 1800): void {
     const b = this.el.banner;
     b.textContent = text;

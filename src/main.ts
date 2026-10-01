@@ -24,7 +24,7 @@ import type { GameEvent } from './sim/events';
 import { advanceFrame } from './sim/game';
 import type { GameState } from './sim/state';
 import { createGameState, drainEvents, elapsedSec, queueCommand } from './sim/state';
-import { GAME_TIME } from './config/constants';
+import { GAME_TIME, JAIL_TIME, KING_JAIL_EXTRA } from './config/constants';
 import { teleport } from './sim/entity';
 import { eliminate, sendToJail } from './sim/systems/jail';
 import { solidAt } from './sim/systems/world';
@@ -52,6 +52,7 @@ import { ClientLink, HostLink, seatsOf } from './net/online';
 import { NameTags } from './render/nameTags';
 import { Ghost } from './render/ghost';
 import { WarView } from './render/warView';
+import { Vfx } from './render/vfx';
 import { ObjectiveMarkers } from './ui/objectiveMarkers';
 import { PingView } from './render/pingView';
 import { PingMarkers } from './ui/pingMarkers';
@@ -178,9 +179,10 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
   for (const [id, nick] of names) state.humanNames[id] = nick;
   const bus = new EventBus<GameEvent>();
   const cam = new CameraController();
-  const entityView = new EntityView(refs.scene, state);
+  const entityView = new EntityView(refs.scene, state, quality.current.detail);
   const indicators = new Indicators(refs.scene);
   const effects = new Effects(refs.scene, entityView);
+  const vfx = new Vfx(refs.scene, entityView);
   const warView = new WarView(refs.scene);
   const objectives = new ObjectiveMarkers($('objMarkers'));
   const pingView = new PingView(refs.scene);
@@ -217,6 +219,10 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
     });
   });
   bus.on('MEETING_CLOSED', () => meetingView.hide());
+  bus.on('CAPTURE', (ev) => vfx.trace(state, ev.attackerId, ev.targetId));
+  bus.on('SECTOR_CAPTURED', (ev) => vfx.capturePulse(ev.sector, ev.nation));
+  bus.on('NATION_FALLEN', (ev) => { vfx.networkLost(state, ev.nation); hud.edgePulse(nationCss(ev.nation), true); });
+  bus.on('KING_CAPTURED', (ev) => hud.edgePulse(nationCss(ev.nation)));
   bus.on('ABILITY', (ev) => { if (ev.result === 'sniper_stun' && ev.targetId !== undefined) effects.shot(state, ev.entityId, ev.targetId); });
 
   const flush = () => { for (const ev of drainEvents(state)) { host?.record(ev); bus.emit(ev); } };
@@ -367,6 +373,9 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
       || state.war.truces.some((t) => t.until > state.time && (t.a === state.player.nation || t.b === state.player.nation));
     render(state, entityView, indicators, cam, clock.alpha, frameMs / 1000, ghost);
     effects.sync(state, frameMs / 1000);
+    vfx.sync(state, frameMs / 1000);
+    hud.anchorClocks(state.entities.filter((e) => e.role === 'king' && e.alive && e.jailed)
+      .map((e) => ({ label: NATIONS[e.nation].name, color: nationCss(e.nation), ms: Math.max(0, JAIL_TIME + KING_JAIL_EXTRA - (state.time - e.jailedAt)) })));
     warView.sync(state);
     objectives.sync(state, refs.camera, !!state.meeting || state.over);
     pingView.sync(state, state.player.nation);

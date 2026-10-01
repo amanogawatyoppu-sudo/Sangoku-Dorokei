@@ -388,7 +388,7 @@ export function buildHuman(id: number, nationColor: number, emblemMat: THREE.Mat
   b.add(box(5.2 * w, 0.7, 0.5, 0, unitY - unitH / 2 - 0.2, -3.2 - unitD), 'chest', 'light', L); // status bar
   for (const sx of [1, -1]) b.add(box(0.6, unitH - 1.2, 0.6, sx * 3.5 * w, unitY, -3.1 - unitD), 'chest', 'light', L);
   b.add(tbox(6.4 * w, 0.6, 6.0 * w, 0.6, 33.6, 34.6, 0, -3.0), 'chest', 'cloth', C); // shoulder yoke (faction)
-  for (const sx of [1, -1]) b.add(box(1.0, 8.4, 0.5, sx * 2.9 * w, 30.4, 3.25), 'chest', 'clothDark', dark(JACKET, 0.7)); // straps
+  for (const sx of [1, -1]) b.add(box(1.0, 8.4, 0.5, sx * 2.9 * w, 30.4, 3.25), 'chest', 'armor', dark(JACKET, 0.7)); // straps
   if (gear === 'relay') {
     // RELAY: an antenna module on top of the unit, two whips and a dish.
     b.add(tbox(4.0, 2.0, 3.4, 1.8, unitY + unitH / 2, unitY + unitH / 2 + 2.2, 0, -4.2), 'chest', 'plate', PLATE);
