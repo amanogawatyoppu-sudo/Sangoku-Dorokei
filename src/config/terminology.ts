@@ -82,3 +82,9 @@ export const T = {
   scan: 'ANCHOR SCAN',
   strategy: '作戦方針',
 } as const;
+
+/** District codenames by sector id (新宿, 渋谷, 池袋, 文京, 上野, 秋葉原, 中央, 東京タワー, 品川). */
+export const DISTRICT_CODES = [
+  'VERTICAL CITY', 'NEON MAZE', 'ROOFTOP NETWORK', 'QUIET SLOPES', 'GREEN HEIGHTS',
+  'ELECTRIC GRID', 'CONTROL CORE', 'RED HEIGHT', 'FUTURE GATEWAY',
+] as const;

@@ -1,4 +1,5 @@
 import { NATIONS, NATION_IDS, nationCss } from '../config/nations';
+import { DISTRICT_CODES } from '../config/terminology';
 import type { NationId } from '../config/nations';
 import { BOUNDS, KANDA, LOOP, STATIONS, TOWER } from '../config/map';
 import { SECTORS, neighbours, sectorAt } from '../sim/war';
@@ -103,6 +104,7 @@ export function initGuideScreen(): GuideControl {
     const dl = document.createElement('dl');
     const row = (a: string, b: string) => { const dt = document.createElement('dt'), dd = document.createElement('dd'); dt.textContent = a; dd.textContent = b; dl.append(dt, dd); };
     row('戦略拠点', s.pointName + (s.pointNear.y && !s.pointName.includes('高台') ? '（高台の上）' : ''));
+    row('コード', DISTRICT_CODES[s.id]);
     row('特徴', s.style);
     const here = sitesIn(id);
     if (here.length) row('ここにあるもの', here.join('・'));

@@ -1,4 +1,5 @@
 import { NATIONS, NATION_IDS, nationCss } from '../config/nations';
+import { DISTRICT_CODES } from '../config/terminology';
 import { roleName } from '../config/roles';
 import { nameOf } from '../config/names';
 import { CAP_RANGE, GAME_TIME } from '../config/constants';
@@ -136,7 +137,7 @@ export class Hud {
     if (first || now - (this.sectorShownAt.get(here.id) ?? -Infinity) < 60000) return;
     this.sectorShownAt.set(here.id, now);
     const who = here.owner ? (here.owner === p.nation ? '自勢力圏' : NATIONS[here.owner].name + ' 勢力圏') : '中立';
-    this.banner(`${SECTORS[here.id].name}戦区（${who}）— ${SECTORS[here.id].style}`, 2200);
+    this.banner(`${SECTORS[here.id].name}戦区 ${DISTRICT_CODES[here.id]}（${who}）— ${SECTORS[here.id].style}`, 2200);
   }
 
   private warAt = 0;

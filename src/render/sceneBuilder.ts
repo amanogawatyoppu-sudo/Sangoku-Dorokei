@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { NATION_IDS, NATIONS } from '../config/nations';
 import type { BoxPrim, Prim, RampPrim } from '../config/map';
 import { GROUND, KANDA, LANDMARKS, LIGHTS, LOOP, MAST_H, RIVER_WIDTH, STATIONS, STOREY, TOKYO_TOWER_H, TOWER, VIADUCT, WALK_EDGE, WORLD, geo, realHeight } from '../config/map';
 import { rampHeight } from '../sim/systems/world';
-import { brickFacadeTexture, detailNoise, stoneFacadeTexture, emblemTexture, facadeTexture, groundTexture, latticeTexture, stoneTexture, viaductTexture } from './textures';
+import { brickFacadeTexture, detailNoise, stoneFacadeTexture, facadeTexture, groundTexture, latticeTexture, stoneTexture, viaductTexture } from './textures';
 import { buildCity } from './city';
+import { buildDistricts } from './districts';
+import { buildBases, buildLockPoints } from './objectives';
 import { NIGHT_GLOW } from './nightGlow';
 
 export interface SceneRefs {
@@ -569,75 +570,6 @@ export function updateTrain(refs: SceneRefs, timeSec: number): void {
     car.rotation.y = p.ang;
   }
 }
-function banner(glyph: string, color: number, height: number): THREE.Group {
-  const g = new THREE.Group();
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.6, height, 6), std(COLORS.woodDark));
-  pole.position.y = height / 2;
-  g.add(pole);
-  const cloth = new THREE.Mesh(new THREE.PlaneGeometry(18, 27), std(0xffffff, { map: emblemTexture(glyph, color), side: THREE.DoubleSide }));
-  cloth.position.set(0, height - 16, 1.8);
-  g.add(cloth);
-  return shadowed(g);
-}
-
-/** Kingdom bases: coloured ring, banners, and the meeting drum at the terminal. */
-function buildBases(scene: THREE.Scene): void {
-  for (const n of NATION_IDS) {
-    const { base: b, color, emblem } = NATIONS[n];
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(60, 74, 48),
-      new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, transparent: true, opacity: 0.55 }),
-    );
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.set(b.x, 0.5, b.z);
-    scene.add(ring);
-    for (let i = 0; i < 4; i++) {
-      const a = Math.PI / 4 + (i * Math.PI) / 2;
-      const f = banner(emblem, color, 64);
-      f.position.set(b.x + Math.cos(a) * 82, 0, b.z + Math.sin(a) * 82);
-      f.lookAt(b.x, 0, b.z);
-      scene.add(f);
-    }
-    const drum = new THREE.Group();
-    const stand = new THREE.Mesh(new THREE.CylinderGeometry(6, 8, 10, 8), std(COLORS.woodDark));
-    stand.position.y = 5;
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(9, 9, 12, 16), std(COLORS.lacquer, { roughness: 0.55 }));
-    barrel.rotation.z = Math.PI / 2;
-    barrel.position.y = 18;
-    drum.add(stand, barrel);
-    drum.position.set(b.x + 40, 0, b.z + 40);
-    scene.add(shadowed(drum));
-  }
-}
-
-/** Jails: translucent floor in the captor's colour inside a low wooden cage. */
-function buildJails(scene: THREE.Scene): void {
-  const wood = std(COLORS.wood);
-  const posts: THREE.Matrix4[] = [];
-  for (const n of NATION_IDS) {
-    const j = NATIONS[n].jail;
-    const floor = new THREE.Mesh(
-      new THREE.BoxGeometry(j.w, 2, j.d),
-      new THREE.MeshStandardMaterial({ color: NATIONS[n].color, transparent: true, opacity: 0.35 }),
-    );
-    floor.position.set(j.x, 1, j.z);
-    floor.receiveShadow = true;
-    scene.add(floor);
-    const H = 24;
-    const addPost = (x: number, z: number) => posts.push(new THREE.Matrix4().makeTranslation(x, H / 2, z));
-    for (let x = -j.w / 2; x <= j.w / 2 + 0.1; x += j.w / 10) { addPost(j.x + x, j.z - j.d / 2); addPost(j.x + x, j.z + j.d / 2); }
-    for (let z = -j.d / 2 + j.d / 3; z < j.d / 2 - 1; z += j.d / 3) { addPost(j.x - j.w / 2, j.z + z); addPost(j.x + j.w / 2, j.z + z); }
-    for (const [w, d, x, z] of [[j.w + 4, 3, 0, -j.d / 2], [j.w + 4, 3, 0, j.d / 2], [3, j.d, -j.w / 2, 0], [3, j.d, j.w / 2, 0]]) {
-      const beam = new THREE.Mesh(new THREE.BoxGeometry(w, 3, d), wood);
-      beam.position.set(j.x + x, H, j.z + z);
-      scene.add(shadowed(beam));
-    }
-  }
-  const pm = new THREE.InstancedMesh(new THREE.CylinderGeometry(1.4, 1.4, 24, 6), wood, posts.length);
-  posts.forEach((mm, i) => pm.setMatrixAt(i, mm));
-  scene.add(shadowed(pm));
-}
-
 export function buildScene(canvas: HTMLCanvasElement): SceneRefs {
   THREE.ColorManagement.enabled = false;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -658,7 +590,8 @@ export function buildScene(canvas: HTMLCanvasElement): SceneRefs {
   buildLandmarks(scene);
   const towerMesh = buildRadioTower(scene);
   buildBases(scene);
-  buildJails(scene);
+  buildLockPoints(scene);
+  buildDistricts(scene);
   const train = buildRailway(scene);
   // A fixed handful of lamp lights (never more or fewer: that would recompile every material).
   const lights: THREE.PointLight[] = [];
@@ -707,45 +640,78 @@ export function updateStreetLights(refs: SceneRefs, x: number, z: number, y = 0)
   });
 }
 
-const DUSK = {
-  top: new THREE.Color(COLORS.skyTop), mid: new THREE.Color(COLORS.skyMid), horizon: new THREE.Color(COLORS.skyHorizon), fog: new THREE.Color(COLORS.fog),
-  sun: new THREE.Color(0xffe0c2), hemiSky: new THREE.Color(0xc4cfee), hemiGround: new THREE.Color(0x6a6458),
-};
-const NIGHT = {
-  // A city night, not a blackout: a glowing sky over Tokyo, bright moonlight, lit haze.
-  top: new THREE.Color(0x0a1030), mid: new THREE.Color(0x1f2a52), horizon: new THREE.Color(0x4a3452), fog: new THREE.Color(0x283048),
-  sun: new THREE.Color(0xb4c0ec), hemiSky: new THREE.Color(0x8494cc), hemiGround: new THREE.Color(0x3e3a4a),
-};
+interface Palette {
+  top: THREE.Color; mid: THREE.Color; horizon: THREE.Color; fog: THREE.Color; sun: THREE.Color; hemiSky: THREE.Color; hemiGround: THREE.Color;
+  sunI: number; hemiI: number; ambI: number; glow: number; elev: number;
+}
+const pal = (o: Record<'top' | 'mid' | 'horizon' | 'fog' | 'sun' | 'hemiSky' | 'hemiGround', number> & Pick<Palette, 'sunI' | 'hemiI' | 'ambI' | 'glow' | 'elev'>): Palette => ({
+  top: new THREE.Color(o.top), mid: new THREE.Color(o.mid), horizon: new THREE.Color(o.horizon), fog: new THREE.Color(o.fog), sun: new THREE.Color(o.sun),
+  hemiSky: new THREE.Color(o.hemiSky), hemiGround: new THREE.Color(o.hemiGround), sunI: o.sunI, hemiI: o.hemiI, ambI: o.ambI, glow: o.glow, elev: o.elev,
+});
+/** Day: a clear neutral afternoon (the city's true colours, crisp shadows from a high sun). */
+const DAY = pal({ top: 0x3a6cc2, mid: 0x93b6e2, horizon: 0xdce6ee, fog: 0xb7c3d3, sun: 0xfff4e6, hemiSky: 0xd2def2, hemiGround: 0x6e6a62, sunI: 1.12, hemiI: 0.9, ambI: 0.14, glow: 0.35, elev: 0.95 });
+/** Sunset: a warm orange low sun, long shadows, a pink-violet sky. */
+const SUNSET = pal({ top: 0x2e4886, mid: 0xb79aa4, horizon: 0xffa25a, fog: 0xbcaaa4, sun: 0xffc286, hemiSky: 0xc8c8de, hemiGround: 0x6a5c52, sunI: 1.05, hemiI: 0.88, ambI: 0.15, glow: 1.2, elev: 0.32 });
+/** Night: deep navy over a lit city — moonlight, the windows, signs and lamps carry it. */
+const NIGHT = pal({ top: 0x050a22, mid: 0x111c48, horizon: 0x2c2858, fog: 0x1a2240, sun: 0x9fb2ec, hemiSky: 0x6e7aac, hemiGround: 0x2e2c3e, sunI: 0.5, hemiI: 0.8, ambI: 0.3, glow: 0.1, elev: 0.7 });
 
-/**
- * Dusk → night (k = 0 … 1): the sky deepens, the low sun gives way to cool moonlight,
- * the haze darkens and closes in, and the city's lights (windows, signs, lamps) glow brighter.
- */
-export function setNightfall(refs: SceneRefs, k: number): void {
-  if (Math.abs(k - refs.night.k) < 0.004) return;
-  refs.night.k = k;
-  const n = refs.night, mix = (a: THREE.Color, b: THREE.Color, out: THREE.Color) => out.copy(a).lerp(b, k);
-  mix(DUSK.top, NIGHT.top, n.sky.top.value);
-  mix(DUSK.mid, NIGHT.mid, n.sky.mid.value);
-  mix(DUSK.horizon, NIGHT.horizon, n.sky.horizon.value);
-  n.sky.glow.value = 1 - 0.85 * k;
-  const fog = refs.scene.fog as THREE.Fog;
-  mix(DUSK.fog, NIGHT.fog, fog.color);
-  (refs.scene.background as THREE.Color).copy(fog.color);
-  fog.far = FOG_FAR - 1400 * k;
-  mix(DUSK.sun, NIGHT.sun, refs.sun.color);
-  refs.sun.intensity = (1.05 - 0.5 * k) * L;
-  mix(DUSK.hemiSky, NIGHT.hemiSky, n.hemi.color);
-  mix(DUSK.hemiGround, NIGHT.hemiGround, n.hemi.groundColor);
-  n.hemi.intensity = (0.92 - 0.1 * k) * L;
-  n.amb.intensity = (0.16 + 0.12 * k) * L;
-  for (const g of NIGHT_GLOW) g.set(k);
+const BLEND = pal({ top: 0, mid: 0, horizon: 0, fog: 0, sun: 0, hemiSky: 0, hemiGround: 0, sunI: 0, hemiI: 0, ambI: 0, glow: 0, elev: 0 });
+const KEYS = ['top', 'mid', 'horizon', 'fog', 'sun', 'hemiSky', 'hemiGround'] as const;
+const NUMS = ['sunI', 'hemiI', 'ambI', 'glow', 'elev'] as const;
+const smooth01 = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+/** The palette for a moment of the match: f = share of the match played, k = nightfall (gameplay's, 0 … 1). */
+export function skyPalette(f: number, k: number): Palette {
+  const w = smooth01(0.12, 0.42, f); // day → sunset
+  for (const c of KEYS) BLEND[c].copy(DAY[c]).lerp(SUNSET[c], w).lerp(NIGHT[c], k);
+  for (const c of NUMS) BLEND[c] = (DAY[c] + (SUNSET[c] - DAY[c]) * w) * (1 - k) + NIGHT[c] * k;
+  return BLEND;
 }
 
+/** Where the sun (or the moon) is: low in the west at sunset, higher by day and at night. */
+let sunDir = SUN_DIR.clone();
+
+/**
+ * Time of day (v9.0): a neutral day, a warm orange sunset, then a deep navy night as the
+ * match goes on. `f` is the share of the match played (visual only); `k` is the gameplay
+ * nightfall, which also drives the city lights (windows, signs, lamps) brightening.
+ */
+export function setTimeOfDay(refs: SceneRefs, f: number, k: number): void {
+  const key = f * 0.5 + k * 3;
+  if (Math.abs(key - lastKey) < 0.003) return;
+  lastKey = key;
+  refs.night.k = k;
+  const p = skyPalette(f, k), n = refs.night;
+  n.sky.top.value.copy(p.top);
+  n.sky.mid.value.copy(p.mid);
+  n.sky.horizon.value.copy(p.horizon);
+  n.sky.glow.value = p.glow;
+  const fog = refs.scene.fog as THREE.Fog;
+  fog.color.copy(p.fog);
+  (refs.scene.background as THREE.Color).copy(fog.color);
+  fog.far = FOG_FAR - 1400 * k;
+  refs.sun.color.copy(p.sun);
+  refs.sun.intensity = p.sunI * L;
+  n.hemi.color.copy(p.hemiSky);
+  n.hemi.groundColor.copy(p.hemiGround);
+  n.hemi.intensity = p.hemiI * L;
+  n.amb.intensity = p.ambI * L;
+  // Sun elevation: same bearing, lower toward sunset (long shadows), the moon a little higher.
+  const flat = Math.hypot(SUN_DIR.x, SUN_DIR.z);
+  sunDir = new THREE.Vector3(SUN_DIR.x / flat * Math.cos(p.elev), Math.sin(p.elev), SUN_DIR.z / flat * Math.cos(p.elev));
+  (n.sky as unknown as { sunDir?: { value: THREE.Vector3 } }).sunDir?.value.copy(sunDir);
+  for (const g of NIGHT_GLOW) g.set(k);
+}
+let lastKey = -1;
+
+/** Older entry point: nightfall only (the match's share played follows from it). */
+export function setNightfall(refs: SceneRefs, k: number): void {
+  setTimeOfDay(refs, k > 0 ? 0.35 + 0.65 * k : 0.42, k);
+}
 
 /** Keeps the shadow frustum centred on the player so a big map still gets crisp shadows. */
 export function followSun(refs: SceneRefs, x: number, y: number, z: number): void {
-  refs.sun.position.set(x + SUN_DIR.x * SUN_DIST, y + SUN_DIR.y * SUN_DIST, z + SUN_DIR.z * SUN_DIST);
+  refs.sun.position.set(x + sunDir.x * SUN_DIST, y + sunDir.y * SUN_DIST, z + sunDir.z * SUN_DIST);
   refs.sun.target.position.set(x, y, z);
 }
 

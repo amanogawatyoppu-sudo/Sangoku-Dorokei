@@ -25,22 +25,21 @@ function fadeTexture(): THREE.CanvasTexture {
 
 const NEUTRAL = 0x9a9488;
 
-/** 幟 (nobori) banner: white cloth with a darker hem and a band for the crest (tinted per instance). */
-function noboriTexture(): THREE.CanvasTexture {
+/** Territory panel: a slim dark holo strip with a lit edge, chevrons and a top bar (lit parts tinted per instance). */
+function territoryTexture(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = 32;
   c.height = 128;
   const g = c.getContext('2d')!;
-  g.fillStyle = '#fff';
+  g.fillStyle = 'rgba(40,44,52,1)';
   g.fillRect(0, 0, 32, 128);
-  g.fillStyle = 'rgba(0,0,0,.35)';
-  g.fillRect(0, 0, 32, 6);
-  g.fillRect(0, 122, 32, 6);
-  g.fillRect(28, 0, 4, 128);
-  g.fillStyle = 'rgba(255,255,255,.9)';
-  g.beginPath(); g.arc(14, 30, 9, 0, Math.PI * 2); g.fill();
-  g.fillStyle = 'rgba(0,0,0,.25)';
-  for (let y = 50; y < 116; y += 12) g.fillRect(10, y, 8, 6);
+  g.fillStyle = '#fff';
+  g.fillRect(0, 0, 32, 10);
+  g.fillRect(0, 0, 4, 128);
+  g.fillRect(0, 124, 32, 4);
+  g.lineWidth = 4;
+  g.strokeStyle = '#fff';
+  for (let y = 30; y < 110; y += 18) { g.beginPath(); g.moveTo(8, y + 8); g.lineTo(16, y); g.lineTo(24, y + 8); g.stroke(); }
   return new THREE.CanvasTexture(c);
 }
 
@@ -53,13 +52,13 @@ interface PointView {
   tex: THREE.CanvasTexture;
   ring: THREE.MeshBasicMaterial;
   gauge: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
-  flag: THREE.Mesh;
+  flag: THREE.Object3D;
   owner: string;
   shownProgress: number;
 }
 
 /**
- * Strategic points in the city: a flag on a pole in the holder's colour (grey when
+ * Strategic points in the city: a pylon with a turning holo panel in the holder's colour (grey when
  * neutral), a faint ring on the ground marking the area to stand in, and an arc
  * that fills in the colour of whoever is taking it. Contested points pulse.
  */
@@ -102,7 +101,8 @@ export class WarView {
       // Hung off every street light (pavement side, facing along the street) and flat on the
       // front wall of every building by the door: one instanced mesh, recoloured when sectors change.
       const geo = new THREE.PlaneGeometry(22, 72).translate(11, 0, 0);
-      const mat = new THREE.MeshStandardMaterial({ map: noboriTexture(), side: THREE.DoubleSide, roughness: 0.9, emissive: 0x2a2a2a });
+      const tt = territoryTexture();
+      const mat = new THREE.MeshStandardMaterial({ map: tt, emissive: 0xffffff, emissiveMap: tt, emissiveIntensity: 0.35, side: THREE.DoubleSide, roughness: 0.8 });
       const up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
       const spots: THREE.Matrix4[] = [];
       for (const l of LIGHTS) {
@@ -132,10 +132,12 @@ export class WarView {
       this.banners.castShadow = false;
       scene.add(this.banners);
     }
-    const poleGeo = new THREE.CylinderGeometry(2.2, 2.8, 200, 8).translate(0, 100, 0);
-    const poleMat = new THREE.MeshStandardMaterial({ color: 0x3b3b3e, metalness: 0.6, roughness: 0.4 });
-    const bannerGeo = new THREE.PlaneGeometry(100, 60).translate(50, 0, 0);
-    const plinthGeo = new THREE.CylinderGeometry(14, 16, 8, 12).translate(0, 4, 0);
+    // Capture pylon: a hex plinth, a slim three-sided mast, a holo panel and a light ring on top.
+    const poleGeo = new THREE.CylinderGeometry(3.5, 7, 190, 3).translate(0, 95, 0);
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x2b3038, metalness: 0.4, roughness: 0.5 });
+    const bannerGeo = new THREE.PlaneGeometry(100, 60);
+    const plinthGeo = new THREE.CylinderGeometry(24, 28, 9, 6).translate(0, 4.5, 0);
+    const haloGeo = new THREE.TorusGeometry(16, 1.6, 4, 6).rotateX(Math.PI / 2);
     const ringGeo = new THREE.RingGeometry(POINT_R - 10, POINT_R, 64).rotateX(-Math.PI / 2);
     SECTORS.forEach((_d, i) => {
       const p = sectorPoint(i);
@@ -146,12 +148,19 @@ export class WarView {
       canvas.width = 256;
       canvas.height = 154;
       const tex = new THREE.CanvasTexture(canvas);
-      const banner = new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.35, side: THREE.DoubleSide, roughness: 0.8 });
-      const flag = new THREE.Mesh(bannerGeo, banner);
-      flag.position.set(2, 165, 0);
+      const banner = new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.6, roughness: 0.8, transparent: true, opacity: 0.9 });
+      // Two faces back to back, so the text reads the right way round from both sides.
+      const flag = new THREE.Group();
+      const back = new THREE.Mesh(bannerGeo, banner);
+      back.rotation.y = Math.PI;
+      flag.add(new THREE.Mesh(bannerGeo, banner), back);
+      flag.position.set(0, 150, 0);
       g.add(flag);
       const ring = new THREE.MeshBasicMaterial({ color: NEUTRAL, transparent: true, opacity: 0.35, depthWrite: false });
       g.add(new THREE.Mesh(ringGeo, ring));
+      const halo = new THREE.Mesh(haloGeo, ring);
+      halo.position.y = 196;
+      g.add(halo);
       const gauge = new THREE.Mesh(new THREE.RingGeometry(POINT_R - 26, POINT_R - 12, 64, 1, 0, 0.001).rotateX(-Math.PI / 2),
         new THREE.MeshBasicMaterial({ color: NEUTRAL, transparent: true, opacity: 0.75, depthWrite: false }));
       gauge.position.y = 0.4;
@@ -251,7 +260,8 @@ export class WarView {
       v.core.opacity = (s.owner ? 0.7 : 0.35) * pulse;
       v.pool.opacity = (s.owner ? 0.85 : 0.4) * pulse;
       v.ring.opacity = s.contested ? 0.35 + 0.3 * Math.sin(t * 7) : 0.3;
-      v.flag.rotation.y = Math.sin(t * 1.7 + i) * (s.contested ? 0.5 : 0.2);
+      // The holo panel turns slowly (faster while contested) so it reads from every street.
+      v.flag.rotation.y = t * (s.contested ? 1.2 : 0.35) + i;
       const prog = s.capturer ? s.progress : 0;
       if (Math.abs(prog - v.shownProgress) > 0.02 || (prog === 0) !== (v.shownProgress === 0)) {
         v.shownProgress = prog;

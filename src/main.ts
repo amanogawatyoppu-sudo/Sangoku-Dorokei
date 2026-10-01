@@ -1,3 +1,4 @@
+import type { InstancedMesh } from 'three';
 import './style.css';
 import type { NationId } from './config/nations';
 import { NATIONS, nationCss } from './config/nations';
@@ -15,14 +16,15 @@ import { EntityView, lerp } from './render/entityView';
 import { Indicators } from './render/indicators';
 import { Effects } from './render/effects';
 import type { SceneRefs } from './render/sceneBuilder';
-import { buildScene, followSun, resizeRenderer, setNightfall, setPixelRatioCap, updateStreetLights, updateTrain } from './render/sceneBuilder';
+import { buildScene, followSun, resizeRenderer, setTimeOfDay, setPixelRatioCap, updateStreetLights, updateTrain } from './render/sceneBuilder';
 import { QualityGovernor } from './render/quality';
 import { nightFactor } from './sim/night';
 import { buildNavGraphSome } from './ai/nav';
 import type { GameEvent } from './sim/events';
 import { advanceFrame } from './sim/game';
 import type { GameState } from './sim/state';
-import { createGameState, drainEvents, queueCommand } from './sim/state';
+import { createGameState, drainEvents, elapsedSec, queueCommand } from './sim/state';
+import { GAME_TIME } from './config/constants';
 import { teleport } from './sim/entity';
 import { eliminate, sendToJail } from './sim/systems/jail';
 import { solidAt } from './sim/systems/world';
@@ -56,7 +58,8 @@ import { PingMarkers } from './ui/pingMarkers';
 import { Footprints } from './render/footprints';
 import { Music } from './audio/music';
 import { tensionOf } from './audio/tension';
-import { SECTORS, TRUCE_MS, answerTruce, proposeTruce, sectorPoint, strength, trucesLeft } from './sim/war';
+import { SECTORS, TRUCE_MS, answerTruce, proposeTruce, sectorAt, sectorPoint, strength, trucesLeft } from './sim/war';
+import { INTERSECTIONS, insideLoop } from './config/map';
 import { NATION_IDS } from './config/nations';
 import { kingOf } from './sim/state';
 import { createRng } from './core/rng';
@@ -367,7 +370,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
     warView.sync(state);
     objectives.sync(state, refs.camera, !!state.meeting || state.over);
     pingView.sync(state, state.player.nation);
-    setNightfall(refs, nightFactor(state));
+    setTimeOfDay(refs, state.tutorial ? 0.05 : Math.min(1, elapsedSec(state) / GAME_TIME), nightFactor(state));
     footprints.sync(state, cam.yaw);
     tutorial?.sync();
     music.setTension(tensionOf(state));
@@ -478,6 +481,9 @@ function exposeDebug(state: GameState, cam: CameraController, tutorial: Tutorial
     meetingIn: (sec: number) => { state.nextMeetingAt = state.time + sec * 1000; state.meetingWarned = false; },
     commands: () => state.commands.length,
     renderer: () => ({ pixelRatio: refs.renderer.getPixelRatio(), width: refs.renderer.domElement.width, height: refs.renderer.domElement.height }),
+    /** Where the bases, LOCK POINTs and strategic points are (for visual checks). */
+    sites: () => ({ bases: NATION_IDS.map((n) => NATIONS[n].base), locks: NATION_IDS.map((n) => NATIONS[n].jail), points: state.war.sectors.map((_s, i) => sectorPoint(i)), crossings: INTERSECTIONS.map((c) => ({ x: c.x, z: c.z, s: sectorAt(c.x, c.z), in: insideLoop(c.x, c.z, 0) })) }),
+    instanced: () => refs.scene.children.filter((o) => (o as InstancedMesh).isInstancedMesh).map((o) => { const m = o as InstancedMesh; m.computeBoundingSphere(); return [m.count, m.visible, (m.material as { type: string }).type, m.boundingSphere?.radius ?? 0]; }),
     renderInfo: () => ({ calls: refs.renderer.info.render.calls, triangles: refs.renderer.info.render.triangles, geometries: refs.renderer.info.memory.geometries, textures: refs.renderer.info.memory.textures }),
   };
 }
