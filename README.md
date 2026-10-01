@@ -1,4 +1,4 @@
-# TRI//TRACE : TOKYO v8.1
+# TRI//TRACE : TOKYO v8.2
 
 **3勢力。9戦区。敵のANCHORを追え。**
 

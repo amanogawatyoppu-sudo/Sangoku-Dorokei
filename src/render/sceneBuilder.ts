@@ -31,11 +31,12 @@ export interface SceneRefs {
 const L = Math.PI;
 
 const COLORS = {
-  // Dusk over Tokyo: deep blue overhead, a burning horizon, violet haze in the streets.
-  skyTop: 0x1d2a52,
-  skyMid: 0x6c5a8c,
-  skyHorizon: 0xf2955a,
-  fog: 0x8a7a8c,
+  // Early evening over Tokyo (v8.1: clearer and more neutral than the old violet dusk, so
+  // the streets read easily): blue overhead, a warm horizon, a light grey-blue haze.
+  skyTop: 0x2c4a86,
+  skyMid: 0x7f95c2,
+  skyHorizon: 0xf2b07e,
+  fog: 0xa3a9bc,
   stone: 0xb5ab98,
   stoneCap: 0x5f574b,
   plaster: 0xe4d8c0,
@@ -105,10 +106,10 @@ const SUN_DIST = 5000;
 
 function buildLights(scene: THREE.Scene): { sun: THREE.DirectionalLight; hemi: THREE.HemisphereLight; amb: THREE.AmbientLight } {
   // Dusk: a cool blue sky fill, warm low sun (long shadows).
-  const hemi = new THREE.HemisphereLight(0xa6b2de, 0x4a3e44, 0.72 * L);
-  const amb = new THREE.AmbientLight(0x6a6f96, 0.12 * L);
+  const hemi = new THREE.HemisphereLight(0xc4cfee, 0x6a6458, 0.92 * L);
+  const amb = new THREE.AmbientLight(0x8a90a8, 0.16 * L);
   scene.add(hemi, amb);
-  const sun = new THREE.DirectionalLight(0xffb27a, 1.0 * L);
+  const sun = new THREE.DirectionalLight(0xffe0c2, 1.05 * L);
   sun.position.copy(SUN_DIR).multiplyScalar(SUN_DIST);
   sun.castShadow = true;
   const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
@@ -708,7 +709,7 @@ export function updateStreetLights(refs: SceneRefs, x: number, z: number, y = 0)
 
 const DUSK = {
   top: new THREE.Color(COLORS.skyTop), mid: new THREE.Color(COLORS.skyMid), horizon: new THREE.Color(COLORS.skyHorizon), fog: new THREE.Color(COLORS.fog),
-  sun: new THREE.Color(0xffb27a), hemiSky: new THREE.Color(0xa6b2de), hemiGround: new THREE.Color(0x4a3e44),
+  sun: new THREE.Color(0xffe0c2), hemiSky: new THREE.Color(0xc4cfee), hemiGround: new THREE.Color(0x6a6458),
 };
 const NIGHT = {
   // A city night, not a blackout: a glowing sky over Tokyo, bright moonlight, lit haze.
@@ -733,11 +734,11 @@ export function setNightfall(refs: SceneRefs, k: number): void {
   (refs.scene.background as THREE.Color).copy(fog.color);
   fog.far = FOG_FAR - 1400 * k;
   mix(DUSK.sun, NIGHT.sun, refs.sun.color);
-  refs.sun.intensity = (1.0 - 0.45 * k) * L;
+  refs.sun.intensity = (1.05 - 0.5 * k) * L;
   mix(DUSK.hemiSky, NIGHT.hemiSky, n.hemi.color);
   mix(DUSK.hemiGround, NIGHT.hemiGround, n.hemi.groundColor);
-  n.hemi.intensity = (0.72 + 0.1 * k) * L;
-  n.amb.intensity = (0.12 + 0.16 * k) * L;
+  n.hemi.intensity = (0.92 - 0.1 * k) * L;
+  n.amb.intensity = (0.16 + 0.12 * k) * L;
   for (const g of NIGHT_GLOW) g.set(k);
 }
 
