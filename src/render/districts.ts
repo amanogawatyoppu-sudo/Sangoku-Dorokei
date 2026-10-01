@@ -143,6 +143,18 @@ function borderStuds(out: Piece[]): void {
   }
 }
 
+/**
+ * Two crossed quads (4 triangles instead of a box's 12): scaled flat against a wall one of
+ * them is the sign and the other a sliver of edge; free-standing it reads as a small block.
+ */
+function crossGeometry(): THREE.BufferGeometry {
+  const a = new THREE.PlaneGeometry(1, 1), b = new THREE.PlaneGeometry(1, 1).rotateY(Math.PI / 2);
+  const g = new THREE.BufferGeometry();
+  const pos = [...a.toNonIndexed().attributes.position.array, ...b.toNonIndexed().attributes.position.array];
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return g;
+}
+
 function instanced(pieces: Piece[], geo: THREE.BufferGeometry, mat: THREE.Material): THREE.InstancedMesh {
   const m = new THREE.InstancedMesh(geo, mat, Math.max(1, pieces.length));
   const mx = new THREE.Matrix4(), c = new THREE.Color();
@@ -168,16 +180,19 @@ export function buildDistricts(scene: THREE.Scene): DistrictStats {
   }
   dressCrossings(lit, masts);
   borderStuds(studs);
-  const box = new THREE.BoxGeometry(1, 1, 1);
-  // Lit pieces are unlit colour (they are the light): dimmer by day, full at night.
-  const litMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-  const litMesh = instanced(lit, box, litMat);
-  scene.add(litMesh);
+  const cross = crossGeometry();
+  // Lit pieces are unlit colour (they are the light): dimmer by day, full at night. One mesh
+  // per district, so the ones out of view are culled as a whole.
+  const litMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+  for (let sec = 0; sec < DISTRICT_LOOKS.length; sec++) {
+    const mine = lit.filter((p) => sectorAt(p.x, p.z) === sec);
+    if (mine.length) scene.add(instanced(mine, cross, litMat));
+  }
   NIGHT_GLOW.push({ set: (k) => { litMat.color.setScalar(0.62 + 0.5 * k); } });
   const mastMesh = instanced(masts, new THREE.CylinderGeometry(1.2, 2.2, 1, 5), new THREE.MeshStandardMaterial({ color: 0x4a4f58, roughness: 0.6, metalness: 0.4 }));
   scene.add(mastMesh);
   const studMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false });
-  const studMesh = instanced(studs, box, studMat);
+  const studMesh = instanced(studs, new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), studMat);
   scene.add(studMesh);
   NIGHT_GLOW.push({ set: (k) => { studMat.opacity = 0.35 + 0.4 * k; } });
   return { signs: lit.length, masts: masts.length, studs: studs.length };

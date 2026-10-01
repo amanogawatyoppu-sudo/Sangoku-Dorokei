@@ -649,7 +649,7 @@ const pal = (o: Record<'top' | 'mid' | 'horizon' | 'fog' | 'sun' | 'hemiSky' | '
   hemiSky: new THREE.Color(o.hemiSky), hemiGround: new THREE.Color(o.hemiGround), sunI: o.sunI, hemiI: o.hemiI, ambI: o.ambI, glow: o.glow, elev: o.elev,
 });
 /** Day: a clear neutral afternoon (the city's true colours, crisp shadows from a high sun). */
-const DAY = pal({ top: 0x3a6cc2, mid: 0x93b6e2, horizon: 0xdce6ee, fog: 0xb7c3d3, sun: 0xfff4e6, hemiSky: 0xd2def2, hemiGround: 0x6e6a62, sunI: 1.0, hemiI: 0.82, ambI: 0.12, glow: 0.35, elev: 0.95 });
+const DAY = pal({ top: 0x3a6cc2, mid: 0x93b6e2, horizon: 0xdce6ee, fog: 0xb7c3d3, sun: 0xfff4e6, hemiSky: 0xd2def2, hemiGround: 0x6a665e, sunI: 0.86, hemiI: 0.74, ambI: 0.1, glow: 0.35, elev: 0.95 });
 /** Sunset: a warm orange low sun, long shadows, a pink-violet sky. */
 const SUNSET = pal({ top: 0x2e4886, mid: 0xb79aa4, horizon: 0xffa25a, fog: 0xbcaaa4, sun: 0xffc286, hemiSky: 0xc8c8de, hemiGround: 0x6a5c52, sunI: 1.05, hemiI: 0.88, ambI: 0.15, glow: 1.2, elev: 0.32 });
 /** Night: deep navy over a lit city — moonlight, the windows, signs and lamps carry it. */

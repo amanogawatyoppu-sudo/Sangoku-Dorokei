@@ -64,6 +64,8 @@ const GUN_READY = { p: new THREE.Vector3(-5.6, -0.6, 7.6), r: new THREE.Euler(0.
 const GUN_AIM = { p: new THREE.Vector3(-3.6, 7.4, 10.4), r: new THREE.Euler(0, 0.04, 0) };
 /** Characters this far from the player animate every third frame. */
 const FAR = 1500;
+/** Characters within this distance cast real shadows. */
+const SHADOW_NEAR = 750;
 /** Contact shadow: a soft dark disc under every shown character (one instanced draw). */
 function contactShadows(count: number): THREE.InstancedMesh {
   const c = document.createElement('canvas');
@@ -196,7 +198,10 @@ export class EntityView {
       this.setOpacity(a, e.jailed ? 0.5 : e === p ? this.playerOpacity : 1, e === p);
       // Animation LOD: far away, a character moves its bones every third frame.
       a.lag += dtSec;
-      const far = e !== p && Math.hypot(e.x - p.x, e.z - p.z) > FAR;
+      const d = e === p ? 0 : Math.hypot(e.x - p.x, e.z - p.z);
+      const far = d > FAR;
+      // Real shadows only near the player (everyone keeps the cheap contact shadow).
+      mesh.castShadow = d < SHADOW_NEAR;
       if (far && (this.frame + e.id) % 3 !== 0) continue;
       const step = Math.min(0.1, a.lag);
       a.lag = 0;

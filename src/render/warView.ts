@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { NATIONS } from '../config/nations';
 import type { GameState } from '../sim/state';
 import { NATION_IDS } from '../config/nations';
@@ -137,13 +138,14 @@ export class WarView {
     const poleMat = new THREE.MeshStandardMaterial({ color: 0x2b3038, metalness: 0.4, roughness: 0.5 });
     const bannerGeo = new THREE.PlaneGeometry(100, 60);
     const plinthGeo = new THREE.CylinderGeometry(24, 28, 9, 6).translate(0, 4.5, 0);
+    const pylonGeo = mergeGeometries([poleGeo.toNonIndexed(), plinthGeo.toNonIndexed()])!;
     const haloGeo = new THREE.TorusGeometry(16, 1.6, 4, 6).rotateX(Math.PI / 2);
     const ringGeo = new THREE.RingGeometry(POINT_R - 10, POINT_R, 64).rotateX(-Math.PI / 2);
     SECTORS.forEach((_d, i) => {
       const p = sectorPoint(i);
       const g = new THREE.Group();
       g.position.set(p.x, p.y + 0.8, p.z);
-      g.add(new THREE.Mesh(poleGeo, poleMat), new THREE.Mesh(plinthGeo, poleMat));
+      g.add(new THREE.Mesh(pylonGeo, poleMat));
       const canvas = document.createElement('canvas');
       canvas.width = 256;
       canvas.height = 154;
@@ -260,8 +262,8 @@ export class WarView {
       v.core.opacity = (s.owner ? 0.7 : 0.35) * pulse;
       v.pool.opacity = (s.owner ? 0.85 : 0.4) * pulse;
       v.ring.opacity = s.contested ? 0.35 + 0.3 * Math.sin(t * 7) : 0.3;
-      // The holo panel turns slowly (faster while contested) so it reads from every street.
-      v.flag.rotation.y = t * (s.contested ? 1.2 : 0.35) + i;
+      // The holo panel swings slowly (faster while contested) so it reads from most streets.
+      v.flag.rotation.y = Math.sin(t * (s.contested ? 1.6 : 0.45) + i) * 0.75 + i * 0.7;
       const prog = s.capturer ? s.progress : 0;
       if (Math.abs(prog - v.shownProgress) > 0.02 || (prog === 0) !== (v.shownProgress === 0)) {
         v.shownProgress = prog;

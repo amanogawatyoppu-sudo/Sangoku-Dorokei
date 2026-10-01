@@ -117,7 +117,7 @@ describe('v9 world look', () => {
     const scene = new THREE.Scene();
     const st = buildDistricts(scene);
     expect(st.signs).toBeGreaterThan(1000);
-    expect(scene.children.length).toBe(3);
+    expect(scene.children.length).toBeLessThanOrEqual(11); // one lit mesh per district + masts + border studs
     for (const o of scene.children) expect((o as THREE.InstancedMesh).isInstancedMesh).toBe(true);
   });
 

@@ -189,7 +189,8 @@ function tbox(w0: number, d0: number, w1: number, d1: number, y0: number, y1: nu
 
 /** A tapered limb segment (a low-poly cylinder) from y0 (radius r0) to y1 (radius r1). */
 function limb(r0: number, r1: number, y0: number, y1: number, x: number, z: number, seg: number, sx = 1, sz = 1): THREE.BufferGeometry {
-  return new THREE.CylinderGeometry(r1, r0, y1 - y0, seg, 1).scale(sx, 1, sz).translate(x, (y0 + y1) / 2, z);
+  // Open-ended: both ends always sit inside a joint cap, a cuff or a shoe.
+  return new THREE.CylinderGeometry(r1, r0, y1 - y0, seg, 1, true).scale(sx, 1, sz).translate(x, (y0 + y1) / 2, z);
 }
 
 /** A low-poly ellipsoid (joint caps, the head, pads). */
@@ -332,7 +333,7 @@ export function buildHuman(id: number, nationColor: number, emblemMat: THREE.Mat
   const look = lookFor(id);
   const gear: Gear = opts.role ? gearFor(opts.role, id) : opts.gun ? 'spotter' : id % 2 ? 'vanguard' : 'runner';
   const det = opts.detail ?? 2;
-  const SEG = det >= 2 ? 7 : det === 1 ? 6 : 5, HS = det >= 2 ? 12 : det === 1 ? 10 : 8, JS = det >= 1 ? 6 : 5;
+  const SEG = det >= 2 ? 7 : det === 1 ? 6 : 5, HS = det >= 2 ? 11 : det === 1 ? 9 : 7, JS = det >= 1 ? 6 : 5;
   const w = look.build;
   const J = joints(w);
   const b = new SkinBuilder();

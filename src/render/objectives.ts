@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { NATIONS, NATION_IDS } from '../config/nations';
 import { emblemTexture } from './textures';
 import { NIGHT_GLOW } from './nightGlow';
@@ -41,29 +42,25 @@ export function buildLockPoints(scene: THREE.Scene): void {
     const g = new THREE.Group();
     g.position.set(j.x, 0, j.z);
     const rx = j.w / 2 + 18, rz = j.d / 2 + 26;
-    const rimMat = new THREE.MeshBasicMaterial({ color });
-    const rim = new THREE.Mesh(hex(rx + 5, 1.6, rz + 5, 0.8), rimMat);
-    const base = new THREE.Mesh(hex(rx, 2.6, rz, 1.3), slab);
-    const inner = new THREE.Mesh(hex(rx - 14, 0.6, rz - 10, 2.9), deck);
-    base.receiveShadow = inner.receiveShadow = true;
-    // Inlaid light line round the deck and the faction mark in the middle.
-    const lineMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85 });
-    const line = new THREE.Mesh(hex(rx - 9, 0.4, rz - 6, 2.75), lineMat);
-    const mark = new THREE.Mesh(new THREE.PlaneGeometry(40, 60).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: emblemTexture(emblem, color), transparent: true, opacity: 0.9 }));
-    mark.position.y = 3.4;
-    g.add(rim, base, line, inner, mark);
-    // Pylons on the six corners, each with a glowing face.
-    const glowMat = new THREE.MeshBasicMaterial({ color });
+    // Merged per material: a handful of draw calls per LOCK POINT.
+    const solid: THREE.BufferGeometry[] = [hex(rx, 2.6, rz, 1.3)];
+    const glow: THREE.BufferGeometry[] = [hex(rx + 5, 1.6, rz + 5, 0.8)];
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2;
       const px = Math.cos(a) * (rx - 4), pz = Math.sin(a) * (rz - 4);
-      const p = new THREE.Mesh(pylonGeo, slab);
-      p.position.set(px, 2.6, pz);
-      p.castShadow = true;
-      const s = new THREE.Mesh(new THREE.BoxGeometry(2, 24, 7.6).translate(0, 18, 0), glowMat);
-      s.position.copy(p.position);
-      g.add(p, s);
+      solid.push(pylonGeo.clone().translate(px, 2.6, pz));
+      glow.push(new THREE.BoxGeometry(2, 24, 7.6).translate(px, 20.6, pz));
     }
+    const base = new THREE.Mesh(mergeGeometries(solid.map((g) => g.toNonIndexed()))!, slab);
+    base.castShadow = base.receiveShadow = true;
+    const rim = new THREE.Mesh(mergeGeometries(glow.map((g) => g.toNonIndexed()))!, new THREE.MeshBasicMaterial({ color }));
+    const inner = new THREE.Mesh(hex(rx - 14, 0.6, rz - 10, 2.9), deck);
+    inner.receiveShadow = true;
+    // Inlaid light line round the deck and the faction mark in the middle.
+    const line = new THREE.Mesh(hex(rx - 9, 0.4, rz - 6, 2.75), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85 }));
+    const mark = new THREE.Mesh(new THREE.PlaneGeometry(40, 60).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: emblemTexture(emblem, color), transparent: true, opacity: 0.9 }));
+    mark.position.y = 3.4;
+    g.add(rim, base, line, inner, mark);
     // A soft column of light (seen from across the district).
     const col = new THREE.Mesh(new THREE.CylinderGeometry(rx * 0.55, rx * 0.7, 700, 6, 1, true).rotateY(Math.PI / 2).scale(1, 1, rz / rx).translate(0, 350, 0),
       new THREE.MeshBasicMaterial({ map: fade, color, transparent: true, opacity: 0.16, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }));
@@ -86,30 +83,25 @@ export function buildBases(scene: THREE.Scene): void {
     scene.add(ring);
     const tex = emblemTexture(emblem, color);
     const panelMat = new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.55, side: THREE.DoubleSide, transparent: true, opacity: 0.92 });
+    // Four holo pylons and the command terminal, merged per material.
+    const posts: THREE.BufferGeometry[] = [], panels: THREE.BufferGeometry[] = [], caps: THREE.BufferGeometry[] = [];
+    const place = (g: THREE.BufferGeometry, x: number, z: number) => {
+      const yaw = Math.atan2(b.x - x, b.z - z);
+      return g.rotateY(yaw).translate(x, 0, z).toNonIndexed();
+    };
     for (let i = 0; i < 4; i++) {
       const a = Math.PI / 4 + (i * Math.PI) / 2;
-      const g = new THREE.Group();
-      g.position.set(b.x + Math.cos(a) * 84, 0, b.z + Math.sin(a) * 84);
-      const pole = new THREE.Mesh(new THREE.BoxGeometry(4, 70, 4).translate(0, 35, 0), post);
-      pole.castShadow = true;
-      const panel = new THREE.Mesh(new THREE.PlaneGeometry(18, 27), panelMat);
-      panel.position.set(0, 52, 2.4);
-      const cap = new THREE.Mesh(new THREE.BoxGeometry(6, 2, 6), new THREE.MeshBasicMaterial({ color }));
-      cap.position.y = 71;
-      g.add(pole, panel, cap);
-      g.lookAt(b.x, 0, b.z);
-      scene.add(g);
+      const x = b.x + Math.cos(a) * 84, z = b.z + Math.sin(a) * 84;
+      posts.push(place(new THREE.BoxGeometry(4, 70, 4).translate(0, 35, 0), x, z));
+      panels.push(place(new THREE.PlaneGeometry(18, 27).translate(0, 52, 2.4), x, z));
+      caps.push(place(new THREE.BoxGeometry(6, 2, 6).translate(0, 71, 0), x, z));
     }
-    // Command terminal (where the faction's meetings are called).
-    const term = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.BoxGeometry(14, 22, 8).translate(0, 11, 0), post);
-    body.castShadow = true;
-    const screen = new THREE.Mesh(new THREE.PlaneGeometry(11, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.35) }));
-    screen.position.set(0, 18, 4.1);
-    screen.rotation.x = -0.25;
-    term.add(body, screen);
-    term.position.set(b.x + 40, 0, b.z + 40);
-    term.lookAt(b.x, 0, b.z);
-    scene.add(term);
+    // Command terminal (where the faction's meetings are called), its screen lit in the faction colour.
+    const tx = b.x + 40, tz = b.z + 40;
+    posts.push(place(new THREE.BoxGeometry(14, 22, 8).translate(0, 11, 0), tx, tz));
+    caps.push(place(new THREE.PlaneGeometry(11, 8).rotateX(-0.25).translate(0, 18, 4.1), tx, tz));
+    const postMesh = new THREE.Mesh(mergeGeometries(posts)!, post);
+    postMesh.castShadow = true;
+    scene.add(postMesh, new THREE.Mesh(mergeGeometries(panels)!, panelMat), new THREE.Mesh(mergeGeometries(caps)!, new THREE.MeshBasicMaterial({ color: new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.25), side: THREE.DoubleSide })));
   }
 }
