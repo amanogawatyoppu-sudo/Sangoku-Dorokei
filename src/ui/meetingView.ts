@@ -32,7 +32,7 @@ export class MeetingView {
     }
 
     const vt = $('meetingVote');
-    vt.innerHTML = '<div style="width:100%;font-size:11px;opacity:.7">重点捜索対象に投票</div>';
+    vt.innerHTML = `<div style="width:100%;font-size:11px;opacity:.7">${m.zones.some((z) => z.targetId !== undefined) || m.zones.some((z) => z.label.includes('★')) ? '次の標的に投票（敵勢力のメンバー）' : '次の標的の手がかりがない — 捜索する場所に投票'}</div>`;
     m.zones.forEach((z, i) => {
       const b = document.createElement('button');
       b.textContent = z.label;

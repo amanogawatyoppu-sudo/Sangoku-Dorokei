@@ -11,6 +11,7 @@ import { emit } from '../sim/state';
 import type { SectorId } from '../sim/war';
 import { CENTRAL, POINT_R, proposeTruce, rearSectors, sectorAt, sectorPoint, strength, trucesLeft } from '../sim/war';
 import { chokePoints } from './nav';
+import { targetOf } from './controller';
 import type { Strategy } from './strategy';
 import { NO_STRATEGY, decideNormal, frontSectors, kingHaunt, kingTarget, opportunistTarget, threatenedSector } from './strategy';
 import { canRescue } from '../sim/systems/rescue';
@@ -296,6 +297,13 @@ function assign(state: GameState, n: NationId): void {
   }
   const target = st.sector;
   let rest = units(pool);
+  // 次の標的 (voted in a meeting): a party goes to where that enemy was last seen.
+  const voted = targetOf(state, n);
+  if (voted !== null && st.kind !== 'HOLD_LEAD') {
+    const t = state.entities[voted], s = f.intel.get(voted), fo = state.teamFocus[n];
+    const lead = s && state.time - s.t < 20000 ? { x: s.x, y: s.y, z: s.z } : fo ? { x: fo.x, y: 0, z: fo.z } : null;
+    rest = sendUnits(rest, Math.max(2, Math.round(pool.length * 0.4)), () => ({ kind: 'huntKing', nation: t.nation, lead }));
+  }
   if (target !== null) {
     switch (st.kind) {
       case 'HUNT_KING': {

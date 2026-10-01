@@ -41,11 +41,14 @@ export type FlowEffect = 'none' | 'startMatch' | 'startTutorial' | 'reload';
 
 export interface FlowResult { screen: AppScreen; effect: FlowEffect }
 
-/** What is still missing before a CPU match can start (empty = ready). Online starts come from the room. */
+/**
+ * What is still missing before a match can start (empty = ready). In a CPU match the
+ * faction and role are dealt at random when it starts (v8.4); online, people pick them.
+ */
 export function missing(s: Settings): string[] {
   const out: string[] = [];
-  if (!s.nation) out.push('所属勢力');
-  if (!s.role) out.push('役職');
+  if (s.mode === 'online' && !s.nation) out.push('所属勢力');
+  if (s.mode === 'online' && !s.role) out.push('役職');
   if (!ROSTER_SIZES.includes(s.size)) out.push('プレイ人数');
   if (!CPU_LEVELS.includes(s.cpu)) out.push('CPUレベル');
   return out;
@@ -84,8 +87,8 @@ export function next(screen: AppScreen, ev: FlowEvent, s: Settings): FlowResult 
 /** "太陽国 / 兵士 / 10人 / CPU：標準 / CPU戦" */
 export function summary(s: Settings): string[] {
   return [
-    s.nation ? NATIONS[s.nation].name : '所属勢力：未選択',
-    s.role ? roleName(s.role) : '役職：未選択',
+    s.mode === 'cpu' ? '所属勢力：ランダム' : s.nation ? NATIONS[s.nation].name : '所属勢力：未選択',
+    s.mode === 'cpu' ? '役職：ランダム' : s.role ? roleName(s.role) : '役職：未選択',
     `${s.size}人`,
     `CPU：${CPU_LEVEL_NAME[s.cpu]}`,
     s.mode === 'cpu' ? 'CPU戦' : '対人戦',

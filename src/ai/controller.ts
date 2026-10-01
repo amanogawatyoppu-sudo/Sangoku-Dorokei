@@ -160,6 +160,14 @@ function nearestVisible(state: GameState, e: Entity, range: number, near: Point 
   return best;
 }
 
+/** The enemy this nation voted to go after in a meeting (次の標的), while it lasts. */
+export function targetOf(state: GameState, n: NationId): number | null {
+  const t = state.teamTarget?.[n];
+  if (!t || state.time > t.until) return null;
+  const e = state.entities[t.id];
+  return e && e.alive && !e.jailed ? t.id : null;
+}
+
 /** Choose whom to chase: close, king-like (nation belief), and from the nation we are hunting. */
 function pickPrey(state: GameState, e: Entity, range: number): Entity | null {
   const belief = state.factions[e.nation].belief;
@@ -172,7 +180,7 @@ function pickPrey(state: GameState, e: Entity, range: number): Entity | null {
     if (d > range) continue;
     // A king hunter looks past the small fry: king-like and lit-up enemies count for much more.
     const s = d - (belief.get(t.id) ?? 0) * (kingHunt ? 110 : 60) - (hunt === t.nation ? 150 : 0)
-      - (kingLit(state, t, e.nation) ? 600 : 0) + (Math.abs(t.y - e.y) > SAME_LEVEL ? 120 : 0);
+      - (kingLit(state, t, e.nation) ? 600 : 0) - (targetOf(state, e.nation) === t.id ? 400 : 0) + (Math.abs(t.y - e.y) > SAME_LEVEL ? 120 : 0);
     if (s < bs) { bs = s; best = t; }
   }
   return best;

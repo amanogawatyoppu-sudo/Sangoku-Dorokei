@@ -383,6 +383,11 @@ export class Hud {
     if (state.entities.some((e) => e.nation !== p.nation && e.alive && !e.jailed && visibleTo(state, e, p) && e.susp > 45)) {
       return '怪しい動きの敵がいる…ANCHOR候補として警戒しよう';
     }
+    const tgt = state.teamTarget?.[p.nation];
+    if (tgt && state.time < tgt.until) {
+      const t = state.entities[tgt.id];
+      if (t?.alive && !t.jailed) return `次の標的：${NATIONS[t.nation].name}の${state.humanNames[t.id] ?? nameOf(t.id)}を追え`;
+    }
     return '痕跡を追い、敵のANCHORを探ろう';
   }
 }

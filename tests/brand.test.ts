@@ -49,7 +49,7 @@ describe('TRI//TRACE : TOKYO branding (v8.0)', () => {
   });
 
   it('the setup screen asks for a faction (所属勢力), not a country', () => {
-    expect(html).toContain('1 所属勢力');
+    expect(html).toContain('>所属勢力</div>');
     expect(html).not.toContain('所属する国');
   });
 

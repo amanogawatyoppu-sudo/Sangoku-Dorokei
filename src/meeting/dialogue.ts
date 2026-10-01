@@ -393,9 +393,14 @@ export function replyLines(state: GameState, n: NationId, choice: string): strin
 }
 
 /** Teammates react to a vote. */
-export function voteLines(state: GameState, n: NationId, who: string, place: string): string[] {
+export function voteLines(state: GameState, n: NationId, who: string, place: string, target = false): string[] {
   const t = talk(state, n);
   const head = `→ ${who}の投票:「${place}」`;
+  if (target) {
+    if (!t) return [head];
+    const voice = [t.bold, t.careful, t.sharp][Math.floor(state.rng() * 3)];
+    return [head, say(voice, t.pick([`${place}を次の標的に。了解だ。`, `${place}か。見つけたら背後を取る。`, `${place}だな。ANCHORかどうか確かめてやる。`, `${place}に一票。追いかけるぞ。`, `${place}…怪しいと思ってた。`]))];
+  }
   place = place.replace(/（[^）]*人）/g, '').replace(/付近$/, '');
   if (!t) return [head];
   const voice = [t.bold, t.careful, t.sharp][Math.floor(state.rng() * 3)];

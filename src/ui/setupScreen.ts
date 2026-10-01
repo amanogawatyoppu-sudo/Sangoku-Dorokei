@@ -127,11 +127,19 @@ export function initSetupScreen(initial: Settings, onStart: (s: Settings) => voi
     b.className = 'pickbtn size-card mode-card';
     b.dataset.mode = m;
     b.textContent = MODE_NOTE[m];
-    b.onclick = () => { if (redirect) return; cur.mode = m; select(pm, 'mode', m); net.hidden = m !== 'online'; fire(); };
+    b.onclick = () => { if (redirect) return; cur.mode = m; select(pm, 'mode', m); net.hidden = m !== 'online'; showWho(); fire(); };
     pm.appendChild(b);
   }
   select(pm, 'mode', cur.mode);
   net.hidden = cur.mode !== 'online';
+  /** CPU戦: faction and role are dealt at random at the start; 対人戦: people pick them. */
+  function showWho(): void {
+    const online = cur.mode === 'online';
+    $('pickWho').hidden = !online;
+    $('randomNote').hidden = online;
+    $('btnRandom').hidden = !online;
+  }
+  showWho();
   if (selNation) select(pn, 'nation', selNation);
   if (selRole) { select(pr, 'role', selRole); desc.textContent = ROLE_INFO[selRole].d; }
   // The war map of Tokyo behind the title and the settings (redrawn when the window changes size).
@@ -153,7 +161,7 @@ export function initSetupScreen(initial: Settings, onStart: (s: Settings) => voi
     sum.replaceChildren(...summary(cur).map((t, i) => {
       const sp = document.createElement('span');
       sp.textContent = t;
-      if ((i === 0 && !cur.nation) || (i === 1 && !cur.role)) sp.className = 'unset';
+      if (cur.mode === 'online' && ((i === 0 && !cur.nation) || (i === 1 && !cur.role))) sp.className = 'unset';
       return sp;
     }));
     if (redirect) {

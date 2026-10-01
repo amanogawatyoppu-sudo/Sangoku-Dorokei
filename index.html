@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>TRI//TRACE : TOKYO v8.3 — 3勢力の3D追跡ストラテジー（ブラウザで無料）</title>
+<title>TRI//TRACE : TOKYO v8.4 — 3勢力の3D追跡ストラテジー（ブラウザで無料）</title>
 <meta name="description" content="TRI//TRACE : TOKYO は、東京・山手線内の9戦区を舞台に3勢力が戦う、ブラウザで遊べる無料の3D追跡ストラテジー。敵部隊に隠されたANCHORを推理して追い、背後からTRACEしてLOCK POINTへ拘束せよ。CPU戦（初級〜超級）と友達との対人戦に対応。インストール不要・スマホ対応。">
 <meta name="keywords" content="TRI//TRACE,TRI TRACE TOKYO,トライトレース,追跡,推理,3勢力,東京,ブラウザゲーム,無料ゲーム,3Dゲーム,オンライン対戦">
 <meta name="robots" content="index, follow">
@@ -74,7 +74,7 @@
         <canvas id="setupMap" aria-hidden="true"></canvas>
         <section id="titleScreen" class="title-screen">
           <div class="title-inner">
-            <div class="logo"><h1 class="tt-logo" aria-label="TRI//TRACE : TOKYO"><span class="tt-tri">TRI</span><span class="tt-slash" aria-hidden="true">//</span><span class="tt-trace">TRACE</span></h1><span class="seal ver">v8.3</span></div>
+            <div class="logo"><h1 class="tt-logo" aria-label="TRI//TRACE : TOKYO"><span class="tt-tri">TRI</span><span class="tt-slash" aria-hidden="true">//</span><span class="tt-trace">TRACE</span></h1><span class="seal ver">v8.4</span></div>
             <div class="logo-sub tt-sub"><span>TOKYO</span></div>
             <p class="tagline">3勢力。9戦区。敵のANCHORを追え。<br><span>東京を駆け、痕跡を追い、敵勢力の中枢をLOCKせよ。</span></p>
             <div class="title-menu">
@@ -108,13 +108,16 @@
           <div class="setup-inner">
             <div class="setup-head"><button class="back-btn" id="btnSetupBack">← タイトル</button><h2>ゲーム設定</h2></div>
             <div class="setup-panel">
-              <div class="step-label">1 所属勢力</div><div class="pickrow" id="pickNation"></div>
-              <div class="step-label">2 役職</div><div class="pickrow" id="pickRole"></div>
-              <div id="roleDesc">役職を選ぶと詳細が表示されます。</div>
-              <div class="step-label">3 プレイ人数（各勢力）</div><div class="pickrow" id="pickSize"></div>
-              <div class="step-label">4 CPUレベル</div><div class="pickrow" id="pickCpu"></div>
+              <div id="pickWho">
+                <div class="step-label">所属勢力</div><div class="pickrow" id="pickNation"></div>
+                <div class="step-label">役職</div><div class="pickrow" id="pickRole"></div>
+                <div id="roleDesc">役職を選ぶと詳細が表示されます。</div>
+              </div>
+              <p id="randomNote" hidden><b>所属勢力と役職はランダム</b><span>ゲーム開始時に発表されます</span></p>
+              <div class="step-label">プレイ人数（各勢力）</div><div class="pickrow" id="pickSize"></div>
+              <div class="step-label">CPUレベル</div><div class="pickrow" id="pickCpu"></div>
               <div id="cpuDesc"></div>
-              <div class="step-label">5 CPU戦 / 対人戦</div><div class="pickrow" id="pickMode"></div>
+              <div class="step-label">CPU戦 / 対人戦</div><div class="pickrow" id="pickMode"></div>
               <div id="netBox" hidden>
                 <div id="netEntry" class="netrow">
                   <input id="netNick" maxlength="12" placeholder="ニックネーム" aria-label="ニックネーム">

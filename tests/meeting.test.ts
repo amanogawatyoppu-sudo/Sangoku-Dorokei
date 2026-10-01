@@ -99,8 +99,9 @@ describe('half-time meeting (ハーフタイム会議)', () => {
     expect(state.teamFocus.moon).not.toBeNull();
     expect(state.teamFocus.star).not.toBeNull();
     expect(state.teamFocus.sun).toBeNull();
-    // The sighting's place is the first voting option.
-    expect(state.meeting!.zones[0].label).toContain('LUNA1人');
+    // v8.4: the sighted enemy is the first candidate for the next target.
+    expect(state.meeting!.zones[0].targetId).toBe(enemy.id);
+    expect(state.meeting!.zones[0].label).toMatch(/^LUNA・/);
   });
 
   it('without a vote, the teammates settle the focus by majority', () => {

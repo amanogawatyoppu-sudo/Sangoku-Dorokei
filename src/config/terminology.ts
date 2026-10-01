@@ -38,13 +38,13 @@ export const facFull = (n: NationId): string => `${FACTIONS[n].code} / ${FACTION
 export const facJa = (n: NationId): string => FACTIONS[n].ja;
 
 /** Roles (内部 id in brackets): code name shown everywhere, Japanese reading / job underneath. */
-export const ROLE_TERMS: Record<RoleId, { code: string; ja: string }> = {
-  king: { code: 'ANCHOR', ja: 'アンカー' },
-  soldier: { code: 'VANGUARD', ja: '前衛' },
-  sniper: { code: 'SPOTTER', ja: '観測手' },
-  communicator: { code: 'RELAY', ja: '中継手' },
-  keyholder: { code: 'BREAKER', ja: '解除士' },
-  ranger: { code: 'RUNNER', ja: '遊撃手' },
+export const ROLE_TERMS: Record<RoleId, { code: string; ja: string; brief: string }> = {
+  king: { code: 'ANCHOR', ja: 'アンカー', brief: '正体を隠して生き延びろ。LOCKされたら勢力の危機' },
+  soldier: { code: 'VANGUARD', ja: '前衛', brief: '前線で戦い、戦区とANCHORを守れ' },
+  sniper: { code: 'SPOTTER', ja: '観測手', brief: '高所から敵を観測し、遠くから動きを止めろ（Z）' },
+  communicator: { code: 'RELAY', ja: '中継手', brief: '管制塔を押さえ、レーダーで戦況を共有しろ（Z）' },
+  keyholder: { code: 'BREAKER', ja: '解除士', brief: 'LOCK POINTの仲間のそばでZ。拘束を解除して解放しろ' },
+  ranger: { code: 'RUNNER', ja: '遊撃手', brief: '走って追跡・救援に駆けつけろ。Zで疾走' },
 };
 
 /** The world's words. */

@@ -9,11 +9,20 @@ import type { GameState } from '../sim/state';
 import { elapsedSec, emit, isOnline, timeLeftSec } from '../sim/state';
 import { dist } from '../sim/systems/collision';
 import { visibleTo } from '../sim/systems/vision';
+import { suspStars } from '../sim/systems/suspicion';
+import { nameOf } from '../config/names';
 import { VOTE_CALL, discussionLines, replyLines, voteLines } from './dialogue';
 
 export interface MeetingZone extends Point {
   label: string;
+  /** v8.4: an enemy member to make the next target (次の標的); absent = a place to search. */
+  targetId?: number;
+  /** Short name for the talk ("LUNAのミオ"). */
+  short?: string;
 }
+
+/** How long a voted target stays the team's priority (ms). */
+export const TARGET_MS = 60000;
 
 export interface MeetingState extends MeetingView {
   /** Emergency (called by the player at their base) or scheduled (everyone, once at half time). */
@@ -90,7 +99,9 @@ function discussion(state: GameState, p: Entity, extraZones: MeetingZone[] = [])
   const choices = ['管制塔を優先しよう', 'LOCK POINTを警戒しよう', '情報が足りない'];
   if (topSusp) choices.unshift(NATIONS[topSusp.nation].name + 'のANCHOR候補を共有する');
 
-  const zones: MeetingZone[] = [
+  // 次の標的: enemy members this faction has evidence on (seen lately, or looking like an ANCHOR).
+  const targets = targetCandidates(state, p.nation);
+  const zones: MeetingZone[] = targets.length ? targets : [
     ...extraZones,
     ...[
       { label: NATIONS.sun.name + ' 拠点周辺', ...NATIONS.sun.base },
@@ -100,6 +111,27 @@ function discussion(state: GameState, p: Entity, extraZones: MeetingZone[] = [])
     ].filter((z) => z.label.indexOf(NATIONS[p.nation].name) !== 0),
   ];
   return { choices, zones, script };
+}
+
+/**
+ * Enemy members worth voting for: those the faction saw in the last 40 s (shared reports)
+ * or that look king-like / suspicious, most suspicious first. Each carries where it was last seen.
+ */
+export function targetCandidates(state: GameState, n: NationId): MeetingZone[] {
+  const f = state.factions[n];
+  const out: { z: MeetingZone; score: number }[] = [];
+  for (const e of state.entities) {
+    if (e.nation === n || !e.alive || e.jailed) continue;
+    const s = f.intel.get(e.id), seenAgo = s ? (state.time - s.t) / 1000 : Infinity;
+    const belief = f.belief.get(e.id) ?? 0;
+    if (seenAgo > 40 && belief < 1.5 && e.susp < 25) continue;
+    const at = s ?? { x: NATIONS[e.nation].base.x, z: NATIONS[e.nation].base.z };
+    const stars = '★'.repeat(suspStars(Math.max(e.susp, belief * 20)));
+    const where = s ? `${placeName(s.x, s.z).name}付近・${Math.round(seenAgo)}秒前` : '位置不明';
+    const name = state.humanNames[e.id] ?? nameOf(e.id);
+    out.push({ z: { label: `${NATIONS[e.nation].name}・${name} ${stars}（${where}）`, x: at.x, z: at.z, targetId: e.id, short: `${NATIONS[e.nation].name}の${name}` }, score: belief * 2 + e.susp / 20 - Math.min(seenAgo, 60) / 30 });
+  }
+  return out.sort((a, b) => b.score - a.score).slice(0, 6).map((o) => o.z);
 }
 
 const clock = (sec: number) => Math.floor(sec / 60) + ':' + String(Math.floor(sec % 60)).padStart(2, '0');
@@ -153,7 +185,12 @@ export function openScheduledMeeting(state: GameState): void {
     const h = state.entities[id];
     if (h.nation !== state.player.nation && !others[h.nation]) others[h.nation] = scheduledView(state, h);
   }
-  for (const n of NATION_IDS) if (n !== state.player.nation && !others[n]) state.teamFocus[n] = { ...agreedFocus(state, n), t: state.time };
+  for (const n of NATION_IDS) {
+    if (n === state.player.nation || others[n]) continue;
+    state.teamFocus[n] = { ...agreedFocus(state, n), t: state.time };
+    const t = targetCandidates(state, n)[0];
+    if (t?.targetId !== undefined) setTarget(state, n, t);
+  }
   state.meeting = { kind: 'scheduled', closeAfterMs: isOnline(state) ? ONLINE_MEETING_CLOSE : SCHEDULED_MEETING_CLOSE, ...own, voted: false, elapsedMs: 0, others, votes: {}, ready: [] };
   state.meetingsHeld++;
   emit(state, { type: 'MEETING_OPENED', kind: 'scheduled' });
@@ -223,7 +260,7 @@ export function voteInMeeting(state: GameState, zoneIndex: number): void {
   m.voted = true;
   m.votes[state.player.id] = zoneIndex;
   state.teamFocus[state.player.nation] = { x: z.x, z: z.z, t: state.time };
-  m.lines.push(...voteLines(state, state.player.nation, personName(state, state.player.id), z.label));
+  m.lines.push(...voteLines(state, state.player.nation, personName(state, state.player.id), z.short ?? z.label, z.targetId !== undefined));
   m.script = m.script.filter((l) => !l.includes(VOTE_CALL));
 }
 
@@ -234,7 +271,8 @@ export function remoteVote(state: GameState, id: number, zoneIndex: number): voi
   const view = e.nation === state.player.nation ? m : m.others[e.nation];
   if (!view?.zones[zoneIndex]) return;
   m.votes[id] = zoneIndex;
-  view.lines.push(...voteLines(state, e.nation, personName(state, id), view.zones[zoneIndex].label));
+  const vz = view.zones[zoneIndex];
+  view.lines.push(...voteLines(state, e.nation, personName(state, id), vz.short ?? vz.label, vz.targetId !== undefined));
   view.script = view.script.filter((l) => !l.includes(VOTE_CALL));
 }
 
@@ -242,6 +280,16 @@ export function remoteVote(state: GameState, id: number, zoneIndex: number): voi
 export function remoteReady(state: GameState, id: number): void {
   const m = state.meeting;
   if (m && state.entities[id]?.remote && !m.ready.includes(id)) m.ready.push(id);
+}
+
+/** A nation's next target (次の標的): its people go after this enemy first for a while. */
+function setTarget(state: GameState, n: NationId, z: MeetingZone): void {
+  if (z.targetId === undefined) return;
+  state.teamTarget[n] = { id: z.targetId, until: state.time + TARGET_MS };
+  // The commander treats the voted enemy as a strong lead (the team's best guess at an ANCHOR).
+  const f = state.factions[n];
+  f.belief.set(z.targetId, Math.max(f.belief.get(z.targetId) ?? 0, 3));
+  emit(state, { type: 'TARGET_SET', nation: n, targetId: z.targetId });
 }
 
 export function closeMeeting(state: GameState): void {
@@ -255,8 +303,10 @@ export function closeMeeting(state: GameState): void {
     const tally = new Map<number, number>();
     for (const [id, z] of Object.entries(m.votes)) if (state.entities[+id].nation === n) tally.set(z, (tally.get(z) ?? 0) + 1);
     const top = [...tally].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0];
-    if (top && zones[top[0]]) state.teamFocus[n] = { x: zones[top[0]].x, z: zones[top[0]].z, t: state.time };
-    else if (m.kind === 'scheduled') state.teamFocus[n] = { ...agreedFocus(state, n), t: state.time };
+    if (top && zones[top[0]]) {
+      state.teamFocus[n] = { x: zones[top[0]].x, z: zones[top[0]].z, t: state.time };
+      if (zones[top[0]].targetId !== undefined) setTarget(state, n, zones[top[0]]);
+    } else if (m.kind === 'scheduled') state.teamFocus[n] = { ...agreedFocus(state, n), t: state.time };
   }
   state.meeting = null;
   emit(state, { type: 'MEETING_CLOSED', focusSet: !!state.teamFocus[state.player.nation] });

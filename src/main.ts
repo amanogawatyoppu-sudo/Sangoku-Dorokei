@@ -1,8 +1,9 @@
 import './style.css';
 import type { NationId } from './config/nations';
-import { NATIONS } from './config/nations';
+import { NATIONS, nationCss } from './config/nations';
 import type { RoleId, RosterSize } from './config/roles';
-import { roleName } from './config/roles';
+import { ROLES, roleJa, roleName } from './config/roles';
+import { FACTIONS, ROLE_TERMS, facFull } from './config/terminology';
 import { FixedStepClock } from './core/clock';
 import { EventBus } from './core/events';
 import { startRafLoop } from './core/loop';
@@ -143,14 +144,22 @@ function showScreen(to: AppScreen): void {
   }
 }
 
+/** CPU戦 (v8.4): the faction and role are dealt at random and revealed when the match starts. */
+function launchCpu(s: Settings): void {
+  const nation = NATION_IDS[Math.floor(Math.random() * NATION_IDS.length)];
+  const role = ROLES[Math.floor(Math.random() * ROLES.length)];
+  launch(nation, role, s.size, { kind: 'solo' }, { cpu: s.cpu, dealt: true });
+}
+
 /** Starts a match (or the tutorial) behind the loading screen (作戦地域へ移動中…). */
-function launch(nation: NationId, role: RoleId, size: RosterSize, mode: Mode = { kind: 'solo' }, opts: { cpu?: CpuLevel; tutorial?: boolean } = {}): void {
+function launch(nation: NationId, role: RoleId, size: RosterSize, mode: Mode = { kind: 'solo' }, opts: { cpu?: CpuLevel; tutorial?: boolean; dealt?: boolean } = {}): void {
+  const who = opts.dealt ? '所属勢力・役職はゲーム開始時に発表' : `${NATIONS[nation].name}・${roleName(role)}`;
   const info = opts.tutorial ? 'チュートリアル ― SOL / 太陽陣営・BREAKER'
-    : `${NATIONS[nation].name}・${roleName(role)}　／　各勢力${size}人　／　` + (mode.kind === 'solo' ? `CPU：${CPU_LEVEL_NAME[opts.cpu ?? 'normal']}` : `対人戦（部屋 ${mode.start.lobby.code}）`);
+    : `${who}　／　各勢力${size}人　／　` + (mode.kind === 'solo' ? `CPU：${CPU_LEVEL_NAME[opts.cpu ?? 'normal']}` : `対人戦（部屋 ${mode.start.lobby.code}）`);
   void withLoading({ label: opts.tutorial ? '訓練場へ移動中' : '作戦地域へ移動中', info }, () => startGame(nation, role, size, mode, opts));
 }
 
-function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode = { kind: 'solo' }, opts: { cpu?: CpuLevel; tutorial?: boolean } = {}): void {
+function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode = { kind: 'solo' }, opts: { cpu?: CpuLevel; tutorial?: boolean; dealt?: boolean } = {}): void {
   ensureScene();
   const online = mode.kind === 'solo' ? undefined : mode.start;
   showScreen(opts.tutorial ? 'TUTORIAL' : 'PLAYING');
@@ -255,7 +264,16 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
     if (host) log.add('あなたがホストです。このタブを閉じると試合が終わります。');
   } else if (tutorial) log.add('チュートリアル：CPUは止まっていて、あなたはTRACEされない。上のカードの指示に従って操作してみよう。');
   else log.add('TRI//TRACE : TOKYO — 3勢力。9戦区。敵のANCHORを追え。敵の背後を取ってTRACE（Space / スマホは「TRACE」）すると、相手はLOCK POINTに拘束される。護衛の付き方や動きから敵のANCHOR候補を推理しよう。拘束された味方はBREAKERが解放できる（ANCHORと「最後の一人」も解除できる）。ANCHORは1回だけDECOY（F）を立てられる。終盤は管制塔でANCHOR SCAN（B）。戦区の拠点に立ち続けると制圧。1〜4キー（スマホは「合図」）で味方に合図。分隊はX 付いてこい・C 周りを警戒・V ここを守れ。夜は街灯の下が目立つ。');
-  if (!tutorial) hud.banner('TRI//TRACE 開始　' + NATIONS[me.nation].name + ' / ' + roleName(me.role), 2200);
+  if (opts.dealt) {
+    // The deal: your faction and role, revealed as the match begins (once the loading screen has gone).
+    const reveal = () => hud.eventCard({
+      kicker: 'YOUR ASSIGNMENT ・ 配属', title: `${NATIONS[me.nation].name} / ${roleName(me.role)}`,
+      sub: `${FACTIONS[me.nation].ja}の${roleJa(me.role)} — ${ROLE_TERMS[me.role].brief}`, tone: 'release', color: nationCss(me.nation),
+    }, 5500);
+    const whenShown = () => { const ld = document.getElementById('loading'); if (ld && !ld.hidden && !ld.classList.contains('out')) setTimeout(whenShown, 200); else setTimeout(reveal, 300); };
+    whenShown();
+    log.add(`【配属】あなたは ${facFull(me.nation)} の ${roleName(me.role)}（${roleJa(me.role)}）。${ROLE_TERMS[me.role].brief}`);
+  } else if (!tutorial) hud.banner('TRI//TRACE 開始　' + NATIONS[me.nation].name + ' / ' + roleName(me.role), 2200);
   const tags = new NameTags($('nametags'), state, names);
   resizeRenderer(refs, canvas);
   cam.snap(Math.atan2(state.player.dirX, state.player.dirZ));
@@ -465,7 +483,7 @@ function exposeDebug(state: GameState, cam: CameraController, tutorial: Tutorial
 }
 
 const setup = initSetupScreen(settings,
-  (s) => { if (next(screen, { type: 'START' }, s).effect === 'startMatch') launch(s.nation!, s.role!, s.size, { kind: 'solo' }, { cpu: s.cpu }); },
+  (s) => { if (next(screen, { type: 'START' }, s).effect === 'startMatch') launchCpu(s); },
   (s) => { settings = s; saveSettings(store('localStorage'), s); });
 initOnlineLobby(setup, (start) => {
   const seat = start.info.seats[start.me];
@@ -479,7 +497,7 @@ $('btnGuide').onclick = () => showScreen(next(screen, { type: 'GUIDE' }, setting
 $('btnGuideBack').onclick = () => showScreen(next(screen, { type: 'TITLE' }, settings).screen);
 // Start-up: the title, or where the last page asked to land (もう一度遊ぶ / 設定を変更 / そのままプレイ).
 const first = bootScreen(takeIntent(store('sessionStorage')), settings);
-if (first === 'PLAYING') launch(settings.nation!, settings.role!, settings.size, { kind: 'solo' }, { cpu: settings.cpu });
+if (first === 'PLAYING') launchCpu(settings);
 else if (first === 'TUTORIAL') startTutorial();
 else showScreen(first);
 // Build the AI's navigation graph while the player is still on the start screen.

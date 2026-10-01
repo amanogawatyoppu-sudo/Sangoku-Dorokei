@@ -119,6 +119,8 @@ export interface GameState {
   /** Until when each nation's jail area is exposed to everyone (after a king capture). */
   jailReveal: PerNation<number>;
   teamFocus: PerNation<TeamFocus | null>;
+  /** The enemy a nation voted to go after in a meeting (次の標的), until a game time. */
+  teamTarget: PerNation<{ id: number; until: number } | null>;
   natStats: PerNation<NationStats>;
   /** Each kingdom's independent commander (shared intel, beliefs, posture). */
   factions: PerNation<Faction>;
@@ -228,6 +230,7 @@ export function createGameState(
     terminalActive: perNation(() => 0),
     jailReveal: perNation(() => 0),
     teamFocus: perNation<TeamFocus | null>(() => null),
+    teamTarget: perNation<{ id: number; until: number } | null>(() => null),
     natStats: perNation(() => ({ cap: 0, res: 0, tower: 0, hit: 0 })),
     factions: perNation(createFaction),
     speedBoostUntil: 0,

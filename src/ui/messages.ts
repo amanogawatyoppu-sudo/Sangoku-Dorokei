@@ -175,6 +175,13 @@ export function bindMessages(bus: EventBus<GameEvent>, state: GameState, log: Lo
   bus.on('TRUCE_DECLINED', (ev) => log.add(`【TRUCE】${N(ev.to)}は${N(ev.from)}の一時停戦の申し出を断った`));
   bus.on('TRUCE_ENDED', (ev) => log.add(`【TRUCE】一時停戦終了。${N(ev.a)}と${N(ev.b)}は再び敵同士`));
   bus.on('KING_CAPTURED', (ev) => log.add(`【戦況】${N(ev.nation)}のANCHORが拘束されたLOCK POINTの位置が全勢力に知れ渡った`));
+  bus.on('TARGET_SET', (ev) => {
+    if (!mineN(ev.nation)) return;
+    const t = ent(ev.targetId);
+    const name = state.humanNames[t.id] ?? nameOf(t.id);
+    log.add(`【作戦】次の標的：${N(t.nation)}の${name}。見つけたら背後を取ってTRACEしよう（60秒間、味方が優先して追う）`);
+    hud.banner(`次の標的：${N(t.nation)}の${name}`, 2600);
+  });
   bus.on('GAME_OVER', (ev) => {
     if (ev.winner === 'draw') hud.eventCard({ kicker: 'TRI//TRACE', title: 'DRAW', sub: '引き分け — どの勢力もネットワークを守りきれなかった', tone: 'lost' }, 3000);
     else hud.eventCard({ kicker: `${N(ev.winner)} VICTORY`, title: 'NETWORK SECURED', sub: `${FACTIONS[ev.winner].ja}の勝利`, tone: 'win', color: nationCss(ev.winner) }, 3000);

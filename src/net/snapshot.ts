@@ -146,7 +146,7 @@ function packMeeting(state: GameState): Snapshot['m'] {
     o: Math.max(0, v.lines.length - 10),
     l: v.lines.slice(-10).map((s) => s.slice(0, 120)),
     c: v.choices,
-    z: v.zones.map((z) => [z.label.slice(0, 40), Math.round(z.x), Math.round(z.z)]),
+    z: v.zones.map((z) => [z.label.slice(0, 60), Math.round(z.x), Math.round(z.z)]),
   });
   const n: Partial<Record<NationId, NetMeeting>> = {};
   const wanted = new Set(state.humans.map((id) => state.entities[id]).filter((e) => e.remote).map((e) => e.nation));

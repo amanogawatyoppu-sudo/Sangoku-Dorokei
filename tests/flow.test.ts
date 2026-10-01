@@ -20,11 +20,13 @@ describe('screen flow', () => {
     expect(next('SETUP', { type: 'TITLE' }, DEFAULT_SETTINGS)).toEqual({ screen: 'TITLE', effect: 'none' });
   });
 
-  it('cannot start with something unchosen; can start a CPU match once all is set', () => {
-    expect(canStart(DEFAULT_SETTINGS)).toBe(false);
-    expect(missing(DEFAULT_SETTINGS)).toEqual(['所属勢力', '役職']);
-    expect(next('SETUP', { type: 'START' }, DEFAULT_SETTINGS).screen).toBe('SETUP');
-    expect(canStart({ ...ready, role: null })).toBe(false);
+  it('a CPU match starts without choosing a faction or role (dealt at random, v8.4)', () => {
+    expect(canStart(DEFAULT_SETTINGS)).toBe(true);
+    expect(canStart({ ...DEFAULT_SETTINGS, size: 7 as never })).toBe(false);
+    expect(missing(DEFAULT_SETTINGS)).toEqual([]); // CPU戦: faction and role are dealt at random
+    expect(missing({ ...DEFAULT_SETTINGS, mode: 'online' })).toEqual(['所属勢力', '役職']);
+    expect(next('SETUP', { type: 'START' }, DEFAULT_SETTINGS).screen).toBe('PLAYING');
+    expect(canStart({ ...ready, role: null })).toBe(true);
     expect(next('SETUP', { type: 'START' }, ready)).toEqual({ screen: 'PLAYING', effect: 'startMatch' });
   });
 
@@ -49,7 +51,8 @@ describe('screen flow', () => {
     const intent = takeIntent(s);
     expect(bootScreen(intent, ready)).toBe('PLAYING');
     expect(takeIntent(s)).toBeNull();
-    expect(bootScreen('PLAYING', DEFAULT_SETTINGS)).toBe('SETUP');
+    expect(bootScreen('PLAYING', DEFAULT_SETTINGS)).toBe('PLAYING'); // CPU戦 needs no picks
+    expect(bootScreen('PLAYING', { ...DEFAULT_SETTINGS, mode: 'online' })).toBe('SETUP');
   });
 
   it('settings (including the CPU level) are kept', () => {
@@ -64,7 +67,7 @@ describe('screen flow', () => {
   it('the tutorial ends to the title or straight into play', () => {
     expect(next('TUTORIAL', { type: 'TITLE' }, ready)).toEqual({ screen: 'TITLE', effect: 'reload' });
     expect(next('TUTORIAL', { type: 'TUTORIAL_PLAY' }, ready)).toEqual({ screen: 'PLAYING', effect: 'reload' });
-    expect(next('TUTORIAL', { type: 'TUTORIAL_PLAY' }, DEFAULT_SETTINGS)).toEqual({ screen: 'SETUP', effect: 'reload' });
+    expect(next('TUTORIAL', { type: 'TUTORIAL_PLAY' }, { ...DEFAULT_SETTINGS, mode: 'online' })).toEqual({ screen: 'SETUP', effect: 'reload' });
   });
 });
 

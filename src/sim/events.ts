@@ -56,6 +56,8 @@ export type GameEvent =
   | { type: 'MEETING_SOON'; inSec: number }
   | { type: 'SQUAD_ORDER'; leaderId: number; order: 'follow' | 'spread' | 'hold' }
   | { type: 'MEETING_CLOSED'; focusSet: boolean }
+  /** A meeting chose a nation's next target (次の標的). */
+  | { type: 'TARGET_SET'; nation: NationId; targetId: number }
   | { type: 'GAME_OVER'; winner: NationId | 'draw' }
   /** The war for Tokyo (戦区). */
   | { type: 'SECTOR_CAPTURED'; sector: number; nation: NationId; from: NationId | null }
