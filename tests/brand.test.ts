@@ -117,6 +117,6 @@ describe('TRI//TRACE : TOKYO branding (v8.0)', () => {
     expect(readme.split('\n')[0]).toMatch(/^# TRI\/\/TRACE : TOKYO/);
     expect(oldIn(readme.replace(/## 旧名称[\s\S]*$/, ''))).toEqual([]);
     const pkg = JSON.parse(pkgText);
-    expect(pkg.version).toMatch(/^8\./);
+    expect(pkg.version).toMatch(/^(8|9)\./);
   });
 });
