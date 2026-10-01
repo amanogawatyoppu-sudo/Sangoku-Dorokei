@@ -16,7 +16,7 @@ export const GLOSSARY_CATS: readonly GlossaryCat[] = ['基本ルール', '役職
 export const GLOSSARY: readonly Term[] = [
   // ---- basic rules
   { term: 'TRI//TRACE : TOKYO', kana: 'とらいとれーす とうきょう', cat: '基本ルール', text: '東京・山手線内の9戦区を舞台に、3勢力が戦う3D追跡ストラテジー。全員が「追う側」でも「追われる側」でもある。敵部隊に隠されたANCHORを推理して追い、背後からTRACEしてLOCK POINTへ拘束する。' },
-  { term: '3勢力', kana: 'せいりょく じんえい SOL LUNA ASTER 太陽 月 星', cat: '基本ルール', text: 'SOL / 太陽陣営（新宿）・LUNA / 月陣営（上野）・ASTER / 星陣営（高輪）。同じ勢力は味方、ほかの2勢力は敵。勢力の色（SOL＝橙、LUNA＝青、ASTER＝黄）が服の布と背中の紋でわかる。' },
+  { term: '3勢力', kana: 'せいりょく じんえい SOL LUNA STAR 太陽 月 星', cat: '基本ルール', text: 'SOL / 太陽陣営（新宿）・LUNA / 月陣営（上野）・STAR / 星陣営（高輪）。同じ勢力は味方、ほかの2勢力は敵。勢力の色（SOL＝橙、LUNA＝青、STAR＝黄）が服の布と背中の紋でわかる。' },
   { term: '勝利条件', kana: 'しょうり かち NETWORK SECURED', cat: '基本ルール', text: '敵勢力のANCHORをLOCKし、時間内に解放されなければその勢力はNETWORK LOST（戦線離脱）。最後までネットワークを保った勢力がNETWORK SECURED（勝利）。5分経っても複数のANCHORが健在なら「戦功ポイント」で決まる。' },
   { term: 'TRACE', kana: 'とれーす 捕獲 ほかく 背後', cat: '基本ルール', text: '敵の背後から相手を拘束する基本アクション。敵に近づいて Space（スマホは「TRACE」）。正面からはできない。真後ろなら確実、斜め後ろは 15%、横は 50% の確率で失敗する。足元の輪が緑ならTRACEできる相手。' },
   { term: 'ANCHOR候補', kana: 'あんかーこうほ 推理 すいり', cat: '基本ルール', text: '敵のANCHORは普通のメンバーに紛れていて誰か分からない。「周りにVANGUARDが集まっていた」「戦闘が始まると一人だけ前線から離れた」「救援が集中した」などの痕跡から推理する。会議でも共有できる。' },
@@ -41,7 +41,7 @@ export const GLOSSARY: readonly Term[] = [
   { term: '管制塔', kana: 'かんせいとう タワー', cat: '戦場', text: '中央戦区・日比谷公園の電波塔。足元に1勢力だけで 3 秒立つと占領（RELAYがいると速い）。持っている勢力はRELAYのレーダーが使え、試合の最後の 3 分の 1 ではANCHOR SCANで敵のANCHORを照らせる。' },
   { term: 'レーダー', kana: 'れーだー RELAY', cat: '戦場', text: 'RELAYが管制塔の足元で Z。7 秒間、敵の位置が見える。' },
   { term: 'ANCHOR SCAN', kana: 'あんかーすきゃん ビーコン 光の柱', cat: '戦場', text: '残り 1:40 を切ると、管制塔を持つ勢力は B（上部のボタン）で敵勢力のANCHORの位置を 12 秒間、金色の光の柱で照らせる。再使用 40 秒。照らされた側にも知らされる。' },
-  { term: '勢力の拠点', kana: 'きょてん 本拠地', cat: '戦場', text: '各勢力のスタート地点（SOL＝新宿三丁目、LUNA＝上野広小路、ASTER＝高輪）。近くで緊急会議を開ける。LOCK POINTもその近くにある。' },
+  { term: '勢力の拠点', kana: 'きょてん 本拠地', cat: '戦場', text: '各勢力のスタート地点（SOL＝新宿三丁目、LUNA＝上野広小路、STAR＝高輪）。近くで緊急会議を開ける。LOCK POINTもその近くにある。' },
   { term: '夜', kana: 'よる 街灯', cat: '戦場', text: '試合は夕暮れに始まり、約 1:45 から暗くなる。夜は遠くが見えにくい（終盤は昼の 70%）が、街灯の光の輪の中にいる人は遠くからでも見える。' },
   { term: '足跡・足音', kana: 'あしあと あしおと', cat: '戦場', text: '近くを走る敵の足跡が数秒残る。見えないが聞こえる敵の方向は、画面の端に赤い弧で出る。ダッシュ中は足音が大きい。' },
   // ---- actions

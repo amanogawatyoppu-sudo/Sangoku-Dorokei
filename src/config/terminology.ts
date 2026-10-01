@@ -18,7 +18,7 @@ export const GAME = {
   /** The long introduction (title screen, README). */
   intro: [
     '東京・山手線内は9つの戦区に分断された。',
-    'SOL、LUNA、ASTER。3勢力は前線を奪い合いながら、敵部隊に隠されたANCHORを追う。',
+    'SOL、LUNA、STAR。3勢力は前線を奪い合いながら、敵部隊に隠されたANCHORを追う。',
     '戦況を読み、痕跡を追跡し、敵の背後を取れ。ANCHORをLOCKし、東京の戦線を制圧せよ。',
   ],
 } as const;
@@ -27,7 +27,7 @@ export const GAME = {
 export const FACTIONS: Record<NationId, { code: string; ja: string }> = {
   sun: { code: 'SOL', ja: '太陽陣営' },
   moon: { code: 'LUNA', ja: '月陣営' },
-  star: { code: 'ASTER', ja: '星陣営' },
+  star: { code: 'STAR', ja: '星陣営' },
 };
 
 /** "SOL" — the short name used in running text, logs and banners. */

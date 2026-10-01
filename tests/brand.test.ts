@@ -66,10 +66,10 @@ describe('TRI//TRACE : TOKYO branding (v8.0)', () => {
     expect(hits).toEqual([]);
   });
 
-  it('factions: SOL / LUNA / ASTER with their Japanese names, symbols unchanged', () => {
+  it('factions: SOL / LUNA / STAR with their Japanese names, symbols unchanged', () => {
     expect(NATIONS.sun.name).toBe('SOL');
     expect(NATIONS.moon.name).toBe('LUNA');
-    expect(NATIONS.star.name).toBe('ASTER');
+    expect(NATIONS.star.name).toBe('STAR');
     expect(facFull('sun')).toBe('SOL / 太陽陣営');
     expect(FACTIONS.moon.ja).toBe('月陣営');
     expect(NATIONS.star.emblem).toBe('★︎');
@@ -107,7 +107,7 @@ describe('TRI//TRACE : TOKYO branding (v8.0)', () => {
     expect(cards.at(-1)).toMatchObject({ title: 'NETWORK LOST', kicker: 'SOL' });
     expect(cards.at(-1)!.sub).toContain('太陽陣営');
     bus.emit({ type: 'GAME_OVER', winner: 'star' });
-    expect(cards.at(-1)).toMatchObject({ title: 'NETWORK SECURED', kicker: 'ASTER VICTORY' });
+    expect(cards.at(-1)).toMatchObject({ title: 'NETWORK SECURED', kicker: 'STAR VICTORY' });
     bus.emit({ type: 'JAILED', entityId: find(state, 'moon', 'soldier').id, capNation: 'sun' });
     expect(lines.at(-1)).toMatch(/^【LOCK】LUNAの.*（VANGUARD）がSOLにTRACEされ、LOCK POINTへ拘束された/);
     for (const l of lines) expect(oldIn(l), l).toEqual([]);
