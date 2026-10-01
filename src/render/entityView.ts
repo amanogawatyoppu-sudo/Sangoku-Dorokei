@@ -6,11 +6,12 @@ import type { GameState } from '../sim/state';
 import { effNation, visibleTo } from '../sim/systems/vision';
 import { STEP_SEC } from '../core/clock';
 import type { BoneName, Human } from './humanModel';
-import { BONES, buildHuman } from './humanModel';
+import { BONES, EXPRESSIONS, buildHuman } from './humanModel';
 import { emblemTexture } from './textures';
 import type { BodyPose, Pose } from './poses';
 import { jailPose, lockPose, stunPose } from './poses';
 import { sniperTarget } from '../sim/systems/abilities';
+import { canAct, captureCandidate } from '../sim/systems/capture';
 
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -48,11 +49,40 @@ interface Anim {
   airborne: boolean;
   /** Step phase for turning on the spot. */
   turnStep: number;
+  /** Face: the expression weights shown (eased toward this frame's targets). */
+  face: [number, number, number, number];
+  /** TRACE device glow 0…1 (eased). */
+  trace: number;
+  /** Seconds left of the "got one" look after a successful TRACE. */
+  proud: number;
+  /** Time not yet animated (far characters animate every few frames). */
+  lag: number;
 }
 
-/** Rifle placement on the chest bone: low ready (muzzle down, across the body) and shouldered. */
-const GUN_READY = { p: new THREE.Vector3(-1.8, -2.5, 8.0), r: new THREE.Euler(0.5, 0.25, 0) };
-const GUN_AIM = { p: new THREE.Vector3(-3.0, 2.6, 10.0), r: new THREE.Euler(0, 0, 0) };
+/** SPOTTER's marker on the chest bone: held low in the right hand, and raised to the eye to fire. */
+const GUN_READY = { p: new THREE.Vector3(-5.6, -0.6, 7.6), r: new THREE.Euler(0.55, 0.12, 0) };
+const GUN_AIM = { p: new THREE.Vector3(-3.6, 7.4, 10.4), r: new THREE.Euler(0, 0.04, 0) };
+/** Characters this far from the player animate every third frame. */
+const FAR = 1500;
+/** Contact shadow: a soft dark disc under every shown character (one instanced draw). */
+function contactShadows(count: number): THREE.InstancedMesh {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d')!;
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(0,0,0,0.55)');
+  grad.addColorStop(0.55, 'rgba(0,0,0,0.32)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+  const m = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), mat, count);
+  m.frustumCulled = false;
+  m.renderOrder = 1;
+  m.count = 0;
+  return m;
+}
 const ARMS_READY: Pose = { armR: [-0.5, 0, 0.12], foreR: [-1.1, 0, 0], armL: [-0.7, 0, -0.45], foreL: [-1.3, 0, 0] };
 const ARMS_AIM: Pose = { armR: [-1.3, 0, 0.35], foreR: [-0.85, 0, 0], armL: [-1.55, 0, -0.55], foreL: [-0.3, 0, 0] };
 
@@ -100,8 +130,11 @@ export class EntityView {
   private emblemMats: Record<NationId, THREE.MeshStandardMaterial>;
   private playerEmblemMats: Record<NationId, THREE.MeshStandardMaterial>;
   private clock = 0;
+  private frame = 0;
+  private shadows: THREE.InstancedMesh;
+  private tmp = new THREE.Matrix4();
 
-  constructor(scene: THREE.Scene, state: GameState) {
+  constructor(scene: THREE.Scene, state: GameState, detail = 2) {
     const mk = (n: NationId) => new THREE.MeshStandardMaterial({
       map: emblemTexture(NATIONS[n].emblem, NATIONS[n].color), roughness: 0.8,
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
@@ -110,7 +143,7 @@ export class EntityView {
     this.playerEmblemMats = Object.fromEntries(NATION_IDS.map((n) => [n, mk(n)])) as Record<NationId, THREE.MeshStandardMaterial>;
     for (const e of state.entities) {
       const mats = e.isPlayer ? this.playerEmblemMats : this.emblemMats;
-      const human = buildHuman(e.id, NATIONS[e.nation].color, mats[e.nation], { gun: e.role === 'sniper' });
+      const human = buildHuman(e.id, NATIONS[e.nation].color, mats[e.nation], { role: e.role, detail });
       if (e.isPlayer) addXray(human.mesh, NATIONS[e.nation].color);
       human.mesh.scale.setScalar(human.look.height);
       scene.add(human.mesh);
@@ -118,8 +151,11 @@ export class EntityView {
         human, phase: (e.id * 1.7) % (Math.PI * 2), yaw: Math.atan2(e.dirX, e.dirZ), turnRate: 0, speed: 0,
         headYaw: 0, reach: 0, lastCapCd: e.cd.capture, nation: e.nation, aim: 0, recoil: 0, lastSpecialCd: e.cd.special,
         accel: 0, still: 0, land: 0, airborne: false, turnStep: 0, stars: null,
+        face: [0, 0, 0, 0], trace: 0, proud: 0, lag: 0,
       });
     }
+    this.shadows = contactShadows(state.entities.length);
+    scene.add(this.shadows);
   }
 
   /** Fade the player's model when the camera is squeezed right behind it (indoors, against walls). */
@@ -131,6 +167,8 @@ export class EntityView {
   sync(state: GameState, alpha: number, dtSec = 1 / 60): void {
     const p = state.player;
     this.clock += dtSec;
+    this.frame++;
+    let shadows = 0;
     for (const e of state.entities) {
       const a = this.anims.get(e.id)!;
       const mesh = a.human.mesh;
@@ -139,6 +177,12 @@ export class EntityView {
       mesh.visible = vis;
       if (!vis) continue;
       mesh.position.set(lerp(e.prevX, e.x, alpha), lerp(e.prevY, e.y, alpha), lerp(e.prevZ, e.z, alpha));
+      if (!e.jailed || e === p) {
+        // The contact shadow tightens a little at full stride and while airborne.
+        const r = 15 * a.human.look.height * (a.airborne ? 0.75 : 1 - 0.08 * Math.min(1, a.speed / 300));
+        this.tmp.makeScale(r, 1, r * 1.1).setPosition(mesh.position.x, mesh.position.y + 0.3, mesh.position.z);
+        this.shadows.setMatrixAt(shadows++, this.tmp);
+      }
       const yaw = Math.atan2(e.dirX, e.dirZ);
       a.turnRate = lerp(a.turnRate, wrap(yaw - a.yaw) / Math.max(dtSec, 1e-3), 1 - Math.exp(-dtSec * 8));
       a.yaw = yaw;
@@ -150,7 +194,51 @@ export class EntityView {
         a.human.emblem.material = (e.isPlayer ? this.playerEmblemMats : this.emblemMats)[shown];
       }
       this.setOpacity(a, e.jailed ? 0.5 : e === p ? this.playerOpacity : 1, e === p);
-      this.animate(a, e, state, dtSec);
+      // Animation LOD: far away, a character moves its bones every third frame.
+      a.lag += dtSec;
+      const far = e !== p && Math.hypot(e.x - p.x, e.z - p.z) > FAR;
+      if (far && (this.frame + e.id) % 3 !== 0) continue;
+      const step = Math.min(0.1, a.lag);
+      a.lag = 0;
+      this.animate(a, e, state, step);
+      if (!far) this.express(a, e, state, step);
+    }
+    this.shadows.count = shadows;
+    this.shadows.instanceMatrix.needsUpdate = true;
+  }
+
+  /**
+   * The face and the TRACE device: focused while chasing, alert when an enemy is close,
+   * surprised when stunned, confident for a moment after a TRACE; the wrist device lights
+   * up when a TRACE is possible right now.
+   */
+  private express(a: Anim, e: Entity, state: GameState, dt: number): void {
+    a.proud = Math.max(0, a.proud - dt);
+    const want: [number, number, number, number] = [0, 0, 0, 0]; // focused, alert, surprised, confident
+    const stunned = e.stunUntil > state.time;
+    if (stunned) want[2] = 1;
+    else if (e.jailed) { want[1] = 0.55; want[0] = 0.3; }
+    else if (a.proud > 0) want[3] = 1;
+    else {
+      const chasing = e.isPlayer ? a.speed > 200 : e.ai.targetId !== null && e.ai.visible.includes(e.ai.targetId);
+      const threat = !e.isPlayer && e.ai.visible.some((id) => {
+        const o = state.entities[id];
+        return o.nation !== e.nation && Math.hypot(o.x - e.x, o.z - e.z) < 220;
+      });
+      if (chasing) want[0] = 1;
+      else if (threat) want[1] = 1;
+    }
+    const k = 1 - Math.exp(-dt * 8);
+    for (let i = 0; i < 4; i++) {
+      const v = lerp(a.face[i], want[i], k);
+      if (Math.abs(v - a.face[i]) > 1e-3 || (want[i] === 0 && a.face[i] !== 0)) a.human.setExpression(EXPRESSIONS[i], v < 0.01 ? 0 : v);
+      a.face[i] = v < 0.01 ? 0 : v;
+    }
+    // Device: lights up while someone is in TRACE reach from behind (checked every few frames).
+    if ((this.frame + e.id) % 4 === 0) {
+      const ready = canAct(state, e) && e.cd.capture <= 0 && !!captureCandidate(state, e);
+      a.trace = lerp(a.trace, ready ? 1 : 0, 0.6);
+      a.human.setTrace(a.trace + (ready ? 0.15 * Math.sin(this.clock * 12) : 0));
     }
   }
 
@@ -175,13 +263,14 @@ export class EntityView {
     const spd = a.speed, back = e.speed < -1;
     const move = smooth(6, 45, spd); // 0 standing … 1 moving
     const run = smooth(140, 280, spd); // 0 walk … 1 run
+    const sprint = smooth(290, 390, spd); // 0 run … 1 flat-out sprint
     // Stride: ~1.3 m walking, ~2.3 m running, ~2.9 m sprinting (one step = half a cycle).
     const stride = Math.min(78, 34 + spd * 0.09);
     a.phase += (back ? -1 : 1) * (spd * dt / stride) * Math.PI;
     const ph = a.phase, s = Math.sin(ph), c = Math.cos(ph);
 
     // Grab: the capture cooldown was just reset.
-    if (e.cd.capture > a.lastCapCd + 0.3) a.reach = 0.38;
+    if (e.cd.capture > a.lastCapCd + 0.3) { a.reach = 0.38; a.proud = 2.2; }
     a.lastCapCd = e.cd.capture;
     a.reach = Math.max(0, a.reach - dt);
 
@@ -201,10 +290,10 @@ export class EntityView {
       rootZ = held.rootZ;
     } else {
       // Locomotion blended with a relaxed stance.
-      const A = lerp(0.42, 0.78, run) * move; // hip swing
-      const K = lerp(0.55, 1.55, run) * move; // knee lift in the swing phase
-      const Aa = lerp(0.32, 0.72, run) * move; // arm swing
-      const E = lerp(0.22, 1.35, run) * move + 0.12; // elbow bend
+      const A = (lerp(0.42, 0.8, run) + 0.14 * sprint) * move; // hip swing
+      const K = (lerp(0.55, 1.55, run) + 0.4 * sprint) * move; // knee lift in the swing phase
+      const Aa = (lerp(0.32, 0.78, run) + 0.3 * sprint) * move; // arm swing (pumping when sprinting)
+      const E = (lerp(0.22, 1.35, run) + 0.25 * sprint) * move + 0.12; // elbow bend
       const swingL = Math.max(0, c), swingR = Math.max(0, -c);
       const thL = -A * s, thR = A * s;
       const knL = K * swingL ** 1.3 + 0.06 + run * 0.22 * (1 - swingL);
@@ -215,8 +304,9 @@ export class EntityView {
       pose.shinR = [knR, 0, 0];
       pose.footL = [-(thL + knL) * 0.75, 0, 0];
       pose.footR = [-(thR + knR) * 0.75, 0, 0];
-      pose.armL = [Aa * s, 0, 0.07 + run * 0.06];
-      pose.armR = [-Aa * s, 0, -0.07 - run * 0.06];
+      // Running arms drive slightly across the body.
+      pose.armL = [Aa * s, -run * 0.12 * s, 0.07 + run * 0.06];
+      pose.armR = [-Aa * s, -run * 0.12 * s, -0.07 - run * 0.06];
       pose.foreL = [-E - 0.15 * Math.max(0, -s) * move, 0, 0];
       pose.foreR = [-E - 0.15 * Math.max(0, s) * move, 0, 0];
       // Bob twice per cycle, lower when running; hips twist against the shoulders.
@@ -226,10 +316,11 @@ export class EntityView {
       const idle = 1 - move;
       // Starts and stops: lean into the acceleration, rock back when braking hard.
       const surge = Math.max(-0.12, Math.min(0.14, a.accel * 0.0009));
-      const lean = (back ? -0.08 : lerp(0.05, 0.24, run)) * move + surge;
-      pose.hips = [0, 0.13 * s * move, 0.045 * s * move * (1 - run) + idle * 0.025 * Math.sin(t * 0.7)];
+      const lean = (back ? -0.08 : lerp(0.05, 0.24, run) + 0.1 * sprint) * move + surge;
+      const twist = lerp(0.13, 0.2, run) * move;
+      pose.hips = [0, twist * s, 0.045 * s * move * (1 - run) + idle * 0.025 * Math.sin(t * 0.7)];
       pose.spine = [lean, 0, 0];
-      pose.chest = [0.02 + idle * 0.018 * Math.sin(t * 1.9), -0.17 * s * move, 0];
+      pose.chest = [0.02 + idle * 0.018 * Math.sin(t * 1.9), -twist * 1.35 * s, 0];
       if (idle > 0.01) this.idleStance(a, e, pose, t, idle);
       // Turning on the spot: small stepping feet instead of sliding round.
       const spin = Math.abs(a.turnRate);
@@ -240,7 +331,7 @@ export class EntityView {
         pose.thighR[0] -= lift2; pose.shinR[0] += lift2 * 1.6;
       }
       // Lean into turns (the left is +x: turning left leans the top toward +x).
-      rootZ = Math.max(-0.22, Math.min(0.22, -a.turnRate * spd * 0.0007));
+      rootZ = Math.max(-0.26, Math.min(0.26, -a.turnRate * spd * 0.0008));
       if (falling) {
         pose.armL = [-2.3, 0, 0.5]; pose.armR = [-2.3, 0, -0.5];
         pose.foreL = [-0.4, 0, 0]; pose.foreR = [-0.4, 0, 0];
@@ -311,7 +402,7 @@ export class EntityView {
     add('foreL', -0.15, 0, 0); add('foreR', -0.15, 0, 0);
     if (a.still < 3 || e.role === 'sniper') return;
     const k = Math.min(1, (a.still - 3) / 0.6);
-    const style = e.role === 'king' ? 0 : e.id % 3;
+    const style = e.id % 3; // never by role: ANCHOR must not stand out
     const blend = (b: BoneName, x: number, y: number, z: number) => {
       const r = pose[b] ?? [0, 0, 0];
       pose[b] = [lerp(r[0], x, k * idle), lerp(r[1], y, k * idle), lerp(r[2], z, k * idle)];
@@ -380,7 +471,7 @@ export class EntityView {
         m.userData.a = (i / 3) * Math.PI * 2;
         a.stars.add(m);
       }
-      a.stars.position.set(0, 22, 0);
+      a.stars.position.set(0, 11.5, 0);
       a.human.bones.head.add(a.stars);
     }
     a.stars.visible = true;

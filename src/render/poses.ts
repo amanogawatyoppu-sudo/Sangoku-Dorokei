@@ -11,8 +11,8 @@ export interface BodyPose {
 }
 
 /*
- * Poses that hold the body still (made for the blocky chibi body: hips 19 units
- * up, thighs 8, shins 7.4, a big head). Rotations are about each bone's own joint;
+ * Poses that hold the body still (made for the v9 operator body: hips 23 units
+ * up, thighs and shins about 10 each). Rotations are about each bone's own joint;
  * +x on a thigh swings the leg back, -x forward; +x on a shin folds the knee.
  */
 
@@ -20,7 +20,7 @@ export interface BodyPose {
 export function jailPose(t: number): BodyPose {
   const look = Math.sin(t * 0.4) * 0.35;
   return {
-    hipsY: -12.2,
+    hipsY: -15.35,
     rootZ: 0,
     pose: {
       hips: [-0.12, 0, 0],
@@ -42,7 +42,7 @@ export function jailPose(t: number): BodyPose {
 export function lockPose(t: number): BodyPose {
   const w = Math.sin(t * 9) * 0.12;
   return {
-    hipsY: -5.4,
+    hipsY: -6.9,
     rootZ: 0,
     pose: {
       spine: [0.32, 0, 0],

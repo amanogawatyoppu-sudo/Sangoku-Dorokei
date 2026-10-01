@@ -4,11 +4,11 @@ import { WORLD } from '../config/map';
 const PITCH_SENS = 0.004;
 const PITCH_MIN = 0.12;
 const PITCH_MAX = 0.95;
-export const DIST_MIN = 110;
+export const DIST_MIN = 95;
 export const DIST_MAX = 300;
 const ZOOM_STEP = 15;
 /** Height above the feet the camera looks at. */
-export const LOOK_HEIGHT = 55;
+export const LOOK_HEIGHT = 50;
 /** Keep the camera this far in front of any wall or floor it would otherwise sit in. */
 const WALL_MARGIN = 8;
 const MIN_BOOM = 26;
@@ -77,7 +77,7 @@ export function angleDelta(a: number, b: number): number {
 export class CameraController {
   yaw = Math.PI;
   pitch = 0.42;
-  distance = 190;
+  distance = 160;
   private boom = -1;
   private eyeY: number | null = null;
   private highTilt = 0;

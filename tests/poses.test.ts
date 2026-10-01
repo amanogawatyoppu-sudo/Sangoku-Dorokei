@@ -20,7 +20,7 @@ function extent(bp: BodyPose | null, id = 3): { min: number; max: number } {
   return { min, max };
 }
 
-describe('held poses on the blocky body', () => {
+describe('held poses on the operator body', () => {
   it('standing puts the boots on the ground', () => {
     expect(extent(null).min).toBeCloseTo(0, 1);
   });

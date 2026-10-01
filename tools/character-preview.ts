@@ -24,9 +24,13 @@ scene.add(ground);
 const nations = ['sun', 'moon', 'star'] as const;
 const params = new URLSearchParams(location.search);
 const pose = params.get('pose') ?? 'idle';
+const roles = ['king', 'soldier', 'sniper', 'communicator', 'keyholder', 'ranger', 'soldier', 'king'] as const;
+const expr = params.get('expr');
 const people = Array.from({ length: 8 }, (_, i) => {
   const n = nations[i % 3];
-  const h = buildHuman(i * 7 + 3, NATIONS[n].color, new THREE.MeshBasicMaterial({ color: 0xffffff }), { gun: i === 5 });
+  const h = buildHuman(i * 7 + 3, NATIONS[n].color, new THREE.MeshBasicMaterial({ color: 0xffffff }), { role: roles[i] });
+  if (expr && expr !== 'neutral') h.setExpression(expr as 'focused', 1);
+  if (params.has('trace')) h.setTrace(1);
   h.mesh.position.set((i - 3.5) * 16, 0, 0);
   h.mesh.rotation.y = params.has('back') ? Math.PI : params.has('side') ? Math.PI / 2 : 0.25;
   scene.add(h.mesh);
