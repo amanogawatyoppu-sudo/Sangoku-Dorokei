@@ -653,7 +653,7 @@ const DAY = pal({ top: 0x3a6cc2, mid: 0x93b6e2, horizon: 0xdce6ee, fog: 0xb7c3d3
 /** Sunset: a warm orange low sun, long shadows, a pink-violet sky. */
 const SUNSET = pal({ top: 0x2e4886, mid: 0xb79aa4, horizon: 0xffa25a, fog: 0xbcaaa4, sun: 0xffc286, hemiSky: 0xc8c8de, hemiGround: 0x6a5c52, sunI: 1.05, hemiI: 0.88, ambI: 0.15, glow: 1.2, elev: 0.32 });
 /** Night: deep navy over a lit city — moonlight, the windows, signs and lamps carry it. */
-const NIGHT = pal({ top: 0x050a22, mid: 0x111c48, horizon: 0x2c2858, fog: 0x1a2240, sun: 0x9fb2ec, hemiSky: 0x6e7aac, hemiGround: 0x2e2c3e, sunI: 0.5, hemiI: 0.8, ambI: 0.3, glow: 0.1, elev: 0.7 });
+const NIGHT = pal({ top: 0x050a22, mid: 0x111c48, horizon: 0x2c2858, fog: 0x1a2240, sun: 0xb4bad6, hemiSky: 0x7a80a0, hemiGround: 0x33313c, sunI: 0.5, hemiI: 0.8, ambI: 0.3, glow: 0.1, elev: 0.7 });
 
 const BLEND = pal({ top: 0, mid: 0, horizon: 0, fog: 0, sun: 0, hemiSky: 0, hemiGround: 0, sunI: 0, hemiI: 0, ambI: 0, glow: 0, elev: 0 });
 const KEYS = ['top', 'mid', 'horizon', 'fog', 'sun', 'hemiSky', 'hemiGround'] as const;

@@ -6,6 +6,7 @@ import { NATION_IDS } from '../config/nations';
 import { BOUNDS, BUILDINGS, GROUND_FLOOR, LIGHTS, insideLoop } from '../config/map';
 import { POINT_R, SECTORS, sectorAt, sectorPoint } from '../sim/war';
 import { radialGlowTexture } from './textures';
+import { NIGHT_GLOW } from './nightGlow';
 import { kingLit } from '../sim/systems/tower';
 import type { NationId } from '../config/nations';
 
@@ -25,6 +26,10 @@ function fadeTexture(): THREE.CanvasTexture {
 }
 
 const NEUTRAL = 0x9a9488;
+
+/** Night level (0 day … 1 night), kept up to date by the scene's night fall. */
+let lightK = 0;
+NIGHT_GLOW.push({ set: (k) => { lightK = k; } });
 
 /** Territory panel: a slim dark holo strip with a lit edge, chevrons and a top bar (lit parts tinted per instance). */
 function territoryTexture(): THREE.CanvasTexture {
@@ -258,9 +263,11 @@ export class WarView {
         for (const m of [v.beam, v.core]) m.color.setHex(s.owner ? NATIONS[s.owner].color : NEUTRAL);
       }
       const pulse = s.contested ? 0.7 + 0.3 * Math.sin(t * 9) : 0.85 + 0.15 * Math.sin(t * 1.5 + i);
-      v.beam.opacity = (s.owner ? 0.3 : 0.14) * pulse;
-      v.core.opacity = (s.owner ? 0.7 : 0.35) * pulse;
-      v.pool.opacity = (s.owner ? 0.85 : 0.4) * pulse;
+      // Additive light reads far stronger on sunlit pavement: dimmer by day, full at night (v9.1).
+      const day = 0.5 + 0.5 * lightK;
+      v.beam.opacity = (s.owner ? 0.3 : 0.14) * pulse * day;
+      v.core.opacity = (s.owner ? 0.7 : 0.35) * pulse * (0.7 + 0.3 * lightK);
+      v.pool.opacity = (s.owner ? 0.85 : 0.4) * pulse * day;
       v.ring.opacity = s.contested ? 0.35 + 0.3 * Math.sin(t * 7) : 0.3;
       // The holo panel swings slowly (faster while contested) so it reads from most streets.
       v.flag.rotation.y = Math.sin(t * (s.contested ? 1.6 : 0.45) + i) * 0.75 + i * 0.7;

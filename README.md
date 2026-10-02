@@ -1,4 +1,4 @@
-# TRI//TRACE : TOKYO v9.0
+# TRI//TRACE : TOKYO v9.1
 
 **3勢力。9戦区。敵のANCHORを追え。**
 
@@ -37,7 +37,7 @@
 - **貢献度ランキング** — 試合後に全員の貢献度・順位・称号（TRACE MASTER、ANCHOR HUNTER、HIGH GROUND など）
 - **昼・夕焼け・夜** — 試合が進むと夕焼けから夜になり、街灯の下にいる人だけが遠くから見える
 - **9つの戦区の顔** — 新宿 VERTICAL CITY、渋谷 NEON MAZE、秋葉原 ELECTRIC GRID…… 戦区ごとに街の灯りの色と形が違う
-- **役職は装備で分かる（ANCHORを除く）** — VANGUARDの肩アーマー、RELAYのアンテナ、SPOTTERのスコープ。ANCHORはVANGUARDかRUNNERと同じ見た目
+- **敵の役職は見た目では分からない** — 全員が共通の制服。味方の役職装備（VANGUARDの肩アーマー、RELAYのアンテナなど）は自分の勢力にだけ見える。敵の装備はその役職だけの能力を使った数秒間だけ見える（ANCHOR と BREAKER は見えない）
 - **画質の選択** — 設定画面で HIGH / MEDIUM / LOW（重いときの自動調整つき）
 
 ## 役職

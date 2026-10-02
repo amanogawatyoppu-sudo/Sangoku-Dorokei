@@ -12,6 +12,7 @@ import type { BodyPose, Pose } from './poses';
 import { jailPose, lockPose, stunPose } from './poses';
 import { sniperTarget } from '../sim/systems/abilities';
 import { canAct, captureCandidate } from '../sim/systems/capture';
+import { gearReveal } from './gearReveal';
 
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -57,6 +58,9 @@ interface Anim {
   proud: number;
   /** Time not yet animated (far characters animate every few frames). */
   lag: number;
+  /** Seconds left of showing the role gear to enemies (after a role-only ability), and the HP last seen. */
+  reveal: number;
+  lastHp: number;
 }
 
 /** SPOTTER's marker on the chest bone: held low in the right hand, and raised to the eye to fire. */
@@ -153,7 +157,7 @@ export class EntityView {
         human, phase: (e.id * 1.7) % (Math.PI * 2), yaw: Math.atan2(e.dirX, e.dirZ), turnRate: 0, speed: 0,
         headYaw: 0, reach: 0, lastCapCd: e.cd.capture, nation: e.nation, aim: 0, recoil: 0, lastSpecialCd: e.cd.special,
         accel: 0, still: 0, land: 0, airborne: false, turnStep: 0, stars: null,
-        face: [0, 0, 0, 0], trace: 0, proud: 0, lag: 0,
+        face: [0, 0, 0, 0], trace: 0, proud: 0, lag: 0, reveal: 0, lastHp: e.hp,
       });
     }
     this.shadows = contactShadows(state.entities.length);
@@ -196,6 +200,7 @@ export class EntityView {
         a.human.emblem.material = (e.isPlayer ? this.playerEmblemMats : this.emblemMats)[shown];
       }
       this.setOpacity(a, e.jailed ? 0.5 : e === p ? this.playerOpacity : 1, e === p);
+      this.gear(a, e, state, dtSec);
       // Animation LOD: far away, a character moves its bones every third frame.
       a.lag += dtSec;
       const d = e === p ? 0 : Math.hypot(e.x - p.x, e.z - p.z);
@@ -210,6 +215,21 @@ export class EntityView {
     }
     this.shadows.count = shadows;
     this.shadows.instanceMatrix.needsUpdate = true;
+  }
+
+  /** Role gear (v9.1): always on for the viewer's own side; enemies only per `gearReveal`. */
+  private gear(a: Anim, e: Entity, state: GameState, dt: number): void {
+    a.reveal = Math.max(0, a.reveal - dt);
+    a.reveal = Math.max(a.reveal, gearReveal(e.role, {
+      used: e.cd.special > a.lastSpecialCd + 1, hpDropped: e.hp < a.lastHp,
+      sprinting: e.sprintUntil > state.time, aiming: a.aim > 0.05 || a.recoil > 0,
+    }));
+    a.lastHp = e.hp;
+    if (e.role === 'sniper') a.lastSpecialCd = Math.min(a.lastSpecialCd, e.cd.special); // holdRifle reads the reset itself
+    else a.lastSpecialCd = e.cd.special;
+    // The side it is shown as (a disguise must look like the real thing, gear and all).
+    const own = effNation(state, e, state.player.nation) === state.player.nation;
+    a.human.setGear(own || a.reveal > 0);
   }
 
   /**
@@ -405,7 +425,7 @@ export class EntityView {
     add(side > 0 ? 'shinR' : 'shinL', 0.18 * shift, 0, 0);
     add(side > 0 ? 'thighR' : 'thighL', -0.08 * shift, 0, 0);
     add('foreL', -0.15, 0, 0); add('foreR', -0.15, 0, 0);
-    if (a.still < 3 || e.role === 'sniper') return;
+    if (a.still < 3 || a.human.gun?.visible) return;
     const k = Math.min(1, (a.still - 3) / 0.6);
     const style = e.id % 3; // never by role: ANCHOR must not stand out
     const blend = (b: BoneName, x: number, y: number, z: number) => {
@@ -431,7 +451,7 @@ export class EntityView {
   /** Snipers carry the rifle at low ready and shoulder it while drawing a bead or firing. */
   private holdRifle(a: Anim, e: Entity, state: GameState, pose: Pose, dt: number): void {
     const gun = a.human.gun!;
-    gun.visible = !e.jailed; // confiscated in jail
+    gun.visible = !e.jailed && a.human.gearShown(); // confiscated in jail; enemies' only while it is in use
     if (e.jailed || e.channeling) return;
     if (e.cd.special > a.lastSpecialCd + 1) a.recoil = 0.7; // a real shot (not the short retry delay)
     a.lastSpecialCd = e.cd.special;
@@ -439,6 +459,8 @@ export class EntityView {
     const stunned = e.stunUntil > state.time;
     const aiming = !stunned && (a.recoil > 0 || (e.isPlayer ? !!sniperTarget(state, e) : e.ai.aimId !== null));
     a.aim = lerp(a.aim, aiming ? 1 : 0, 1 - Math.exp(-dt * 10));
+    // An enemy SPOTTER that is not using the marker carries nothing and moves like everyone else.
+    if (!gun.visible) return;
     const k = a.aim;
     for (const b of ['armR', 'foreR', 'armL', 'foreL'] as const) {
       const r = ARMS_READY[b]!, q = ARMS_AIM[b]!;

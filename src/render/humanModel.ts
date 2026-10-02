@@ -9,11 +9,13 @@ import type { RoleId } from '../config/roles';
  * targets, modular low-poly hair, and a charcoal operator kit with the faction
  * colour on the collar, shoulders, belt, shoes, light strips and the back unit.
  *
- * Every operator wears a TRACE DEVICE on the left wrist (it lights up when a TRACE is
- * possible), an earpiece and a utility belt. Roles read from their gear, not their
- * build or colours: VANGUARD heavy shoulders and arm guards, SPOTTER a monocular and
- * a handheld marker, RELAY an antenna module, BREAKER an unlock tool, RUNNER the
- * lightest kit. ANCHOR has no gear of its own: it wears a VANGUARD's or a RUNNER's.
+ * Every operator wears the same uniform: a TRACE DEVICE on the left wrist (it lights up
+ * when a TRACE is possible), an earpiece, a light vest, a utility belt and the back unit.
+ * Role gear is a separate layer (v9.1): VANGUARD heavy shoulders and arm guards, SPOTTER a
+ * monocular and a handheld marker, RELAY an antenna module, BREAKER an unlock tool, RUNNER
+ * a neck gaiter and shin lights. The renderer shows it to the wearer's own side, and to
+ * enemies only for a moment when the role's own ability gives it away anyway. ANCHOR has
+ * no gear of its own (its side sees a VANGUARD's or a RUNNER's kit) and never shows any to enemies.
  *
  * One skinned mesh per character (18 bones, rigid skinning, vertex colours): one draw
  * call each. Local +Z is the facing; the character's left is +X. The back carries the
@@ -134,6 +136,8 @@ class SkinBuilder {
     g.dispose();
   }
 
+  vertices(): number { return this.pos.length / 3; }
+
   /** A morph target: an offset for every vertex of the given face parts. */
   morph(parts: [Region, (x: number, y: number, z: number, c: THREE.Vector3) => [number, number, number]][]): THREE.Float32BufferAttribute {
     const d = new Float32Array(this.pos.length);
@@ -148,6 +152,19 @@ class SkinBuilder {
       }
     }
     return new THREE.Float32BufferAttribute(d, 3);
+  }
+
+  /** This builder's pieces followed by another's (regions shifted; the face centres are this one's). */
+  concat(o: SkinBuilder): SkinBuilder {
+    const r = new SkinBuilder();
+    const base = this.pos.length / 3;
+    r.pos = [...this.pos, ...o.pos]; r.nrm = [...this.nrm, ...o.nrm]; r.col = [...this.col, ...o.col];
+    r.bone = [...this.bone, ...o.bone]; r.glow = [...this.glow, ...o.glow];
+    r.idx = [...this.idx, ...o.idx.map((i) => i + base)];
+    for (const [k, v] of this.regions) r.regions.set(k, v.map(([a, z]) => [a, z] as [number, number]));
+    for (const [k, v] of o.regions) r.regions.set(k, [...(r.regions.get(k) ?? []), ...v.map(([a, z]) => [a + base, z + base] as [number, number])]);
+    r.centers = new Map(this.centers);
+    return r;
   }
 
   build(): THREE.BufferGeometry {
@@ -290,6 +307,11 @@ export interface Human {
   setExpression(e: Exclude<Expression, 'neutral'>, k: number): void;
   /** 0 … 1: how brightly the TRACE device on the wrist glows. */
   setTrace(k: number): void;
+  /** Role gear on (own side, or a moment of reveal) or off (the shared uniform). */
+  setGear(on: boolean): void;
+  gearShown(): boolean;
+  /** The uniform-only and the uniform-plus-gear geometries (the same when a kit has no gear). */
+  geometries: { base: THREE.BufferGeometry; full: THREE.BufferGeometry };
   /** SPOTTERs only: the handheld marker (a child of the chest bone) and the point at its tip. */
   gun: THREE.Group | null;
   muzzle: THREE.Object3D | null;
@@ -337,6 +359,9 @@ export function buildHuman(id: number, nationColor: number, emblemMat: THREE.Mat
   const w = look.build;
   const J = joints(w);
   const b = new SkinBuilder();
+  /** Role gear, kept apart: every operator shares the uniform in `b`; the gear is shown to the
+   * wearer's own side, and to enemies only for a moment when the role's ability gives it away. */
+  const g = new SkinBuilder();
   const S = look.skin, H = look.hair, C = nationColor, CD = dark(nationColor, 0.55), L = light(nationColor), TR = light(nationColor, 0.45);
   const heavy = gear === 'vanguard', lite = gear === 'runner';
 
@@ -353,7 +378,7 @@ export function buildHuman(id: number, nationColor: number, emblemMat: THREE.Mat
     b.add(tbox(2.9, 1.4, 2.4, 1.0, 0.9, 2.5, x, 3.6), `foot${side}`, 'cloth', C); // toe cap
     // Light strip down the outside of the thigh (RUNNERs also on the shin).
     b.add(box(0.35, 7.0, 0.6, x + s * 2.05, 18.0, -0.6), `thigh${side}`, 'light', L);
-    if (lite) b.add(box(0.35, 6.0, 0.5, x + s * 1.5, 8.0, -0.6), `shin${side}`, 'light', L);
+    if (lite) g.add(box(0.35, 6.0, 0.5, x + s * 1.5, 8.0, -0.6), `shin${side}`, 'light', L);
   }
 
   // ---- torso: pelvis, a fitted waist, a broader chest, a utility belt and a faction collar.
@@ -369,21 +394,18 @@ export function buildHuman(id: number, nationColor: number, emblemMat: THREE.Mat
   b.add(tbox(5.4, 4.6, 4.6, 4.0, 35.4, 37.8, 0, -0.3), 'chest', 'clothDark', CD); // high collar
   b.add(tbox(5.6, 4.8, 5.4, 4.6, 35.2, 36.2, 0, -0.3), 'chest', 'cloth', C); // collar band
   b.add(limb(1.3, 1.2, 35.6, 39.4, 0, 0.1, SEG), 'neck', 'skin', S);
-  if (!lite) {
-    // Light vest: a front panel with a chest light strip either side.
-    b.add(tbox(8.4 * w, 0.8, 9.2 * w, 0.8, 28.0, 33.8, 0, 3.1), 'chest', 'plate', JACKET2);
-    for (const sx of [1, -1]) b.add(box(0.4, 4.6, 0.5, sx * 3.6 * w, 31.0, 3.6), 'chest', 'light', L);
-  } else {
-    // RUNNER: an open jacket and a faction neck gaiter.
-    b.add(tbox(6.0, 5.2, 5.2, 4.6, 35.2, 38.0, 0, -0.1), 'chest', 'cloth', C);
-  }
+  // Light vest (everyone): a front panel with a chest light strip either side.
+  b.add(tbox(8.4 * w, 0.8, 9.2 * w, 0.8, 28.0, 33.8, 0, 3.1), 'chest', 'plate', JACKET2);
+  for (const sx of [1, -1]) b.add(box(0.4, 4.6, 0.5, sx * 3.6 * w, 31.0, 3.6), 'chest', 'light', L);
+  // RUNNER gear: a faction neck gaiter.
+  if (lite) g.add(tbox(6.0, 5.2, 5.2, 4.6, 35.2, 38.0, 0, -0.1), 'chest', 'cloth', C);
   // Jacket hem in the faction's dark tone, a side seam light strip.
   b.add(tbox(8.6 * w, 5.9, 8.6 * w, 5.9, 24.6, 25.4), 'spine', 'clothDark', CD);
   for (const sx of [1, -1]) b.add(box(0.4, 5.0, 0.6, sx * 4.7 * w, 31.0, -0.6), 'chest', 'light', L);
 
   // ---- back unit: the most important view. A compact battery module with the emblem, a
   // glowing status bar, side light rails and harness straps.
-  const unitH = lite ? 6.0 : 7.4, unitY = lite ? 31.8 : 31.2, unitD = lite ? 1.8 : 2.4;
+  const unitH = 7.4, unitY = 31.2, unitD = 2.4; // the same unit for every role
   b.add(tbox(6.6 * w, unitD, 7.0 * w, unitD, unitY - unitH / 2, unitY + unitH / 2, 0, -3.0 - unitD / 2), 'chest', 'cloth', C);
   b.add(tbox(5.4 * w, 0.5, 5.6 * w, 0.5, unitY - unitH / 2 + 0.7, unitY + unitH / 2 - 0.6, 0, -3.0 - unitD - 0.1), 'chest', 'plate', PLATE);
   b.add(box(5.2 * w, 0.7, 0.5, 0, unitY - unitH / 2 - 0.2, -3.2 - unitD), 'chest', 'light', L); // status bar
@@ -392,11 +414,11 @@ export function buildHuman(id: number, nationColor: number, emblemMat: THREE.Mat
   for (const sx of [1, -1]) b.add(box(1.0, 8.4, 0.5, sx * 2.9 * w, 30.4, 3.25), 'chest', 'armor', dark(JACKET, 0.7)); // straps
   if (gear === 'relay') {
     // RELAY: an antenna module on top of the unit, two whips and a dish.
-    b.add(tbox(4.0, 2.0, 3.4, 1.8, unitY + unitH / 2, unitY + unitH / 2 + 2.2, 0, -4.2), 'chest', 'plate', PLATE);
-    b.add(limb(0.22, 0.12, unitY + 3, unitY + 17, 2.2, -4.4, 4), 'chest', 'gold', STEEL);
-    b.add(limb(0.22, 0.12, unitY + 3, unitY + 11, -1.6, -4.4, 4), 'chest', 'gold', STEEL);
-    b.add(box(0.6, 0.6, 0.6, 2.2, unitY + 17.2, -4.4), 'chest', 'light', L);
-    b.add(blob(1.6, 1.6, 0.5, -2.6, unitY + 2.6, -5.2, 6, 4), 'chest', 'gold', STEEL);
+    g.add(tbox(4.0, 2.0, 3.4, 1.8, unitY + unitH / 2, unitY + unitH / 2 + 2.2, 0, -4.2), 'chest', 'plate', PLATE);
+    g.add(limb(0.22, 0.12, unitY + 3, unitY + 17, 2.2, -4.4, 4), 'chest', 'gold', STEEL);
+    g.add(limb(0.22, 0.12, unitY + 3, unitY + 11, -1.6, -4.4, 4), 'chest', 'gold', STEEL);
+    g.add(box(0.6, 0.6, 0.6, 2.2, unitY + 17.2, -4.4), 'chest', 'light', L);
+    g.add(blob(1.6, 1.6, 0.5, -2.6, unitY + 2.6, -5.2, 6, 4), 'chest', 'gold', STEEL);
   }
 
   // ---- arms: jacket sleeves with faction shoulder panels, gloves, the TRACE device on the left wrist.
@@ -412,9 +434,9 @@ export function buildHuman(id: number, nationColor: number, emblemMat: THREE.Mat
     b.add(tbox(0.8, 1.0, 0.9, 1.0, 21.0, 23.0, hx - s * 0.1, 1.6), `hand${side}`, 'boot', GLOVE); // thumb
     if (heavy) {
       // VANGUARD: layered shoulder plates and forearm guards.
-      b.add(tbox(4.4, 5.0, 3.6, 4.4, 33.4, 37.4, ax + s * 0.6, -0.2), `arm${side}`, 'plate', PLATE);
-      b.add(tbox(4.6, 5.2, 4.4, 5.0, 33.2, 33.9, ax + s * 0.6, -0.2), `arm${side}`, 'cloth', C);
-      b.add(tbox(3.1, 3.2, 3.0, 3.2, 24.4, 27.6, fx, 0.15), `fore${side}`, 'plate', PLATE);
+      g.add(tbox(4.4, 5.0, 3.6, 4.4, 33.4, 37.4, ax + s * 0.6, -0.2), `arm${side}`, 'plate', PLATE);
+      g.add(tbox(4.6, 5.2, 4.4, 5.0, 33.2, 33.9, ax + s * 0.6, -0.2), `arm${side}`, 'cloth', C);
+      g.add(tbox(3.1, 3.2, 3.0, 3.2, 24.4, 27.6, fx, 0.15), `fore${side}`, 'plate', PLATE);
     }
   }
   // TRACE DEVICE (left wrist, outer side): housing and a screen that lights up.
@@ -423,10 +445,10 @@ export function buildHuman(id: number, nationColor: number, emblemMat: THREE.Mat
   b.add(box(1.6, 0.3, 0.4, 6.75 * w + 0.9, 26.7, 1.4), 'foreL', 'trace', TR);
   if (gear === 'breaker') {
     // BREAKER: an unlock tool on the right hip and a decoder on the right forearm.
-    b.add(tbox(1.6, 2.4, 1.4, 2.2, 17.4, 23.0, -5.0 * w, 0.6), 'hips', 'plate', PLATE);
-    b.add(box(0.4, 4.4, 0.4, -5.85 * w, 20.0, 0.6), 'hips', 'light', L);
-    b.add(tbox(2.6, 2.8, 2.4, 2.6, 24.6, 27.4, -6.75 * w - 0.4, 0.3), 'foreR', 'plate', PLATE);
-    b.add(box(0.3, 1.8, 1.6, -6.75 * w - 1.7, 26.0, 0.3), 'foreR', 'light', L);
+    g.add(tbox(1.6, 2.4, 1.4, 2.2, 17.4, 23.0, -5.0 * w, 0.6), 'hips', 'plate', PLATE);
+    g.add(box(0.4, 4.4, 0.4, -5.85 * w, 20.0, 0.6), 'hips', 'light', L);
+    g.add(tbox(2.6, 2.8, 2.4, 2.6, 24.6, 27.4, -6.75 * w - 0.4, 0.3), 'foreR', 'plate', PLATE);
+    g.add(box(0.3, 1.8, 1.6, -6.75 * w - 1.7, 26.0, 0.3), 'foreR', 'light', L);
   }
 
   // ---- head: rounded skull, a small face, hair, earpiece.
@@ -457,13 +479,12 @@ export function buildHuman(id: number, nationColor: number, emblemMat: THREE.Mat
   b.add(new THREE.BoxGeometry(0.3, 0.3, 3.0).rotateY(-0.35).translate(-3.6, 40.2, 2.0), 'head', 'plate', PLATE); // mic
   if (gear === 'spotter') {
     // SPOTTER: a monocular over the right eye.
-    b.add(new THREE.CylinderGeometry(0.75, 0.85, 1.6, 8).rotateX(Math.PI / 2).translate(-eyeX, eyeY, faceZ(-eyeX, eyeY, jaw) + 0.7), 'head', 'plate', PLATE);
-    b.add(new THREE.CylinderGeometry(0.55, 0.55, 0.2, 8).rotateX(Math.PI / 2).translate(-eyeX, eyeY, faceZ(-eyeX, eyeY, jaw) + 1.55), 'head', 'light', L);
-    b.add(box(0.4, 0.4, 3.4, -3.4, 43.3, 1.6), 'head', 'plate', PLATE);
+    g.add(new THREE.CylinderGeometry(0.75, 0.85, 1.6, 8).rotateX(Math.PI / 2).translate(-eyeX, eyeY, faceZ(-eyeX, eyeY, jaw) + 0.7), 'head', 'plate', PLATE);
+    g.add(new THREE.CylinderGeometry(0.55, 0.55, 0.2, 8).rotateX(Math.PI / 2).translate(-eyeX, eyeY, faceZ(-eyeX, eyeY, jaw) + 1.55), 'head', 'light', L);
+    g.add(box(0.4, 0.4, 3.4, -3.4, 43.3, 1.6), 'head', 'plate', PLATE);
   }
   addHair(b, look, H, C, HS);
 
-  const geo = b.build();
   // Expressions as morph targets (relative offsets of the face parts).
   const browR = (s: number, up: number, tilt: number) => (x: number, _y: number, _z: number, c: THREE.Vector3): [number, number, number] =>
     [0, up + tilt * (x - c.x) * s, 0];
@@ -471,21 +492,42 @@ export function buildHuman(id: number, nationColor: number, emblemMat: THREE.Mat
   const lid = (dy: number, tilt = 0, s = 1) => (x: number, _y: number, _z: number, c: THREE.Vector3): [number, number, number] => [0, dy + tilt * (x - c.x) * s, 0];
   const mouth = (open: number, smirk: number, wide: number) => (x: number, y: number, _z: number, c: THREE.Vector3): [number, number, number] =>
     [(x - c.x) * (wide - 1), (y - c.y) * (open - 1) + smirk * (x - c.x), 0];
-  geo.morphAttributes.position = [
+  const withFace = (k: SkinBuilder) => {
+    const out = k.build();
+    out.morphAttributes.position = [
     // focused: brows down and in, eyes narrowed.
-    b.morph([['browL', browR(1, -0.35, 0.22)], ['browR', browR(-1, -0.35, 0.22)], ['eyeL', eyeS(0.72)], ['eyeR', eyeS(0.72)],
+    k.morph([['browL', browR(1, -0.35, 0.22)], ['browR', browR(-1, -0.35, 0.22)], ['eyeL', eyeS(0.72)], ['eyeR', eyeS(0.72)],
       ['lidL', lid(-0.22, 0.08, 1)], ['lidR', lid(-0.22, 0.08, -1)], ['mouth', mouth(1, 0, 0.85)]]),
     // alert: brows up, eyes wide.
-    b.morph([['browL', browR(1, 0.38, -0.08)], ['browR', browR(-1, 0.38, -0.08)], ['eyeL', eyeS(1.18)], ['eyeR', eyeS(1.18)],
+    k.morph([['browL', browR(1, 0.38, -0.08)], ['browR', browR(-1, 0.38, -0.08)], ['eyeL', eyeS(1.18)], ['eyeR', eyeS(1.18)],
       ['lidL', lid(0.15)], ['lidR', lid(0.15)], ['mouth', mouth(1.6, 0, 0.9)]]),
     // surprised: brows high, round eyes, an open mouth.
-    b.morph([['browL', browR(1, 0.7, -0.05)], ['browR', browR(-1, 0.7, -0.05)], ['eyeL', eyeS(1.3)], ['eyeR', eyeS(1.3)],
+    k.morph([['browL', browR(1, 0.7, -0.05)], ['browR', browR(-1, 0.7, -0.05)], ['eyeL', eyeS(1.3)], ['eyeR', eyeS(1.3)],
       ['lidL', lid(0.3)], ['lidR', lid(0.3)], ['mouth', mouth(3.6, 0, 0.7)]]),
     // confident: one brow up, a slight squint, a smirk.
-    b.morph([['browL', browR(1, 0.3, 0.05)], ['browR', browR(-1, -0.12, 0.1)], ['eyeL', eyeS(0.9)], ['eyeR', eyeS(0.82)],
+    k.morph([['browL', browR(1, 0.3, 0.05)], ['browR', browR(-1, -0.12, 0.1)], ['eyeL', eyeS(0.9)], ['eyeR', eyeS(0.82)],
       ['lidL', lid(-0.06)], ['lidR', lid(-0.12)], ['mouth', mouth(1, 0.22, 1.12)]]),
-  ];
-  geo.morphTargetsRelative = true;
+    ];
+    out.morphTargetsRelative = true;
+    return out;
+  };
+  const full = b.concat(g);
+  /**
+   * Uniform + role gear (allies, or a moment of reveal) and uniform only (enemies, most of the
+   * time). The uniform's vertices come first in the full geometry, so the uniform-only one shares
+   * all of its buffers (and face morphs) and only draws a shorter index: no extra vertex memory.
+   */
+  const geoFull = withFace(full);
+  let geoBase = geoFull;
+  if (full.vertices() !== b.vertices()) {
+    geoBase = new THREE.BufferGeometry();
+    for (const [k, v] of Object.entries(geoFull.attributes)) geoBase.setAttribute(k, v);
+    geoBase.morphAttributes.position = geoFull.morphAttributes.position;
+    geoBase.morphTargetsRelative = true;
+    geoBase.setIndex(b.idx);
+    geoBase.boundingSphere = geoFull.boundingSphere;
+  }
+  const geo = geoFull;
 
   const trace = { value: 0 };
   const material = makeMaterial(trace);
@@ -514,16 +556,24 @@ export function buildHuman(id: number, nationColor: number, emblemMat: THREE.Mat
   emblem.castShadow = false;
   bones.chest.add(emblem);
 
-  const colorAttr = geo.attributes.color as THREE.BufferAttribute;
   let painted = nationColor;
   const setNationColor = (color: number) => {
     if (color === painted) return;
     painted = color;
+    // One colour buffer serves both geometries.
+    const colorAttr = geoFull.attributes.color as THREE.BufferAttribute;
     for (const [region, c] of [['cloth', color], ['band', color], ['clothDark', dark(color, 0.55)], ['light', light(color)], ['trace', light(color, 0.45)]] as [Region, number][]) {
       const col = new THREE.Color(c);
-      for (const [a, z] of b.regions.get(region) ?? []) for (let i = a; i < z; i++) colorAttr.setXYZ(i, col.r, col.g, col.b);
+      for (const [a, z] of full.regions.get(region) ?? []) for (let i = a; i < z; i++) colorAttr.setXYZ(i, col.r, col.g, col.b);
     }
     colorAttr.needsUpdate = true;
+  };
+  let gearOn = true;
+  /** Shows or hides the role gear (one geometry swap; same skeleton, same face). */
+  const setGear = (on: boolean) => {
+    if (on === gearOn) return;
+    gearOn = on;
+    mesh.geometry = on ? geoFull : geoBase;
   };
   const infl = mesh.morphTargetInfluences!;
   const setExpression = (e: Exclude<Expression, 'neutral'>, k: number) => { infl[EXPRESSIONS.indexOf(e)] = k; };
@@ -533,7 +583,7 @@ export function buildHuman(id: number, nationColor: number, emblemMat: THREE.Mat
     ({ gun, muzzle } = buildMarker(nationColor));
     bones.chest.add(gun);
   }
-  return { mesh, bones, rest, material, emblem, look, gear, setNationColor, setExpression, setTrace, gun, muzzle };
+  return { mesh, bones, rest, material, emblem, look, gear, setNationColor, setExpression, setTrace, setGear, gearShown: () => gearOn, geometries: { base: geoBase, full: geoFull }, gun, muzzle };
 }
 
 /** Modular low-poly hair: a crown cap, a back/sides shell, bangs, and the style's own pieces. */

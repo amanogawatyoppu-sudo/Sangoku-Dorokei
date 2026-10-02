@@ -53,6 +53,7 @@ import { NameTags } from './render/nameTags';
 import { Ghost } from './render/ghost';
 import { WarView } from './render/warView';
 import { Vfx } from './render/vfx';
+import { sceneMemory } from './render/memInfo';
 import { ObjectiveMarkers } from './ui/objectiveMarkers';
 import { PingView } from './render/pingView';
 import { PingMarkers } from './ui/pingMarkers';
@@ -60,7 +61,7 @@ import { Footprints } from './render/footprints';
 import { Music } from './audio/music';
 import { tensionOf } from './audio/tension';
 import { SECTORS, TRUCE_MS, answerTruce, proposeTruce, sectorAt, sectorPoint, strength, trucesLeft } from './sim/war';
-import { INTERSECTIONS, insideLoop } from './config/map';
+import { FOOTBRIDGES, INTERSECTIONS, STREET_SEGS, WORLD, insideLoop } from './config/map';
 import { NATION_IDS } from './config/nations';
 import { kingOf } from './sim/state';
 import { createRng } from './core/rng';
@@ -150,8 +151,11 @@ function showScreen(to: AppScreen): void {
 
 /** CPU戦 (v8.4): the faction and role are dealt at random and revealed when the match starts. */
 function launchCpu(s: Settings): void {
-  const nation = NATION_IDS[Math.floor(Math.random() * NATION_IDS.length)];
-  const role = ROLES[Math.floor(Math.random() * ROLES.length)];
+  let nation = NATION_IDS[Math.floor(Math.random() * NATION_IDS.length)];
+  let role = ROLES[Math.floor(Math.random() * ROLES.length)];
+  // Automated visual checks only (`?debug&deal=moon,communicator`): a fixed deal, so two builds compare shot for shot.
+  const q = new URLSearchParams(location.search), deal = q.has('debug') ? q.get('deal')?.split(',') : undefined;
+  if (deal && (NATION_IDS as readonly string[]).includes(deal[0]) && (ROLES as readonly string[]).includes(deal[1])) { nation = deal[0] as NationId; role = deal[1] as RoleId; }
   launch(nation, role, s.size, { kind: 'solo' }, { cpu: s.cpu, dealt: true });
 }
 
@@ -333,7 +337,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
       else link.command(c.type);
     }
     state.commands = [];
-    const steps = state.meeting || state.over ? (clock.reset(), 0) : clock.consume(frameMs);
+    const steps = state.meeting || state.over || photo.paused ? (clock.reset(), 0) : clock.consume(frameMs);
     for (let i = 0; i < steps; i++) {
       for (const e of state.entities) { e.prevX = e.x; e.prevY = e.y; e.prevZ = e.z; }
       state.time += STEP_MS;
@@ -351,6 +355,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
     // Time the background catch-up already simulated is not counted twice.
     const frameMs = Math.min(rafMs, performance.now() - lastFrameAt);
     lastFrameAt = performance.now();
+    frameTimes[frameNo % frameTimes.length] = rafMs;
     const look = input.consumeLook();
     cam.applyLook(look.dx, look.dy);
     cam.applyZoom(input.consumeZoom());
@@ -391,7 +396,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
   if (host) {
     setInterval(() => {
       const gap = performance.now() - lastFrameAt;
-      if (gap < 250) return;
+      if (gap < 250 || photo.paused) return;
       lastFrameAt = performance.now();
       state.input = { forward: 0, turn: 0, dash: false };
       for (let t = Math.min(gap, 5000); t > 0; t -= 50) simulate(Math.min(50, t));
@@ -423,7 +428,8 @@ function render(state: GameState, entityView: EntityView, indicators: Indicators
     cam.free(refs.camera, ghost.x, ghost.y, ghost.z);
     px = ghost.x; py = Math.max(0, ghost.y - 150); pz = ghost.z;
   } else {
-    cam.follow(Math.atan2(p.dirX, p.dirZ), dtSec);
+    if (photo.dist) cam.distance = photo.dist; // debug close-ups only
+    cam.follow(Math.atan2(p.dirX, p.dirZ) + photo.orbit, dtSec);
     cam.update(refs.camera, px, py, pz, dtSec);
   }
   entityView.playerOpacity = cam.boomLength < 70 ? 0.3 : 1;
@@ -451,6 +457,12 @@ function watchCanvasSize(): void {
   };
   watchDpr();
 }
+
+/** The last 240 frame intervals (ms), for `__sangoku.frameStats()` on a real device. */
+const frameTimes = new Float32Array(240);
+
+/** Debug-only photo controls (set from `?debug` hooks): freeze the match, swing the camera round the player. */
+const photo = { paused: false, orbit: 0, dist: 0 };
 
 /** Read-only hooks for automated browser checks (`?debug`). */
 function exposeDebug(state: GameState, cam: CameraController, tutorial: TutorialGuide | null): void {
@@ -491,8 +503,18 @@ function exposeDebug(state: GameState, cam: CameraController, tutorial: Tutorial
     commands: () => state.commands.length,
     renderer: () => ({ pixelRatio: refs.renderer.getPixelRatio(), width: refs.renderer.domElement.width, height: refs.renderer.domElement.height }),
     /** Where the bases, LOCK POINTs and strategic points are (for visual checks). */
-    sites: () => ({ bases: NATION_IDS.map((n) => NATIONS[n].base), locks: NATION_IDS.map((n) => NATIONS[n].jail), points: state.war.sectors.map((_s, i) => sectorPoint(i)), crossings: INTERSECTIONS.map((c) => ({ x: c.x, z: c.z, s: sectorAt(c.x, c.z), in: insideLoop(c.x, c.z, 0) })) }),
+    sites: () => ({ bases: NATION_IDS.map((n) => NATIONS[n].base), locks: NATION_IDS.map((n) => NATIONS[n].jail), points: state.war.sectors.map((_s, i) => sectorPoint(i)), crossings: INTERSECTIONS.map((c) => ({ x: c.x, z: c.z, s: sectorAt(c.x, c.z), in: insideLoop(c.x, c.z, 0) })), ramps: WORLD.flatMap((w) => w.kind === 'ramp' && insideLoop(w.x, w.z, 0) ? [{ x: w.x, z: w.z, w: w.w, d: w.d, group: w.group ?? '', axis: w.axis, dir: w.dir, style: w.style, rise: w.hHigh - w.hLow, low: w.hLow }] : []), footbridges: FOOTBRIDGES.slice(), streets: STREET_SEGS.filter((g) => insideLoop(g.x, g.z, 0)).map((g) => ({ x: g.x, z: g.z, w: g.w, d: g.d, axis: g.axis, kind: g.kind, s: sectorAt(g.x, g.z) })) }),
     instanced: () => refs.scene.children.filter((o) => (o as InstancedMesh).isInstancedMesh).map((o) => { const m = o as InstancedMesh; m.computeBoundingSphere(); return [m.count, m.visible, (m.material as { type: string }).type, m.boundingSphere?.radius ?? 0]; }),
+    /** Photo helpers for visual checks: freeze the simulation, orbit the camera, stand someone near the player. */
+    pause: (on = true) => { photo.paused = on; },
+    orbit: (rad: number) => { photo.orbit = rad; },
+    zoom: (d: number) => { photo.dist = d; },
+    sprint: (id: number, ms = 3000) => { state.entities[id].sprintUntil = state.time + ms; },
+    place: (id: number, dx: number, dz: number, fx: number, fz: number) => { const e = state.entities[id]; teleport(e, state.player.x + dx, state.player.z + dz); const l = Math.hypot(fx, fz) || 1; e.dirX = fx / l; e.dirZ = fz / l; },
+    people: () => state.entities.map((e) => ({ id: e.id, nation: e.nation, role: e.role, alive: e.alive, jailed: e.jailed, player: e.isPlayer, x: Math.round(e.x), y: Math.round(e.y), z: Math.round(e.z), aim: e.ai.aimId })),
+    /** Frame-time percentiles over the last 240 frames (measure on the real device; headless CPU rendering says nothing about GPUs). */
+    frameStats: () => { const v = Array.from(frameTimes).filter((x) => x > 0).sort((a, b) => a - b); const q = (k: number) => +(v[Math.min(v.length - 1, Math.floor(v.length * k))] ?? 0).toFixed(1); return { frames: v.length, p50: q(0.5), p95: q(0.95), p99: q(0.99), fps50: q(0.5) ? +(1000 / q(0.5)).toFixed(1) : 0, gpu: (() => { const gl = refs.renderer.getContext(); const ext = gl.getExtension('WEBGL_debug_renderer_info'); return ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : 'unknown'; })() }; },
+    memory: () => sceneMemory(refs.scene),
     renderInfo: () => ({ calls: refs.renderer.info.render.calls, triangles: refs.renderer.info.render.triangles, geometries: refs.renderer.info.memory.geometries, textures: refs.renderer.info.memory.textures }),
   };
 }
