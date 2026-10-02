@@ -13,6 +13,7 @@ import { jailPose, lockPose, stunPose } from './poses';
 import { sniperTarget } from '../sim/systems/abilities';
 import { canAct, captureCandidate } from '../sim/systems/capture';
 import { gearReveal } from './gearReveal';
+import { GlbCharacter, glbCharacterEnabled, loadSolGlb } from './glbCharacter';
 
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -27,6 +28,10 @@ const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 /** Per-character animation state (presentation only). */
 interface Anim {
   human: Human;
+  /** Integration test: the GLB body drawn instead of `human` (player only; null = procedural). */
+  glb: GlbCharacter | null;
+  /** A TRACE was made this frame (one-shot for the GLB clip). */
+  traced: boolean;
   /** ピヨピヨ: stars circling over the head while stunned (made on first use). */
   stars: THREE.Group | null;
   phase: number;
@@ -153,8 +158,9 @@ export class EntityView {
       if (e.isPlayer) addXray(human.mesh, NATIONS[e.nation].color);
       human.mesh.scale.setScalar(human.look.height);
       scene.add(human.mesh);
+      if (e.isPlayer && glbCharacterEnabled()) this.attachGlb(e.id, NATIONS[e.nation].color);
       this.anims.set(e.id, {
-        human, phase: (e.id * 1.7) % (Math.PI * 2), yaw: Math.atan2(e.dirX, e.dirZ), turnRate: 0, speed: 0,
+        human, glb: null, traced: false, phase: (e.id * 1.7) % (Math.PI * 2), yaw: Math.atan2(e.dirX, e.dirZ), turnRate: 0, speed: 0,
         headYaw: 0, reach: 0, lastCapCd: e.cd.capture, nation: e.nation, aim: 0, recoil: 0, lastSpecialCd: e.cd.special,
         accel: 0, still: 0, land: 0, airborne: false, turnStep: 0, stars: null,
         face: [0, 0, 0, 0], trace: 0, proud: 0, lag: 0, reveal: 0, lastHp: e.hp,
@@ -162,6 +168,36 @@ export class EntityView {
     }
     this.shadows = contactShadows(state.entities.length);
     scene.add(this.shadows);
+  }
+
+  /**
+   * GLB integration test: once the model has loaded, the player's procedural body stays
+   * as an invisible rig (effects and logic keep using it) and the GLB is drawn on it.
+   * If loading fails, the procedural body simply stays visible.
+   */
+  private attachGlb(id: number, xray: number): void {
+    loadSolGlb().then((gltf) => {
+      const a = this.anims.get(id);
+      if (!a) return;
+      const glb = new GlbCharacter(gltf, xray);
+      a.human.material.visible = false;
+      a.human.emblem.visible = false;
+      for (const c of a.human.mesh.children) if ((c as THREE.SkinnedMesh).isSkinnedMesh) c.visible = false; // its x-ray
+      a.human.mesh.add(glb.root);
+      a.glb = glb;
+    }).catch((err) => { console.warn('GLB character: staying on the procedural body', err); });
+  }
+
+  /** For checks: the GLB state of the player (null when the test is off or not loaded yet). */
+  glbInfo(id: number): { clip: string; stats: GlbCharacter['stats'] } | null {
+    const g = this.anims.get(id)?.glb;
+    return g ? { clip: g.current, stats: g.stats } : null;
+  }
+
+  /** For checks: play the TRACE motion as if a TRACE had just been made (GLB clip, or the procedural grab). */
+  glbTrace(id: number): void {
+    const a = this.anims.get(id);
+    if (a) { a.traced = true; a.reach = 0.38; }
   }
 
   /** Fade the player's model when the camera is squeezed right behind it (indoors, against walls). */
@@ -195,6 +231,7 @@ export class EntityView {
       mesh.rotation.y = yaw;
       const shown = effNation(state, e, p.nation);
       a.human.setNationColor(NATIONS[shown].color);
+      a.glb?.setNationColor(NATIONS[shown].color);
       if (a.nation !== shown) {
         a.nation = shown;
         a.human.emblem.material = (e.isPlayer ? this.playerEmblemMats : this.emblemMats)[shown];
@@ -211,6 +248,12 @@ export class EntityView {
       const step = Math.min(0.1, a.lag);
       a.lag = 0;
       this.animate(a, e, state, step);
+      if (a.glb) {
+        // The same lean into turns as the procedural body (presentation only).
+        a.glb.root.rotation.z = a.human.bones.root.rotation.z;
+        a.glb.update(step, { speed: a.speed, turnRate: a.turnRate, held: e.jailed || !!e.channeling || e.stunUntil > state.time, trace: a.traced });
+        a.traced = false;
+      }
       if (!far) this.express(a, e, state, step);
     }
     this.shadows.count = shadows;
@@ -275,6 +318,7 @@ export class EntityView {
       if (m.transparent !== ghost) { m.transparent = ghost; m.needsUpdate = true; }
       m.opacity = opacity;
     }
+    a.glb?.setOpacity(opacity);
   }
 
   private animate(a: Anim, e: Entity, state: GameState, dt: number): void {
@@ -295,7 +339,7 @@ export class EntityView {
     const ph = a.phase, s = Math.sin(ph), c = Math.cos(ph);
 
     // Grab: the capture cooldown was just reset.
-    if (e.cd.capture > a.lastCapCd + 0.3) { a.reach = 0.38; a.proud = 2.2; }
+    if (e.cd.capture > a.lastCapCd + 0.3) { a.reach = 0.38; a.proud = 2.2; a.traced = true; }
     a.lastCapCd = e.cd.capture;
     a.reach = Math.max(0, a.reach - dt);
 

@@ -4,7 +4,7 @@ const { start, wait } = require('./start9.cjs');
 const tag = process.argv[2] ?? 'gp', base = process.argv[3] ?? 'http://localhost:5173/';
 const out = (n) => `../qa/${tag}-${n}.png`;
 (async () => {
-  const { browser, p, errs } = await start({ base, deal: 'moon,soldier' });
+  const { browser, p, errs } = await start({ base, deal: 'moon,soldier', q: process.env.Q ?? '' });
   const S = (f, ...a) => p.evaluate(f, ...a);
   const res = {};
   const sites = await S(() => window.__sangoku.sites());

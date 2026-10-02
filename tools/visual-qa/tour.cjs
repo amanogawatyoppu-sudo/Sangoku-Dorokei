@@ -5,17 +5,17 @@ const tag = process.argv[2] ?? 'before';
 const W = Number(process.argv[3] ?? 1366), H = Number(process.argv[4] ?? 768);
 const SPOTS = [
   ['spawn', null],
-  ['shinjuku', [-2847, -700, 0, 1]], ['shibuya', [-3067, 2420, 0, -1]], ['akihabara', [2661, -1900, 0, -1]],
+  ['shinjuku', [-2847, -700, 0, 1]], ['shibuya', [-3067, 2420, 0, -1]], ['scramble', [-3060, 1899, 1, 0]], ['akihabara', [2661, -1900, 0, -1]],
   ['ueno', [2750, -3800, 0, -1]], ['tokyotower', [487, 3100, 0, -1]], ['shinagawa', [300, 4850, 0, -1]], ['central', [1150, 1100, 0, -1]],
 ];
 (async () => {
-  const browser = await chromium.launch({ executablePath: process.env.CHROME ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
+  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
   const ctx = await browser.newContext({ viewport: { width: W, height: H }, hasTouch: W < 900, isMobile: W < 900 });
   await ctx.addInitScript(() => { try { localStorage.setItem('sangoku.quality.v1', '0'); } catch {} });
   const p = await ctx.newPage();
   const errs = []; p.on('pageerror', (e) => errs.push(e.message)); p.on('console', (m) => { if (m.type() === 'error' && !/fonts|ERR_/.test(m.text())) errs.push(m.text()); });
   await p.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
-  await p.goto((process.env.BASE ?? 'http://localhost:4173/') + '?debug&deal=moon,communicator'); await wait(1500);
+  await p.goto((process.env.BASE ?? 'http://localhost:4173/') + '?debug&deal=moon,communicator' + (process.env.Q ?? '')); await wait(1500);
   await p.evaluate(() => setTimeout(() => document.getElementById('btnPlay').click(), 10)); await wait(500);
   await p.evaluate(() => setTimeout(() => document.getElementById('btnStart').click(), 10));
   for (let i = 0; i < 200; i++) { if (await p.evaluate(() => !!window.__sangoku && window.__sangoku.screen() === 'PLAYING' && (!document.getElementById('loading') || document.getElementById('loading').hidden))) break; await wait(500); }

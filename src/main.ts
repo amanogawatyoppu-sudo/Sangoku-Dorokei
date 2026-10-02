@@ -291,7 +291,7 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
   resizeRenderer(refs, canvas);
   cam.snap(Math.atan2(state.player.dirX, state.player.dirZ));
   if (tutorial) tutorial.onFace = (dx, dz) => cam.snap(Math.atan2(dx, dz));
-  if (new URLSearchParams(location.search).has('debug')) exposeDebug(state, cam, tutorial);
+  if (new URLSearchParams(location.search).has('debug')) exposeDebug(state, cam, tutorial, entityView);
 
   /** The host's frame: friends' input in, simulation, snapshot out. */
   const simulate = (frameMs: number) => {
@@ -465,7 +465,7 @@ const frameTimes = new Float32Array(240);
 const photo = { paused: false, orbit: 0, dist: 0 };
 
 /** Read-only hooks for automated browser checks (`?debug`). */
-function exposeDebug(state: GameState, cam: CameraController, tutorial: TutorialGuide | null): void {
+function exposeDebug(state: GameState, cam: CameraController, tutorial: TutorialGuide | null, entityView: EntityView): void {
   (window as unknown as { __sangoku: unknown }).__sangoku = {
     screen: () => screen,
     tutorialStep: () => tutorial?.step ?? null,
@@ -516,6 +516,9 @@ function exposeDebug(state: GameState, cam: CameraController, tutorial: Tutorial
     frameStats: () => { const v = Array.from(frameTimes).filter((x) => x > 0).sort((a, b) => a - b); const q = (k: number) => +(v[Math.min(v.length - 1, Math.floor(v.length * k))] ?? 0).toFixed(1); return { frames: v.length, p50: q(0.5), p95: q(0.95), p99: q(0.99), fps50: q(0.5) ? +(1000 / q(0.5)).toFixed(1) : 0, gpu: (() => { const gl = refs.renderer.getContext(); const ext = gl.getExtension('WEBGL_debug_renderer_info'); return ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : 'unknown'; })() }; },
     memory: () => sceneMemory(refs.scene),
     renderInfo: () => ({ calls: refs.renderer.info.render.calls, triangles: refs.renderer.info.render.triangles, geometries: refs.renderer.info.memory.geometries, textures: refs.renderer.info.memory.textures }),
+    /** GLB integration test: the player's GLB state, and a way to play its TRACE clip. */
+    glb: () => entityView.glbInfo(state.player.id),
+    glbTrace: () => entityView.glbTrace(state.player.id),
   };
 }
 

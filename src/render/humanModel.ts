@@ -258,7 +258,7 @@ const light = (c: number, k = 0.12) => new THREE.Color(c).lerp(new THREE.Color(0
 
 /** Three hard tones for the cel shading (shared). */
 let gradient: THREE.DataTexture | null = null;
-function toonGradient(): THREE.DataTexture {
+export function toonGradient(): THREE.DataTexture {
   if (gradient) return gradient;
   const t = new THREE.DataTexture(new Uint8Array([120, 120, 120, 255, 196, 196, 196, 255, 255, 255, 255, 255]), 3, 1, THREE.RGBAFormat);
   t.minFilter = t.magFilter = THREE.NearestFilter;

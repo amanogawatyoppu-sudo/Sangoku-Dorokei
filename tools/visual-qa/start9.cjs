@@ -1,8 +1,8 @@
 // Shared: open the game (?debug), start a CPU match, wait until playing.
 const { chromium } = require('playwright');
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-async function start({ base = 'http://localhost:5173/', W = 1366, H = 768, mobile = false, tier = '0', seed, deal = 'moon,communicator', dpr = 1 } = {}) {
-  const browser = await chromium.launch({ executablePath: process.env.CHROME ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
+async function start({ base = 'http://localhost:5173/', W = 1366, H = 768, mobile = false, tier = '0', seed, deal = 'moon,communicator', dpr = 1, q = process.env.Q ?? '' } = {}) {
+  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
   const ctx = await browser.newContext({ viewport: { width: W, height: H }, hasTouch: mobile, isMobile: mobile, deviceScaleFactor: dpr });
   await ctx.addInitScript((t) => { try { localStorage.setItem('sangoku.quality.v1', t); } catch {} }, tier);
   // Deterministic "random" (the CPU-match deal, names…), so two builds can be compared shot for shot.
@@ -10,7 +10,7 @@ async function start({ base = 'http://localhost:5173/', W = 1366, H = 768, mobil
   const p = await ctx.newPage();
   const errs = []; p.on('pageerror', (e) => errs.push(e.message)); p.on('console', (m) => { if (m.type() === 'error' && !/fonts|ERR_/.test(m.text())) errs.push(m.text()); });
   await p.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
-  await p.goto(base + '?debug' + (deal ? '&deal=' + deal : '')); await wait(2500);
+  await p.goto(base + '?debug' + (deal ? '&deal=' + deal : '') + q); await wait(2500);
   await p.evaluate(() => setTimeout(() => document.getElementById('btnPlay').click(), 10)); await wait(500);
   await p.evaluate(() => setTimeout(() => document.getElementById('btnStart').click(), 10));
   for (let i = 0; i < 200; i++) { if (await p.evaluate(() => !!window.__sangoku && window.__sangoku.screen() === 'PLAYING' && (!document.getElementById('loading') || document.getElementById('loading').hidden))) break; await wait(500); }
