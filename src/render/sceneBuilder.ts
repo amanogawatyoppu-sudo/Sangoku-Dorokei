@@ -6,6 +6,8 @@ import { rampHeight } from '../sim/systems/world';
 import { brickFacadeTexture, detailNoise, stoneFacadeTexture, facadeTexture, groundTexture, latticeTexture, stoneTexture, viaductTexture } from './textures';
 import { buildCity } from './city';
 import { buildDistricts } from './districts';
+import { buildShibuyaBlock } from './shibuyaBlock';
+import { artMode } from './artStyle';
 import { buildBases, buildLockPoints } from './objectives';
 import { NIGHT_GLOW } from './nightGlow';
 
@@ -592,6 +594,8 @@ export function buildScene(canvas: HTMLCanvasElement): SceneRefs {
   buildBases(scene);
   buildLockPoints(scene);
   buildDistricts(scene);
+  // v9.2 art prototype: the Shibuya showcase block (scenery only).
+  if (artMode() !== 'off') buildShibuyaBlock(scene);
   const train = buildRailway(scene);
   // A fixed handful of lamp lights (never more or fewer: that would recompile every material).
   const lights: THREE.PointLight[] = [];

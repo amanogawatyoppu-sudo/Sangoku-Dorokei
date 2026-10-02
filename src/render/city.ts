@@ -13,6 +13,7 @@ import type { FacadeKind } from './textures';
 import { buildStreetProps } from './streetProps';
 import { NIGHT_GLOW, glowAtNight } from './nightGlow';
 import { LAMP_R } from '../sim/night';
+import { artMode } from './artStyle';
 
 /**
  * The city at street level: buildings with storey-accurate façades, shopfronts
@@ -325,7 +326,7 @@ export function buildCity(scene: THREE.Scene): void {
 
   const tex = (t: THREE.Texture) => t;
   const lit = (k: FacadeKind) => ({ emissive: 0xffffff, emissiveMap: windowGlowTexture(k), emissiveIntensity: 0.45 });
-  const shop = tex(shopAtlas()), sign = tex(signAtlas());
+  const shop = tex(shopAtlas()), sign = tex(signAtlas(artMode() !== 'off'));
   const mats: Record<string, THREE.Material> = {
     // Dusk: windows light up (emissive maps of the lit panes).
     glass: std(0xffffff, { map: facadeTexture('glass'), vertexColors: true, roughness: 0.35, metalness: 0.25, ...lit('glass') }),
@@ -337,7 +338,8 @@ export function buildCity(scene: THREE.Scene): void {
     shop: std(0xffffff, { map: shop, emissive: 0xffffff, emissiveMap: shop, emissiveIntensity: 0.42 }),
     roof: std(0xffffff, { map: roofTexture(), vertexColors: true, roughness: 0.95 }),
     roofTile: std(0xffffff, { map: roofTileTexture(), vertexColors: true, roughness: 0.8 }),
-    sign: std(0xffffff, { map: sign, emissive: 0xffffff, emissiveMap: sign, emissiveIntensity: 0.55 }),
+    // v9.2 prototype: a projecting sign between the camera and the player dissolves (like the tree crowns).
+    sign: ((m) => (artMode() !== 'off' ? nearFade(m, 30, 120) : m))(std(0xffffff, { map: sign, emissive: 0xffffff, emissiveMap: sign, emissiveIntensity: 0.55 })),
     avenue: std(0xffffff, { map: roadTexture('avenue', 380), roughness: 0.95 }),
     street: std(0xffffff, { map: roadTexture('street', 240), roughness: 0.95 }),
     alley: std(0xffffff, { map: roadTexture('alley', 120), roughness: 0.95 }),

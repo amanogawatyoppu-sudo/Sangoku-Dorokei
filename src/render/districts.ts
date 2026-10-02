@@ -4,6 +4,8 @@ import type { Building } from '../config/map';
 import { SECTORS, sectorAt } from '../sim/war';
 import { NIGHT_GLOW } from './nightGlow';
 import { DISTRICT_CODES } from '../config/terminology';
+import { artMode } from './artStyle';
+import { SHOWCASE_LIGHTS } from './shibuyaBlock';
 
 /**
  * District identity (v9.0, visual only): each of the nine sectors dresses its buildings
@@ -38,6 +40,15 @@ export const DISTRICT_LOOKS: readonly DistrictLook[] = [
   { palette: [0xff3b30, 0xffa060, 0xffffff], signs: 1.0, shape: 'band', crown: 0.6, masts: 0.2 }, // 東京タワー
   { palette: [0x9ff3ff, 0xffffff, 0x5a8bff], signs: 0.9, shape: 'band', crown: 0.9, masts: 0.3 }, // 品川
 ];
+
+/**
+ * v9.2 art prototype: Shibuya's lights without the faction-like yellow and sky blue
+ * (magenta, violet, mint, red, white), so a STAR or LUNA player never blends into a sign.
+ */
+export function lookFor(sector: number): DistrictLook {
+  const l = DISTRICT_LOOKS[sector];
+  return sector === 1 && artMode() !== 'off' ? { ...l, palette: [...SHOWCASE_LIGHTS] } : l;
+}
 
 /** The district's codename by sector id. */
 export function districtCode(sector: number): string {
@@ -104,7 +115,7 @@ function dressBuilding(b: Building, look: DistrictLook, rnd: () => number, out: 
  */
 function dressCrossings(out: Piece[], posts: Piece[]): void {
   for (const ix of INTERSECTIONS) {
-    const sec = sectorAt(ix.x, ix.z), look = DISTRICT_LOOKS[sec];
+    const sec = sectorAt(ix.x, ix.z), look = lookFor(sec);
     const rnd = prng(Math.round(ix.x * 13 + ix.z * 7));
     const pick = () => look.palette[Math.floor(rnd() * look.palette.length) % look.palette.length];
     const sx = rnd() < 0.5 ? -1 : 1, sz = rnd() < 0.5 ? -1 : 1;
@@ -176,7 +187,7 @@ export function buildDistricts(scene: THREE.Scene): DistrictStats {
   // Every building, the skyline beyond the tracks included: the districts read from afar too.
   for (const b of BUILDINGS) {
     const s = sectorAt(b.x, b.z);
-    dressBuilding(b, DISTRICT_LOOKS[s], prng(b.seed * 7 + 11), lit, masts);
+    dressBuilding(b, lookFor(s), prng(b.seed * 7 + 11), lit, masts);
   }
   dressCrossings(lit, masts);
   borderStuds(studs);

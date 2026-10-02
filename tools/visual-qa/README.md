@@ -22,3 +22,10 @@ python3 expo.py ../qa/after-shibuya-day.png                            # exposur
 Headless Chromium here renders with SwiftShader (CPU). Its fps says nothing about a real GPU;
 compare draw calls, triangles and memory instead, and measure frame time on a device with
 `__sangoku.frameStats()` (open the game with `?debug`, play ~10 s, run it in the console).
+
+## v9.2 art prototype
+- `block.cjs` — Shibuya showcase spots A–D, day/sunset/night (`Q='&art=v2'`; `CAM91=1` = v9.1 camera for strict pairs)
+- `factions.cjs` — SOL/LUNA/STAR side by side in front of the signs (`Q='&art=v2all'`)
+- `game2.cjs` — the player in the normal camera: idle/run/sprint/turn/stop, plus on-screen height
+- `tour.cjs` — renderer.info at 10 fixed spots (`BASE=… Q=…`)
+- `mk92.py` — builds the sheets in `docs/review-v9.2/`

@@ -7,6 +7,8 @@ import { effNation, visibleTo } from '../sim/systems/vision';
 import { STEP_SEC } from '../core/clock';
 import type { BoneName, Human } from './humanModel';
 import { BONES, EXPRESSIONS, buildHuman } from './humanModel';
+import { buildHumanV2 } from './humanModelV2';
+import { artMode } from './artStyle';
 import { emblemTexture } from './textures';
 import type { BodyPose, Pose } from './poses';
 import { jailPose, lockPose, stunPose } from './poses';
@@ -149,7 +151,9 @@ export class EntityView {
     this.playerEmblemMats = Object.fromEntries(NATION_IDS.map((n) => [n, mk(n)])) as Record<NationId, THREE.MeshStandardMaterial>;
     for (const e of state.entities) {
       const mats = e.isPlayer ? this.playerEmblemMats : this.emblemMats;
-      const human = buildHuman(e.id, NATIONS[e.nation].color, mats[e.nation], { role: e.role, detail });
+      const art = artMode();
+      const v2 = art === 'all' || (art === 'player' && e.isPlayer);
+      const human = (v2 ? buildHumanV2 : buildHuman)(e.id, NATIONS[e.nation].color, mats[e.nation], { role: e.role, detail: v2 && e.isPlayer ? Math.max(detail, 1) : detail });
       if (e.isPlayer) addXray(human.mesh, NATIONS[e.nation].color);
       human.mesh.scale.setScalar(human.look.height);
       scene.add(human.mesh);

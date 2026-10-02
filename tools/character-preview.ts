@@ -1,6 +1,7 @@
 // Developer preview (not part of the game build): a line-up of characters under dusk light.
 import * as THREE from 'three';
 import { buildHuman } from '../src/render/humanModel';
+import { buildHumanV2 } from '../src/render/humanModelV2';
 import { NATIONS } from '../src/config/nations';
 
 THREE.ColorManagement.enabled = false;
@@ -26,18 +27,20 @@ const params = new URLSearchParams(location.search);
 const pose = params.get('pose') ?? 'idle';
 const roles = ['king', 'soldier', 'sniper', 'communicator', 'keyholder', 'ranger', 'soldier', 'king'] as const;
 const expr = params.get('expr');
-const people = Array.from({ length: 8 }, (_, i) => {
+const turn = params.has('turn');
+const people = Array.from({ length: turn ? 3 : 8 }, (_, i) => {
   const n = nations[i % 3];
-  const h = buildHuman(i * 7 + 3, NATIONS[n].color, new THREE.MeshBasicMaterial({ color: 0xffffff }), { role: roles[i] });
+  const make = params.has('v2') ? buildHumanV2 : buildHuman;
+  const h = make(params.has('same') ? Number(params.get('same')) : i * 7 + 3, NATIONS[params.get('nation') as 'sun' ?? n] ? NATIONS[params.get('nation') as 'sun'].color : NATIONS[n].color, new THREE.MeshBasicMaterial({ color: 0xffffff }), { role: (params.get('role') as 'ranger') ?? roles[i] });
   if (expr && expr !== 'neutral') h.setExpression(expr as 'focused', 1);
   if (params.has('trace')) h.setTrace(1);
-  h.mesh.position.set((i - 3.5) * 16, 0, 0);
-  h.mesh.rotation.y = params.has('back') ? Math.PI : params.has('side') ? Math.PI / 2 : 0.25;
+  h.mesh.position.set(turn ? (i - 1) * 24 : (i - 3.5) * 16, 0, 0);
+  h.mesh.rotation.y = turn ? [0.2, Math.PI / 2, Math.PI][i] : params.has('back') ? Math.PI : params.has('side') ? Math.PI / 2 : 0.25;
   scene.add(h.mesh);
   return h;
 });
 const camera = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 1, 2000);
-if (params.has('face')) { camera.position.set(-24, 43, 34); camera.lookAt(-24, 42.5, 0); } else { camera.position.set(0, 34, 150); camera.lookAt(0, 26, 0); }
+if (params.has('face')) { camera.position.set(turn ? -24 : -24, 43, 30); camera.lookAt(-24, 41.5, 0); } else if (turn) { camera.position.set(0, 30, 112); camera.lookAt(0, 25, 0); } else if (false) { camera.position.set(-24, 43, 34); camera.lookAt(-24, 42.5, 0); } else { camera.position.set(0, 34, 150); camera.lookAt(0, 26, 0); }
 let t = 0;
 function frame() {
   t += 1 / 60;

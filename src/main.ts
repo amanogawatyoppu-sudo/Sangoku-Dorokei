@@ -1,4 +1,5 @@
 import type { InstancedMesh } from 'three';
+import { Vector3 } from 'three';
 import './style.css';
 import type { NationId } from './config/nations';
 import { NATIONS, nationCss } from './config/nations';
@@ -54,6 +55,7 @@ import { Ghost } from './render/ghost';
 import { WarView } from './render/warView';
 import { Vfx } from './render/vfx';
 import { sceneMemory } from './render/memInfo';
+import { ART_CAMERA_DISTANCE, ART_CAMERA_PITCH, artMode } from './render/artStyle';
 import { ObjectiveMarkers } from './ui/objectiveMarkers';
 import { PingView } from './render/pingView';
 import { PingMarkers } from './ui/pingMarkers';
@@ -183,6 +185,8 @@ function startGame(nation: NationId, role: RoleId, size: RosterSize, mode: Mode 
   for (const [id, nick] of names) state.humanNames[id] = nick;
   const bus = new EventBus<GameEvent>();
   const cam = new CameraController();
+  // v9.2 prototype (`?art=v2`): a slightly closer default camera so the character reads larger.
+  if (artMode() !== 'off') { cam.distance = ART_CAMERA_DISTANCE; cam.pitch = ART_CAMERA_PITCH; }
   const entityView = new EntityView(refs.scene, state, quality.current.detail);
   const indicators = new Indicators(refs.scene);
   const effects = new Effects(refs.scene, entityView);
@@ -509,12 +513,20 @@ function exposeDebug(state: GameState, cam: CameraController, tutorial: Tutorial
     pause: (on = true) => { photo.paused = on; },
     orbit: (rad: number) => { photo.orbit = rad; },
     zoom: (d: number) => { photo.dist = d; },
+    tilt: (pitch: number) => { cam.pitch = pitch; },
     sprint: (id: number, ms = 3000) => { state.entities[id].sprintUntil = state.time + ms; },
     place: (id: number, dx: number, dz: number, fx: number, fz: number) => { const e = state.entities[id]; teleport(e, state.player.x + dx, state.player.z + dz); const l = Math.hypot(fx, fz) || 1; e.dirX = fx / l; e.dirZ = fz / l; },
     people: () => state.entities.map((e) => ({ id: e.id, nation: e.nation, role: e.role, alive: e.alive, jailed: e.jailed, player: e.isPlayer, x: Math.round(e.x), y: Math.round(e.y), z: Math.round(e.z), aim: e.ai.aimId })),
     /** Frame-time percentiles over the last 240 frames (measure on the real device; headless CPU rendering says nothing about GPUs). */
     frameStats: () => { const v = Array.from(frameTimes).filter((x) => x > 0).sort((a, b) => a - b); const q = (k: number) => +(v[Math.min(v.length - 1, Math.floor(v.length * k))] ?? 0).toFixed(1); return { frames: v.length, p50: q(0.5), p95: q(0.95), p99: q(0.99), fps50: q(0.5) ? +(1000 / q(0.5)).toFixed(1) : 0, gpu: (() => { const gl = refs.renderer.getContext(); const ext = gl.getExtension('WEBGL_debug_renderer_info'); return ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : 'unknown'; })() }; },
     memory: () => sceneMemory(refs.scene),
+    /** The player's height on screen in CSS pixels (feet to the top of the head), and its share of the view. */
+    playerScreenBox: () => {
+      const p = state.player, c = refs.camera, el = refs.renderer.domElement;
+      const proj = (y: number) => { const v = new Vector3(p.x, p.y + y, p.z).project(c); return { x: (v.x + 1) / 2 * el.clientWidth, y: (1 - v.y) / 2 * el.clientHeight }; };
+      const a = proj(0), b = proj(47);
+      return { px: Math.round(a.y - b.y), viewH: el.clientHeight, share: +((a.y - b.y) / el.clientHeight).toFixed(3), feetY: Math.round(a.y) };
+    },
     renderInfo: () => ({ calls: refs.renderer.info.render.calls, triangles: refs.renderer.info.render.triangles, geometries: refs.renderer.info.memory.geometries, textures: refs.renderer.info.memory.textures }),
   };
 }

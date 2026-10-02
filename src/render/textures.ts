@@ -799,9 +799,12 @@ export function shopAtlas(): THREE.CanvasTexture {
 }
 
 /** Vertical projecting signs (袖看板): 8 cells of 128 × 512. */
-export function signAtlas(): THREE.CanvasTexture {
+export function signAtlas(factionSafe = false): THREE.CanvasTexture {
   const words = ['カラオケ', '居酒屋', '焼肉', '漫画喫茶', '麻雀', '歯科', 'ラーメン', '英会話'];
-  const cols = [['#d8322a', '#ffffff'], ['#1a1a1a', '#ffd84a'], ['#7a1d12', '#ffe9c4'], ['#1f5fb8', '#ffffff'], ['#1b6a3a', '#ffffff'], ['#ffffff', '#1f5fb8'], ['#f0b000', '#1a1a1a'], ['#6a2c91', '#ffffff']];
+  // factionSafe (v9.2 prototype): no blue or yellow fields, so signs never read as LUNA / STAR.
+  const cols = factionSafe
+    ? [['#d8322a', '#ffffff'], ['#1a1a1a', '#5dffc8'], ['#7a1d12', '#ffe9c4'], ['#5c2a6b', '#ffffff'], ['#1b6a3a', '#ffffff'], ['#ffffff', '#7a2335'], ['#1f6f6a', '#ffffff'], ['#6a2c91', '#ffffff']]
+    : [['#d8322a', '#ffffff'], ['#1a1a1a', '#ffd84a'], ['#7a1d12', '#ffe9c4'], ['#1f5fb8', '#ffffff'], ['#1b6a3a', '#ffffff'], ['#ffffff', '#1f5fb8'], ['#f0b000', '#1a1a1a'], ['#6a2c91', '#ffffff']];
   const [c, g] = canvas(1024, 512);
   words.forEach((w, i) => {
     const x = i * 128;

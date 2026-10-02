@@ -30,7 +30,7 @@ export const BONES = [
 export type BoneName = (typeof BONES)[number];
 const BI = Object.fromEntries(BONES.map((b, i) => [b, i])) as Record<BoneName, number>;
 
-type Region = 'skin' | 'hair' | 'cloth' | 'clothDark' | 'band' | 'armor' | 'plate' | 'gold' | 'boot' | 'eye' | 'shine' | 'mouth' | 'light' | 'trace'
+export type Region = 'skin' | 'hair' | 'cloth' | 'clothDark' | 'band' | 'armor' | 'plate' | 'gold' | 'boot' | 'eye' | 'shine' | 'mouth' | 'light' | 'trace'
   | 'browL' | 'browR' | 'eyeL' | 'eyeR' | 'lidL' | 'lidR';
 
 export type HairStyle = 'short' | 'undercut' | 'pony' | 'bob' | 'spiky' | 'long' | 'buzz' | 'sidepart';
@@ -84,10 +84,10 @@ export function gearFor(role: RoleId, id: number): Gear {
 }
 
 /** Head centre (absolute, rest pose): the face and hair are built around it. */
-const HC = { y: 42.5, z: 0.2, rx: 3.9, ry: 4.3, rz: 4.0 };
+export const HC = { y: 42.5, z: 0.2, rx: 3.9, ry: 4.3, rz: 4.0 };
 
 /** Rest-pose joint positions (absolute): long legs, a compact torso, a head about 1/5.7 of the height. */
-function joints(w: number): Record<BoneName, [BoneName | null, number, number, number]> {
+export function joints(w: number): Record<BoneName, [BoneName | null, number, number, number]> {
   return {
     root: [null, 0, 0, 0], hips: ['root', 0, 23, 0], spine: ['hips', 0, 25.2, 0], chest: ['spine', 0, 29, 0],
     neck: ['chest', 0, 35.6, 0], head: ['neck', 0, 38.4, 0],
@@ -98,11 +98,14 @@ function joints(w: number): Record<BoneName, [BoneName | null, number, number, n
   };
 }
 
-class SkinBuilder {
+export class SkinBuilder {
   pos: number[] = [];
   nrm: number[] = [];
   col: number[] = [];
   bone: number[] = [];
+  /** Optional second bone and its weight per vertex (v9.2: cloth that follows two bones). */
+  bone2: number[] = [];
+  w2: number[] = [];
   /** 1 for the faction light strips, 2 for the TRACE device (driven by uTrace), else 0. */
   glow: number[] = [];
   idx: number[] = [];
@@ -111,17 +114,25 @@ class SkinBuilder {
   /** Centre of each face part (for the expression morphs). */
   centers = new Map<Region, THREE.Vector3>();
 
-  add(geo: THREE.BufferGeometry, bone: BoneName, region: Region, color: number): void {
+  /**
+   * Adds a piece. `bone` is one bone, or a function of the vertex position returning a bone,
+   * or a bone, a second bone and the second bone's weight (soft joints, swinging cloth).
+   */
+  add(geo: THREE.BufferGeometry, bone: BoneName | ((x: number, y: number, z: number) => BoneName | [BoneName, BoneName, number]), region: Region, color: number): void {
     const g = geo;
+    if (!g.attributes.normal) g.computeVertexNormals();
     const p = g.attributes.position, n = g.attributes.normal;
     const base = this.pos.length / 3;
     const c = new THREE.Color(color);
-    const bi = BI[bone], gl = region === 'light' ? 1 : region === 'trace' ? 2 : 0;
+    const gl = region === 'light' ? 1 : region === 'trace' ? 2 : 0;
     for (let i = 0; i < p.count; i++) {
-      this.pos.push(p.getX(i), p.getY(i), p.getZ(i));
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      this.pos.push(x, y, z);
       this.nrm.push(n.getX(i), n.getY(i), n.getZ(i));
       this.col.push(c.r, c.g, c.b);
-      this.bone.push(bi);
+      const b = typeof bone === 'function' ? bone(x, y, z) : bone;
+      if (Array.isArray(b)) { this.bone.push(BI[b[0]]); this.bone2.push(BI[b[1]]); this.w2.push(b[2]); }
+      else { this.bone.push(BI[b]); this.bone2.push(BI[b]); this.w2.push(0); }
       this.glow.push(gl);
     }
     if (g.index) for (let i = 0; i < g.index.count; i++) this.idx.push(base + g.index.getX(i));
@@ -160,6 +171,7 @@ class SkinBuilder {
     const base = this.pos.length / 3;
     r.pos = [...this.pos, ...o.pos]; r.nrm = [...this.nrm, ...o.nrm]; r.col = [...this.col, ...o.col];
     r.bone = [...this.bone, ...o.bone]; r.glow = [...this.glow, ...o.glow];
+    r.bone2 = [...this.bone2, ...o.bone2]; r.w2 = [...this.w2, ...o.w2];
     r.idx = [...this.idx, ...o.idx.map((i) => i + base)];
     for (const [k, v] of this.regions) r.regions.set(k, v.map(([a, z]) => [a, z] as [number, number]));
     for (const [k, v] of o.regions) r.regions.set(k, [...(r.regions.get(k) ?? []), ...v.map(([a, z]) => [a + base, z + base] as [number, number])]);
@@ -170,7 +182,11 @@ class SkinBuilder {
   build(): THREE.BufferGeometry {
     const n = this.bone.length;
     const si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);
-    for (let i = 0; i < n; i++) { si[i * 4] = this.bone[i]; sw[i * 4] = 1; }
+    for (let i = 0; i < n; i++) {
+      const w2 = this.w2[i] ?? 0;
+      si[i * 4] = this.bone[i]; sw[i * 4] = 1 - w2;
+      si[i * 4 + 1] = this.bone2[i] ?? this.bone[i]; sw[i * 4 + 1] = w2;
+    }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3));
     g.setAttribute('normal', new THREE.Float32BufferAttribute(this.nrm, 3));
@@ -186,13 +202,13 @@ class SkinBuilder {
 
 // ---- shape helpers -------------------------------------------------------------------------
 
-const box = (w: number, h: number, d: number, x: number, y: number, z: number) => new THREE.BoxGeometry(w, h, d).translate(x, y, z);
+export const box = (w: number, h: number, d: number, x: number, y: number, z: number) => new THREE.BoxGeometry(w, h, d).translate(x, y, z);
 
 /**
  * A tapered box: bottom w0×d0, top w1×d1, from y0 to y1, centred on (x, z), with an
  * optional forward shift of the top (dz). Flat-shaded faces (eight corners, six quads).
  */
-function tbox(w0: number, d0: number, w1: number, d1: number, y0: number, y1: number, x = 0, z = 0, dz = 0): THREE.BufferGeometry {
+export function tbox(w0: number, d0: number, w1: number, d1: number, y0: number, y1: number, x = 0, z = 0, dz = 0): THREE.BufferGeometry {
   const g = new THREE.BoxGeometry(1, 1, 1, 1, 1, 1);
   const p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {
@@ -205,24 +221,24 @@ function tbox(w0: number, d0: number, w1: number, d1: number, y0: number, y1: nu
 }
 
 /** A tapered limb segment (a low-poly cylinder) from y0 (radius r0) to y1 (radius r1). */
-function limb(r0: number, r1: number, y0: number, y1: number, x: number, z: number, seg: number, sx = 1, sz = 1): THREE.BufferGeometry {
+export function limb(r0: number, r1: number, y0: number, y1: number, x: number, z: number, seg: number, sx = 1, sz = 1): THREE.BufferGeometry {
   // Open-ended: both ends always sit inside a joint cap, a cuff or a shoe.
   return new THREE.CylinderGeometry(r1, r0, y1 - y0, seg, 1, true).scale(sx, 1, sz).translate(x, (y0 + y1) / 2, z);
 }
 
 /** A low-poly ellipsoid (joint caps, the head, pads). */
-function blob(rx: number, ry: number, rz: number, x: number, y: number, z: number, ws: number, hs: number): THREE.BufferGeometry {
+export function blob(rx: number, ry: number, rz: number, x: number, y: number, z: number, ws: number, hs: number): THREE.BufferGeometry {
   return new THREE.SphereGeometry(1, ws, hs).scale(rx, ry, rz).translate(x, y, z);
 }
 
 /** Part of an ellipsoid shell around the head (hair caps): theta from the crown down, phi round the head. */
-function shell(grow: number, t0: number, t1: number, p0: number, p1: number, ws: number, hs: number, squash = 1): THREE.BufferGeometry {
+export function shell(grow: number, t0: number, t1: number, p0: number, p1: number, ws: number, hs: number, squash = 1): THREE.BufferGeometry {
   return new THREE.SphereGeometry(1, ws, hs, p0, p1, t0, t1)
     .scale(HC.rx + grow, (HC.ry + grow) * squash, HC.rz + grow).translate(0, HC.y, HC.z);
 }
 
 /** Where the head's surface is at (x, y), in front (for placing face parts flush). */
-function faceZ(x: number, y: number, jaw: number): number {
+export function faceZ(x: number, y: number, jaw: number): number {
   const ny = (y - HC.y) / HC.ry;
   const taper = ny < 0 ? 1 - (0.1 + 0.16 * jaw) * ny * ny * 1.6 : 1;
   const nx = x / (HC.rx * taper);
@@ -230,7 +246,7 @@ function faceZ(x: number, y: number, jaw: number): number {
 }
 
 /** The head: a rounded block, narrowing into the jaw and chin by face shape. */
-function headGeo(jaw: number, seg: number): THREE.BufferGeometry {
+export function headGeo(jaw: number, seg: number): THREE.BufferGeometry {
   const g = new THREE.SphereGeometry(1, seg, Math.max(6, seg - 3));
   const p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {
@@ -252,13 +268,13 @@ function headGeo(jaw: number, seg: number): THREE.BufferGeometry {
 // ---- palette --------------------------------------------------------------------------------
 
 /** Operator kit: charcoal jacket and trousers (≈70%), gunmetal gear, light-steel trims, white soles. */
-const JACKET = 0x23272e, JACKET2 = 0x323844, PANTS = 0x262a31, PLATE = 0x3b414c, STEEL = 0xa9b1bf, BOOT = 0x1c1f24, SOLE = 0xe4e6ea, GLOVE = 0x17191d;
-const dark = (c: number, k: number) => new THREE.Color(c).multiplyScalar(k).getHex();
-const light = (c: number, k = 0.12) => new THREE.Color(c).lerp(new THREE.Color(0xffffff), k).getHex();
+export const JACKET = 0x23272e, JACKET2 = 0x323844, PANTS = 0x262a31, PLATE = 0x3b414c, STEEL = 0xa9b1bf, BOOT = 0x1c1f24, SOLE = 0xe4e6ea, GLOVE = 0x17191d;
+export const dark = (c: number, k: number) => new THREE.Color(c).multiplyScalar(k).getHex();
+export const light = (c: number, k = 0.12) => new THREE.Color(c).lerp(new THREE.Color(0xffffff), k).getHex();
 
 /** Three hard tones for the cel shading (shared). */
 let gradient: THREE.DataTexture | null = null;
-function toonGradient(): THREE.DataTexture {
+export function toonGradient(): THREE.DataTexture {
   if (gradient) return gradient;
   const t = new THREE.DataTexture(new Uint8Array([120, 120, 120, 255, 196, 196, 196, 255, 255, 255, 255, 255]), 3, 1, THREE.RGBAFormat);
   t.minFilter = t.magFilter = THREE.NearestFilter;
@@ -272,7 +288,7 @@ function toonGradient(): THREE.DataTexture {
  * Cel shading with a thin cool rim (so figures separate from the city without an outline),
  * the faction light strips glowing softly, and the TRACE device lighting up with uTrace.
  */
-function makeMaterial(trace: { value: number }): THREE.MeshToonMaterial {
+export function makeMaterial(trace: { value: number }): THREE.MeshToonMaterial {
   const m = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient() });
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uTrace = trace;
@@ -321,7 +337,7 @@ export interface Human {
  * SPOTTER's marker: a compact handheld optic that fires a stun tag — not a rifle. Origin at
  * the grip, emitter along +Z, a glowing lens at the tip and a sight on top.
  */
-function buildMarker(color: number): { gun: THREE.Group; muzzle: THREE.Object3D } {
+export function buildMarker(color: number): { gun: THREE.Group; muzzle: THREE.Object3D } {
   const body: THREE.BufferGeometry[] = [], glow: THREE.BufferGeometry[] = [];
   const bx = (list: THREE.BufferGeometry[], w: number, h: number, d: number, x: number, y: number, z: number, rx = 0) =>
     list.push(new THREE.BoxGeometry(w, h, d).rotateX(rx).translate(x, y, z).toNonIndexed());
@@ -485,6 +501,32 @@ export function buildHuman(id: number, nationColor: number, emblemMat: THREE.Mat
   }
   addHair(b, look, H, C, HS);
 
+  return assembleHuman({ look, gear, J, b, g, nationColor, emblemMat, emblemAt: [0, unitY - J.chest[2] + 0.2, -3.0 - unitD - 0.4], emblemSize: 4.6 });
+}
+
+/** What a body style hands over to be turned into a character (shared by every style). */
+export interface HumanParts {
+  look: Look;
+  gear: Gear;
+  J: Record<BoneName, [BoneName | null, number, number, number]>;
+  /** The shared uniform, and the role gear layer. */
+  b: SkinBuilder;
+  g: SkinBuilder;
+  nationColor: number;
+  emblemMat: THREE.Material;
+  /** Emblem position on the chest bone, and its size. */
+  emblemAt: [number, number, number];
+  emblemSize: number;
+  /** Colour of the light strips for a faction colour (default: a touch lighter). */
+  stripColor?: (c: number) => number;
+}
+
+/**
+ * Turns built pieces into a character: face morphs, the gear/uniform geometries sharing one set
+ * of buffers, the skeleton, the emblem and the small API the renderer drives.
+ */
+export function assembleHuman(parts: HumanParts): Human {
+  const { look, gear, J, b, g, nationColor, emblemMat, emblemAt, emblemSize } = parts;
   // Expressions as morph targets (relative offsets of the face parts).
   const browR = (s: number, up: number, tilt: number) => (x: number, _y: number, _z: number, c: THREE.Vector3): [number, number, number] =>
     [0, up + tilt * (x - c.x) * s, 0];
@@ -550,8 +592,8 @@ export function buildHuman(id: number, nationColor: number, emblemMat: THREE.Mat
   mesh.receiveShadow = false;
   mesh.frustumCulled = false; // skinned bounds do not follow the pose
   // Faction emblem on the back unit, riding on the chest bone.
-  const emblem = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 4.6), emblemMat);
-  emblem.position.set(0, unitY - J.chest[2] + 0.2, -3.0 - unitD - 0.4);
+  const emblem = new THREE.Mesh(new THREE.PlaneGeometry(emblemSize, emblemSize), emblemMat);
+  emblem.position.set(...emblemAt);
   emblem.rotation.y = Math.PI;
   emblem.castShadow = false;
   bones.chest.add(emblem);
@@ -562,7 +604,7 @@ export function buildHuman(id: number, nationColor: number, emblemMat: THREE.Mat
     painted = color;
     // One colour buffer serves both geometries.
     const colorAttr = geoFull.attributes.color as THREE.BufferAttribute;
-    for (const [region, c] of [['cloth', color], ['band', color], ['clothDark', dark(color, 0.55)], ['light', light(color)], ['trace', light(color, 0.45)]] as [Region, number][]) {
+    for (const [region, c] of [['cloth', color], ['band', color], ['clothDark', dark(color, 0.55)], ['light', (parts.stripColor ?? light)(color)], ['trace', light(color, 0.45)]] as [Region, number][]) {
       const col = new THREE.Color(c);
       for (const [a, z] of full.regions.get(region) ?? []) for (let i = a; i < z; i++) colorAttr.setXYZ(i, col.r, col.g, col.b);
     }
@@ -587,7 +629,7 @@ export function buildHuman(id: number, nationColor: number, emblemMat: THREE.Mat
 }
 
 /** Modular low-poly hair: a crown cap, a back/sides shell, bangs, and the style's own pieces. */
-function addHair(b: SkinBuilder, look: Look, H: number, C: number, seg: number): void {
+export function addHair(b: SkinBuilder, look: Look, H: number, C: number, seg: number): void {
   const hs = look.hairStyle;
   const PI = Math.PI;
   const ws = Math.max(8, seg + 2), hseg = Math.max(4, Math.round(seg / 2));
