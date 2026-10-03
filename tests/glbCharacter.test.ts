@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { GLB_CLIPS, GLB_GAME_HEIGHT, GlbCharacter, accentTone, glbCharacterEnabled, parseGlb } from '../src/render/glbCharacter';
+import { GLB_CLIPS, GLB_GAME_HEIGHT, GlbCharacter, accentTone, glbCharacterEnabled, glbCharacterMode, parseGlb } from '../src/render/glbCharacter';
 import { NATIONS, NATION_IDS } from '../src/config/nations';
 
 /** GLB character integration test (player only, behind EXPERIMENTAL_GLB_CHARACTER). */
 
-import solUrl from '../src/assets/characters/TRI_TRACE_SOL_animated_v02.glb?inline';
+import solUrl from '../public/characters/TRI_TRACE_SOL_animated_v02.glb?inline';
 
-/** The bundled model, exactly as the page gets it (a data URL). */
+/** The model file's bytes. */
 const bytes = () => {
   const bin = atob(solUrl.slice(solUrl.indexOf(',') + 1));
   const u = new Uint8Array(bin.length);
@@ -37,6 +37,10 @@ describe('GLB player character (integration test)', () => {
     expect(glbCharacterEnabled('?debug')).toBe(false);
     expect(glbCharacterEnabled('?glb=1')).toBe(true);
     expect(glbCharacterEnabled('?glb=0')).toBe(false);
+    expect(glbCharacterMode('?glb=1')).toBe('proto');
+    expect(glbCharacterMode('?glb=meshy')).toBe('meshy');
+    expect(glbCharacterMode('?glb=meshy40')).toBe('meshy40');
+    expect(glbCharacterMode('?debug')).toBe('off');
   });
 
   it('has the six clips, and draws 71 source meshes as one skinned mesh (one rigid bone per moving part)', async () => {

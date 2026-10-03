@@ -519,6 +519,7 @@ function exposeDebug(state: GameState, cam: CameraController, tutorial: Tutorial
     /** GLB integration test: the player's GLB state, and a way to play its TRACE clip. */
     glb: () => entityView.glbInfo(state.player.id),
     glbTrace: () => entityView.glbTrace(state.player.id),
+    glbHold: (clip: string | null, t = 0) => entityView.glbHold(state.player.id, clip, t),
   };
 }
 

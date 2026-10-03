@@ -6,7 +6,7 @@ const tag = process.argv[2], base = process.argv[3];
   const W = Number(process.env.W ?? 1366), H = Number(process.env.H ?? 768);
   const { browser, p, errs } = await start({ base, deal: 'sun,ranger', W, H, mobile: W < 900, seed: 7 });
   const S = (f, ...a) => p.evaluate(f, ...a);
-  const shot = (n) => p.screenshot({ path: `../g3/${tag}-${n}.png` });
+  const shot = (n) => p.screenshot({ path: `../${process.env.OUT ?? 'g3'}/${tag}-${n}.png` });
   const clip = () => S(() => (window.__sangoku.glb() || {}).clip || '-');
   const log = {};
   const P = (await S(() => window.__sangoku.sites())).points[6];

@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import solGlbUrl from '../assets/characters/TRI_TRACE_SOL_animated_v02.glb?inline';
 import { toonGradient } from './humanModel';
 
 /**
@@ -15,17 +14,35 @@ import { toonGradient } from './humanModel';
  * collision, TRACE, speeds, rules, effects and online sync are exactly as before:
  * this file only decides what the player looks like.
  *
- * Off by default. For testing, `?glb=1` turns it on and `?glb=0` forces it off.
+ * Off by default. For testing (the model file is fetched only then):
+ * - `?glb=1`: the rigid-node prototype (`TRI_TRACE_SOL_animated_v02.glb`)
+ * - `?glb=meshy` / `?glb=meshy40`: the auto-rigged Meshy SOL, 60k / 40k triangles (see meshyCharacter.ts)
+ * - `?glb=0`: always the procedural body
  */
 export const EXPERIMENTAL_GLB_CHARACTER = false;
 
-export function glbCharacterEnabled(search = typeof location === 'undefined' ? '' : location.search): boolean {
+export type GlbMode = 'off' | 'proto' | 'meshy' | 'meshy40';
+
+export function glbCharacterMode(search = typeof location === 'undefined' ? '' : location.search): GlbMode {
   let q: string | null = null;
   try { q = new URLSearchParams(search).get('glb'); } catch { q = null; }
-  if (q === '1') return true;
-  if (q === '0') return false;
-  return EXPERIMENTAL_GLB_CHARACTER;
+  if (q === '1') return 'proto';
+  if (q === 'meshy' || q === 'meshy60') return 'meshy';
+  if (q === 'meshy40') return 'meshy40';
+  if (q === '0') return 'off';
+  return EXPERIMENTAL_GLB_CHARACTER ? 'proto' : 'off';
 }
+
+export function glbCharacterEnabled(search?: string): boolean {
+  return glbCharacterMode(search) !== 'off';
+}
+
+/** Where the model files live (static files next to the page; fetched only when a mode asks for them). */
+export const GLB_FILES: Record<Exclude<GlbMode, 'off'>, string> = {
+  proto: 'characters/TRI_TRACE_SOL_animated_v02.glb',
+  meshy: 'characters/TRI_TRACE_SOL_60k_rig_experimental.glb',
+  meshy40: 'characters/TRI_TRACE_SOL_40k_rig_experimental.glb',
+};
 
 /** The model's height in its own units (Y-up, feet at the origin, facing +Z). */
 export const GLB_MODEL_HEIGHT = 2.06;
@@ -58,23 +75,117 @@ export interface GlbDrive {
 
 export interface GlbStats { meshes: number; triangles: number; vertices: number; sourceMeshes: number; parts: number }
 
+/** What EntityView needs from a GLB body drawn over the player's invisible procedural rig. */
+export interface PlayerModel {
+  readonly root: THREE.Object3D;
+  readonly current: GlbClip;
+  readonly stats: GlbStats;
+  readonly clips: ClipPlayer;
+  /** Draws its own x-ray silhouette (else the procedural one stays on). */
+  readonly ownXray: boolean;
+  update(dt: number, d: GlbDrive): void;
+  setNationColor(hex: number): void;
+  setOpacity(opacity: number): void;
+  /** Whether it can show this faction's colours (a baked texture cannot be repainted). */
+  showsNation(hex: number): boolean;
+}
+
+/**
+ * Picks and cross-fades the six clips from the existing movement state. Locomotion clips play
+ * at the game's stride rate (one clip = one stride cycle), so feet do not skate.
+ */
+export class ClipPlayer {
+  readonly actions = new Map<GlbClip, THREE.AnimationAction>();
+  current: GlbClip = 'Idle';
+  private traceLeft = 0;
+  /** For checks: a pose held still (clip at a time), or null to play normally. */
+  held: { clip: GlbClip; t: number } | null = null;
+
+  constructor(readonly mixer: THREE.AnimationMixer, clips: THREE.AnimationClip[], private traceSpeed = 1.4) {
+    for (const name of GLB_CLIPS) {
+      const clip = clips.find((c) => c.name === name);
+      if (!clip) continue;
+      const act = mixer.clipAction(clip);
+      if (name === 'Trace') { act.setLoop(THREE.LoopOnce, 1); act.clampWhenFinished = true; }
+      this.actions.set(name, act);
+    }
+    this.actions.get('Idle')?.play();
+  }
+
+  /** Which clip fits the moment (with a little hysteresis so it does not flicker at a boundary). */
+  pick(d: GlbDrive): GlbClip {
+    if (this.traceLeft > 0) return 'Trace';
+    if (d.held) return 'Idle';
+    const s = d.speed, cur = this.current, h = (clip: GlbClip, up: number) => (cur === clip ? up - 15 : up + 15);
+    // Turning on the spot, or a sharp turn at walking pace (swinging round to run the other way).
+    const spin = Math.abs(d.turnRate) > (cur === 'Turn' ? 1.2 : 1.6);
+    if (spin && s < h('Run', 150)) return 'Turn';
+    if (s < h('Walk', 20)) return 'Idle';
+    if (s < h('Run', 150)) return 'Walk';
+    if (s < h('Sprint', 300)) return 'Run';
+    return 'Sprint';
+  }
+
+  /** For checks: holds one clip at time t (seconds), or resumes normal play with null. */
+  hold(clip: GlbClip | null, t = 0): void {
+    this.held = clip ? { clip, t } : null;
+    if (!clip) return;
+    for (const a of this.actions.values()) a.stop();
+    const act = this.actions.get(clip);
+    if (!act) return;
+    act.reset().setEffectiveWeight(1).play();
+    act.time = t;
+    this.current = clip;
+    this.mixer.update(0);
+  }
+
+  update(dt: number, d: GlbDrive): void {
+    if (this.held) return;
+    if (d.trace && this.actions.has('Trace')) this.traceLeft = this.actions.get('Trace')!.getClip().duration / this.traceSpeed;
+    this.traceLeft = Math.max(0, this.traceLeft - dt);
+    const want = this.pick(d);
+    if (want !== this.current) this.fade(want, want === 'Trace' ? 0.1 : 0.2);
+    const act = this.actions.get(this.current);
+    if (act) {
+      if (this.current === 'Walk' || this.current === 'Run' || this.current === 'Sprint') {
+        const stride = Math.min(78, 34 + d.speed * 0.09); // entityView's stride
+        const hz = d.speed / (2 * stride);
+        act.timeScale = THREE.MathUtils.clamp(hz * act.getClip().duration, 0.5, 3.2);
+      } else if (this.current === 'Turn') act.timeScale = THREE.MathUtils.clamp(Math.abs(d.turnRate) / 3, 0.8, 1.8);
+      else act.timeScale = this.current === 'Trace' ? this.traceSpeed : 1;
+    }
+    this.mixer.update(dt);
+  }
+
+  private fade(to: GlbClip, sec: number): void {
+    const from = this.actions.get(this.current), next = this.actions.get(to);
+    if (!next) return;
+    const loco = (c: GlbClip) => c === 'Walk' || c === 'Run' || c === 'Sprint';
+    next.reset();
+    // Keep the stride phase across walk / run / sprint so the feet stay in step.
+    if (from && loco(this.current) && loco(to)) next.time = (from.time / from.getClip().duration) * next.getClip().duration;
+    next.setEffectiveWeight(1).play();
+    if (from) from.crossFadeTo(next, sec, false);
+    this.current = to;
+  }
+}
+
 /**
  * The prepared character: meshes merged per moving part (71 → one per part), the game's
  * cel shading, faction recolouring, an x-ray silhouette and an AnimationMixer with
  * short cross-fades between the clips.
  */
-export class GlbCharacter {
+export class GlbCharacter implements PlayerModel {
   readonly root = new THREE.Group();
   readonly mixer: THREE.AnimationMixer;
-  readonly actions = new Map<GlbClip, THREE.AnimationAction>();
+  readonly clips: ClipPlayer;
+  readonly ownXray = true;
   readonly material: THREE.MeshToonMaterial;
   readonly stats: GlbStats;
   /** The single skinned body mesh. */
   body!: THREE.SkinnedMesh;
-  current: GlbClip = 'Idle';
   private colorAttrs: { attr: THREE.BufferAttribute; accent: number[]; tint: number[] }[] = [];
   private painted = -1;
-  private traceLeft = 0;
   private xrayMat: THREE.MeshBasicMaterial;
 
   constructor(gltf: GLTF, xrayColor: number) {
@@ -98,15 +209,14 @@ export class GlbCharacter {
     this.root.add(model);
     this.root.name = 'glb-character';
     this.mixer = new THREE.AnimationMixer(model);
-    for (const name of GLB_CLIPS) {
-      const clip = gltf.animations.find((c) => c.name === name);
-      if (!clip) continue;
-      const act = this.mixer.clipAction(clip);
-      if (name === 'Trace') { act.setLoop(THREE.LoopOnce, 1); act.clampWhenFinished = true; }
-      this.actions.set(name, act);
-    }
-    this.actions.get('Idle')?.play();
+    this.clips = new ClipPlayer(this.mixer, gltf.animations);
   }
+
+  get actions(): Map<GlbClip, THREE.AnimationAction> { return this.clips.actions; }
+  get current(): GlbClip { return this.clips.current; }
+  showsNation(): boolean { return true; }
+  pick(d: GlbDrive): GlbClip { return this.clips.pick(d); }
+  update(dt: number, d: GlbDrive): void { this.clips.update(dt, d); }
 
   /**
    * The animation is rigid (each moving part follows one node), so the whole body becomes
@@ -196,51 +306,6 @@ export class GlbCharacter {
     this.material.opacity = opacity;
   }
 
-  /** Which clip fits the moment (with a little hysteresis so it does not flicker at a boundary). */
-  pick(d: GlbDrive): GlbClip {
-    if (this.traceLeft > 0) return 'Trace';
-    if (d.held) return 'Idle';
-    const s = d.speed, cur = this.current, h = (clip: GlbClip, up: number) => (cur === clip ? up - 15 : up + 15);
-    // Turning on the spot, or a sharp turn at walking pace (swinging round to run the other way).
-    const spin = Math.abs(d.turnRate) > (cur === 'Turn' ? 1.2 : 1.6);
-    if (spin && s < h('Run', 150)) return 'Turn';
-    if (s < h('Walk', 20)) return 'Idle';
-    if (s < h('Run', 150)) return 'Walk';
-    if (s < h('Sprint', 300)) return 'Run';
-    return 'Sprint';
-  }
-
-  /** Steps the animation. Locomotion clips play at the game's stride rate, so feet do not skate. */
-  update(dt: number, d: GlbDrive): void {
-    if (d.trace && this.actions.has('Trace')) this.traceLeft = this.actions.get('Trace')!.getClip().duration / 1.4;
-    this.traceLeft = Math.max(0, this.traceLeft - dt);
-    const want = this.pick(d);
-    if (want !== this.current) this.fade(want, want === 'Trace' ? 0.1 : 0.2);
-    const act = this.actions.get(this.current);
-    if (act) {
-      if (this.current === 'Walk' || this.current === 'Run' || this.current === 'Sprint') {
-        // One clip = one full stride cycle (two steps); the game's stride is entityView's.
-        const stride = Math.min(78, 34 + d.speed * 0.09);
-        const hz = d.speed / (2 * stride);
-        act.timeScale = THREE.MathUtils.clamp(hz * act.getClip().duration, 0.5, 3.2);
-      } else if (this.current === 'Turn') act.timeScale = THREE.MathUtils.clamp(Math.abs(d.turnRate) / 3, 0.8, 1.8);
-      else act.timeScale = this.current === 'Trace' ? 1.4 : 1;
-    }
-    this.mixer.update(dt);
-  }
-
-  private fade(to: GlbClip, sec: number): void {
-    const from = this.actions.get(this.current), next = this.actions.get(to);
-    if (!next) return;
-    const loco = (c: GlbClip) => c === 'Walk' || c === 'Run' || c === 'Sprint';
-    next.reset();
-    // Keep the stride phase across walk / run / sprint so the feet stay in step.
-    if (from && loco(this.current) && loco(to)) next.time = (from.time / from.getClip().duration) * next.getClip().duration;
-    next.setEffectiveWeight(1).play();
-    if (from) from.crossFadeTo(next, sec, false);
-    this.current = to;
-  }
-
   dispose(): void {
     this.root.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).geometry.dispose(); });
     this.material.dispose();
@@ -253,11 +318,16 @@ export function parseGlb(data: ArrayBuffer): Promise<GLTF> {
   return new GLTFLoader().parseAsync(data, '');
 }
 
-let pending: Promise<GLTF> | null = null;
-/** Loads the bundled SOL GLB once (the file ships inside the page). */
-export function loadSolGlb(): Promise<GLTF> {
-  pending ??= fetch(solGlbUrl)
-    .then((r) => r.arrayBuffer())
-    .then(parseGlb);
-  return pending;
+const pending = new Map<string, Promise<GLTF>>();
+/** Loads a model file once (relative to the page). Only called when a GLB mode is on. */
+export function loadGlb(file: string): Promise<GLTF> {
+  let p = pending.get(file);
+  if (!p) {
+    p = fetch(file).then((r) => {
+      if (!r.ok) throw new Error(`${file}: HTTP ${r.status}`);
+      return r.arrayBuffer();
+    }).then(parseGlb);
+    pending.set(file, p);
+  }
+  return p;
 }

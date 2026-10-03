@@ -13,7 +13,9 @@ import { jailPose, lockPose, stunPose } from './poses';
 import { sniperTarget } from '../sim/systems/abilities';
 import { canAct, captureCandidate } from '../sim/systems/capture';
 import { gearReveal } from './gearReveal';
-import { GlbCharacter, glbCharacterEnabled, loadSolGlb } from './glbCharacter';
+import { GLB_FILES, GlbCharacter, glbCharacterMode, loadGlb } from './glbCharacter';
+import type { PlayerModel } from './glbCharacter';
+import { MeshyCharacter } from './meshyCharacter';
 
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -29,7 +31,9 @@ const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 interface Anim {
   human: Human;
   /** Integration test: the GLB body drawn instead of `human` (player only; null = procedural). */
-  glb: GlbCharacter | null;
+  glb: PlayerModel | null;
+  /** Whether the GLB is the body shown right now (else the procedural one is). */
+  glbOn: boolean;
   /** A TRACE was made this frame (one-shot for the GLB clip). */
   traced: boolean;
   /** ピヨピヨ: stars circling over the head while stunned (made on first use). */
@@ -158,9 +162,9 @@ export class EntityView {
       if (e.isPlayer) addXray(human.mesh, NATIONS[e.nation].color);
       human.mesh.scale.setScalar(human.look.height);
       scene.add(human.mesh);
-      if (e.isPlayer && glbCharacterEnabled()) this.attachGlb(e.id, NATIONS[e.nation].color);
+      if (e.isPlayer && glbCharacterMode() !== 'off') this.attachGlb(e.id, NATIONS[e.nation].color);
       this.anims.set(e.id, {
-        human, glb: null, traced: false, phase: (e.id * 1.7) % (Math.PI * 2), yaw: Math.atan2(e.dirX, e.dirZ), turnRate: 0, speed: 0,
+        human, glb: null, glbOn: false, traced: false, phase: (e.id * 1.7) % (Math.PI * 2), yaw: Math.atan2(e.dirX, e.dirZ), turnRate: 0, speed: 0,
         headYaw: 0, reach: 0, lastCapCd: e.cd.capture, nation: e.nation, aim: 0, recoil: 0, lastSpecialCd: e.cd.special,
         accel: 0, still: 0, land: 0, airborne: false, turnStep: 0, stars: null,
         face: [0, 0, 0, 0], trace: 0, proud: 0, lag: 0, reveal: 0, lastHp: e.hp,
@@ -176,22 +180,38 @@ export class EntityView {
    * If loading fails, the procedural body simply stays visible.
    */
   private attachGlb(id: number, xray: number): void {
-    loadSolGlb().then((gltf) => {
+    const mode = glbCharacterMode();
+    if (mode === 'off') return;
+    loadGlb(GLB_FILES[mode]).then((gltf) => {
       const a = this.anims.get(id);
       if (!a) return;
-      const glb = new GlbCharacter(gltf, xray);
-      a.human.material.visible = false;
-      a.human.emblem.visible = false;
-      for (const c of a.human.mesh.children) if ((c as THREE.SkinnedMesh).isSkinnedMesh) c.visible = false; // its x-ray
+      const glb: PlayerModel = mode === 'proto' ? new GlbCharacter(gltf, xray) : new MeshyCharacter(gltf);
+      glb.root.visible = false;
       a.human.mesh.add(glb.root);
       a.glb = glb;
-    }).catch((err) => { console.warn('GLB character: staying on the procedural body', err); });
+    }).catch((err: unknown) => { console.warn('GLB character: staying on the procedural body', err); });
+  }
+
+  /** Shows the GLB body or the procedural one (which then is visible again, x-ray and all). */
+  private useGlb(a: Anim, on: boolean): void {
+    if (!a.glb || a.glbOn === on) return;
+    a.glbOn = on;
+    a.glb.root.visible = on;
+    a.human.material.visible = !on;
+    a.human.emblem.visible = !on;
+    // The procedural x-ray stays on for a GLB that has none of its own.
+    for (const c of a.human.mesh.children) if ((c as THREE.SkinnedMesh).isSkinnedMesh) c.visible = !on || !a.glb.ownXray;
   }
 
   /** For checks: the GLB state of the player (null when the test is off or not loaded yet). */
-  glbInfo(id: number): { clip: string; stats: GlbCharacter['stats'] } | null {
-    const g = this.anims.get(id)?.glb;
-    return g ? { clip: g.current, stats: g.stats } : null;
+  glbInfo(id: number): { clip: string; on: boolean; stats: PlayerModel['stats'] } | null {
+    const a = this.anims.get(id), g = a?.glb;
+    return g ? { clip: g.current, on: a!.glbOn, stats: g.stats } : null;
+  }
+
+  /** For checks: hold the player's GLB in one clip at time t (null resumes). */
+  glbHold(id: number, clip: string | null, t = 0): void {
+    this.anims.get(id)?.glb?.clips.hold(clip as never, t);
   }
 
   /** For checks: play the TRACE motion as if a TRACE had just been made (GLB clip, or the procedural grab). */
@@ -231,7 +251,10 @@ export class EntityView {
       mesh.rotation.y = yaw;
       const shown = effNation(state, e, p.nation);
       a.human.setNationColor(NATIONS[shown].color);
-      a.glb?.setNationColor(NATIONS[shown].color);
+      if (a.glb) {
+        a.glb.setNationColor(NATIONS[shown].color);
+        this.useGlb(a, a.glb.showsNation(NATIONS[shown].color));
+      }
       if (a.nation !== shown) {
         a.nation = shown;
         a.human.emblem.material = (e.isPlayer ? this.playerEmblemMats : this.emblemMats)[shown];
